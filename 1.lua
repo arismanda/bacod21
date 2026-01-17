@@ -1,0 +1,431 @@
+-- MOBILE FISH SPAMMER ZETA
+-- Compatible with: Android/iOS, Delta Mobile, ScriptWARE Mobile, etc.
+
+print("📱 MOBILE FISH SPAMMER LOADING...")
+
+-- Deteksi platform
+local isMobile = (game:GetService("UserInputService").TouchEnabled and not game:GetService("UserInputService").KeyboardEnabled)
+if not isMobile then
+    warn("⚠️ This script is optimized for mobile. Some features may not work on PC.")
+end
+
+-- Wait for game
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+while not player do
+    task.wait(0.5)
+    player = Players.LocalPlayer
+end
+
+-- Mobile-optimized GUI
+local function createMobileGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MobileFishSpammer"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true -- Important for mobile!
+    
+    -- Main container (mobile-friendly sizing)
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(1, 0, 0, 300) -- Full width
+    mainContainer.Position = UDim2.new(0, 0, 0.5, -150) -- Center vertically
+    mainContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.Parent = screenGui
+    
+    -- Header (big touch area)
+    local header = Instance.new("TextButton") -- Using button for better touch
+    header.Size = UDim2.new(1, 0, 0, 50)
+    header.Text = "🎣 MOBILE FISH SPAMMER 📱"
+    header.TextColor3 = Color3.new(1, 1, 1)
+    header.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    header.Font = Enum.Font.SourceSansBold
+    header.TextSize = 20
+    header.TextScaled = true -- Mobile text scaling
+    header.AutoButtonColor = false
+    header.Parent = mainContainer
+    
+    -- Status display (big text for mobile)
+    local statusFrame = Instance.new("Frame")
+    statusFrame.Size = UDim2.new(1, -20, 0, 40)
+    statusFrame.Position = UDim2.new(0, 10, 0, 60)
+    statusFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    statusFrame.BorderSizePixel = 1
+    statusFrame.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    statusFrame.Parent = mainContainer
+    
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(1, 0, 1, 0)
+    statusText.Text = "🟢 READY"
+    statusText.TextColor3 = Color3.fromRGB(0, 255, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.Font = Enum.Font.SourceSansBold
+    statusText.TextSize = 18
+    statusText.TextScaled = true
+    statusText.Parent = statusFrame
+    
+    -- Fish ID input (mobile keyboard optimized)
+    local fishIdLabel = Instance.new("TextLabel")
+    fishIdLabel.Size = UDim2.new(1, -20, 0, 30)
+    fishIdLabel.Position = UDim2.new(0, 10, 0, 110)
+    fishIdLabel.Text = "Fish ID:"
+    fishIdLabel.TextColor3 = Color3.new(1, 1, 1)
+    fishIdLabel.BackgroundTransparency = 1
+    fishIdLabel.Font = Enum.Font.SourceSans
+    fishIdLabel.TextSize = 16
+    fishIdLabel.TextScaled = true
+    fishIdLabel.Parent = mainContainer
+    
+    local fishIdBox = Instance.new("TextBox")
+    fishIdBox.Size = UDim2.new(1, -20, 0, 40)
+    fishIdBox.Position = UDim2.new(0, 10, 0, 145)
+    fishIdBox.Text = "safsafwaetqw3fsa"
+    fishIdBox.TextColor3 = Color3.new(1, 1, 1)
+    fishIdBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    fishIdBox.BorderSizePixel = 1
+    fishIdBox.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    fishIdBox.Font = Enum.Font.SourceSans
+    fishIdBox.TextSize = 16
+    fishIdBox.TextScaled = true
+    fishIdBox.PlaceholderText = "Tap to enter Fish ID..."
+    fishIdBox.ClearTextOnFocus = false -- Mobile friendly
+    fishIdBox.Parent = mainContainer
+    
+    -- Delay control (big touch buttons)
+    local delayLabel = Instance.new("TextLabel")
+    delayLabel.Size = UDim2.new(0.6, -10, 0, 30)
+    delayLabel.Position = UDim2.new(0, 10, 0, 195)
+    delayLabel.Text = "Delay: 0.5s"
+    delayLabel.TextColor3 = Color3.new(1, 1, 1)
+    delayLabel.BackgroundTransparency = 1
+    delayLabel.Font = Enum.Font.SourceSans
+    delayLabel.TextSize = 16
+    delayLabel.TextScaled = true
+    delayLabel.Parent = mainContainer
+    
+    -- Plus button (big for touch)
+    local plusBtn = Instance.new("TextButton")
+    plusBtn.Size = UDim2.new(0.18, 0, 0, 40)
+    plusBtn.Position = UDim2.new(0.6, 10, 0, 190)
+    plusBtn.Text = "+"
+    plusBtn.TextColor3 = Color3.new(0, 1, 0)
+    plusBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 40)
+    plusBtn.Font = Enum.Font.SourceSansBold
+    plusBtn.TextSize = 24
+    plusBtn.TextScaled = true
+    plusBtn.Parent = mainContainer
+    
+    -- Minus button (big for touch)
+    local minusBtn = Instance.new("TextButton")
+    minusBtn.Size = UDim2.new(0.18, 0, 0, 40)
+    minusBtn.Position = UDim2.new(0.8, 10, 0, 190)
+    minusBtn.Text = "-"
+    minusBtn.TextColor3 = Color3.new(1, 0, 0)
+    minusBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 40)
+    minusBtn.Font = Enum.Font.SourceSansBold
+    minusBtn.TextSize = 24
+    minusBtn.TextScaled = true
+    minusBtn.Parent = mainContainer
+    
+    -- Loop counter
+    local loopLabel = Instance.new("TextLabel")
+    loopLabel.Size = UDim2.new(1, -20, 0, 30)
+    loopLabel.Position = UDim2.new(0, 10, 0, 240)
+    loopLabel.Text = "Loops: 0"
+    loopLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+    loopLabel.BackgroundTransparency = 1
+    loopLabel.Font = Enum.Font.SourceSansBold
+    loopLabel.TextSize = 18
+    loopLabel.TextScaled = true
+    loopLabel.Parent = mainContainer
+    
+    -- Control buttons (big for mobile)
+    local startBtn = Instance.new("TextButton")
+    startBtn.Size = UDim2.new(0.48, -5, 0, 50)
+    startBtn.Position = UDim2.new(0, 10, 1, -60)
+    startBtn.Text = "▶ START"
+    startBtn.TextColor3 = Color3.new(0, 1, 0)
+    startBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 40)
+    startBtn.Font = Enum.Font.SourceSansBold
+    startBtn.TextSize = 20
+    startBtn.TextScaled = true
+    startBtn.Parent = mainContainer
+    
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(0.48, -5, 0, 50)
+    stopBtn.Position = UDim2.new(0.52, 5, 1, -60)
+    stopBtn.Text = "⏹ STOP"
+    stopBtn.TextColor3 = Color3.new(1, 0.5, 0)
+    stopBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 20)
+    stopBtn.Font = Enum.Font.SourceSansBold
+    stopBtn.TextSize = 20
+    stopBtn.TextScaled = true
+    stopBtn.Parent = mainContainer
+    
+    -- Close button (top right)
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 50, 0, 30)
+    closeBtn.Position = UDim2.new(1, -60, 0, 10)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    closeBtn.Font = Enum.Font.SourceSansBold
+    closeBtn.TextSize = 18
+    closeBtn.TextScaled = true
+    closeBtn.Parent = mainContainer
+    
+    -- Mobile notification
+    local notifyLabel = Instance.new("TextLabel")
+    notifyLabel.Size = UDim2.new(1, -20, 0, 40)
+    notifyLabel.Position = UDim2.new(0, 10, 1, 10)
+    notifyLabel.Text = ""
+    notifyLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+    notifyLabel.BackgroundTransparency = 1
+    notifyLabel.Font = Enum.Font.SourceSans
+    notifyLabel.TextSize = 14
+    notifyLabel.TextScaled = true
+    notifyLabel.Visible = false
+    notifyLabel.Parent = screenGui
+    
+    return {
+        Gui = screenGui,
+        MainContainer = mainContainer,
+        StatusText = statusText,
+        FishIdBox = fishIdBox,
+        DelayLabel = delayLabel,
+        PlusBtn = plusBtn,
+        MinusBtn = minusBtn,
+        LoopLabel = loopLabel,
+        StartBtn = startBtn,
+        StopBtn = stopBtn,
+        CloseBtn = closeBtn,
+        NotifyLabel = notifyLabel,
+        Header = header
+    }
+end
+
+-- Mobile notification system
+local function mobileNotify(text, duration)
+    local ui = _G.MobileFishUI
+    if not ui then return end
+    
+    ui.NotifyLabel.Text = text
+    ui.NotifyLabel.Visible = true
+    
+    task.spawn(function()
+        task.wait(duration or 3)
+        if ui and ui.NotifyLabel then
+            ui.NotifyLabel.Visible = false
+        end
+    end)
+end
+
+-- Create and setup GUI
+local ui = createMobileGUI()
+ui.Gui.Parent = player:WaitForChild("PlayerGui")
+_G.MobileFishUI = ui -- Store globally for notifications
+
+-- Variables
+local isSpamming = false
+local loopCount = 0
+local currentDelay = 0.5 -- Default lebih lambat untuk mobile
+local spamThread = nil
+
+-- Fish sending function (mobile optimized)
+local function sendFish()
+    local fishId = ui.FishIdBox.Text
+    if fishId == "" or fishId == ui.FishIdBox.PlaceholderText then
+        mobileNotify("⚠️ Enter Fish ID first!", 2)
+        return false
+    end
+    
+    local args = {[1] = fishId}
+    
+    local success, result = pcall(function()
+        return game:GetService("ReplicatedStorage").GiveFishFunction:InvokeServer(unpack(args))
+    end)
+    
+    if success then
+        return true
+    else
+        mobileNotify("❌ Error: " .. tostring(result):sub(1, 30), 3)
+        return false
+    end
+end
+
+-- Update display
+local function updateDisplay()
+    ui.LoopLabel.Text = "Loops: " .. tostring(loopCount)
+end
+
+-- Delay controls (mobile touch optimized)
+ui.PlusBtn.MouseButton1Click:Connect(function()
+    currentDelay = currentDelay + 0.1
+    if currentDelay > 5 then currentDelay = 5 end -- Max 5 seconds for mobile
+    ui.DelayLabel.Text = "Delay: " .. string.format("%.1f", currentDelay) .. "s"
+    mobileNotify("Delay: " .. string.format("%.1f", currentDelay) .. "s", 1)
+end)
+
+ui.MinusBtn.MouseButton1Click:Connect(function()
+    currentDelay = currentDelay - 0.1
+    if currentDelay < 0.1 then currentDelay = 0.1 end -- Min 0.1 seconds
+    ui.DelayLabel.Text = "Delay: " .. string.format("%.1f", currentDelay) .. "s"
+    mobileNotify("Delay: " .. string.format("%.1f", currentDelay) .. "s", 1)
+end)
+
+-- Fish ID box focus handling (mobile)
+ui.FishIdBox.Focused:Connect(function()
+    mobileNotify("📝 Type Fish ID...", 1)
+end)
+
+ui.FishIdBox.FocusLost:Connect(function()
+    if ui.FishIdBox.Text == "" then
+        ui.FishIdBox.Text = "safsafwaetqw3fsa"
+    end
+end)
+
+-- Start button
+ui.StartBtn.MouseButton1Click:Connect(function()
+    if isSpamming then return end
+    
+    isSpamming = true
+    ui.StatusText.Text = "🟢 SPAMMING"
+    ui.StatusText.TextColor3 = Color3.fromRGB(0, 255, 0)
+    
+    mobileNotify("▶ Started fish spam!", 2)
+    
+    -- Start spam thread
+    spamThread = task.spawn(function()
+        while isSpamming do
+            local success = sendFish()
+            if success then
+                loopCount = loopCount + 1
+                updateDisplay()
+                
+                -- Mobile vibration simulation (visual feedback)
+                if loopCount % 10 == 0 then
+                    mobileNotify("🎣 " .. loopCount .. " fish sent!", 1)
+                end
+            end
+            
+            task.wait(currentDelay)
+        end
+    end)
+end)
+
+-- Stop button
+ui.StopBtn.MouseButton1Click:Connect(function()
+    if not isSpamming then return end
+    
+    isSpamming = false
+    if spamThread then
+        task.cancel(spamThread)
+        spamThread = nil
+    end
+    
+    ui.StatusText.Text = "🔴 STOPPED"
+    ui.StatusText.TextColor3 = Color3.fromRGB(255, 50, 50)
+    
+    mobileNotify("⏹ Stopped after " .. loopCount .. " loops", 3)
+end)
+
+-- Close button
+ui.CloseBtn.MouseButton1Click:Connect(function()
+    isSpamming = false
+    if spamThread then
+        task.cancel(spamThread)
+    end
+    
+    ui.Gui:Destroy()
+    _G.MobileFishUI = nil
+end)
+
+-- Header drag (mobile swipe to move)
+local dragging = false
+local dragStart, startPos
+
+ui.Header.MouseButton1Down:Connect(function()
+    dragging = true
+    dragStart = game:GetService("UserInputService"):GetMouseLocation()
+    startPos = ui.MainContainer.Position
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    if dragging then
+        local currentMouse = game:GetService("UserInputService"):GetMouseLocation()
+        local delta = currentMouse - dragStart
+        
+        -- Mobile screen boundary check
+        local screenSize = workspace.CurrentCamera.ViewportSize
+        local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - ui.MainContainer.AbsoluteSize.X)
+        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - ui.MainContainer.AbsoluteSize.Y)
+        
+        ui.MainContainer.Position = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+-- Mobile gestures support
+local lastTouchTime = 0
+local touchCount = 0
+
+game:GetService("UserInputService").TouchTap:Connect(function(touchPos, gameProcessed)
+    if gameProcessed then return end
+    
+    local currentTime = tick()
+    if currentTime - lastTouchTime < 0.5 then
+        touchCount = touchCount + 1
+        if touchCount >= 3 then
+            -- Triple tap to reset counter
+            loopCount = 0
+            updateDisplay()
+            mobileNotify("🔄 Counter reset!", 1)
+            touchCount = 0
+        end
+    else
+        touchCount = 1
+    end
+    lastTouchTime = currentTime
+end)
+
+-- Mobile auto-pause when minimized
+game:GetService("GuiService"):GetPropertyChangedSignal("MenuIsOpen"):Connect(function()
+    if game:GetService("GuiService").MenuIsOpen and isSpamming then
+        ui.StopBtn.MouseButton1Click()
+        mobileNotify("⏸ Auto-paused (menu open)", 2)
+    end
+end)
+
+-- Battery saving mode (slower when battery low)
+if isMobile then
+    task.spawn(function()
+        while task.wait(10) do
+            if isSpamming and currentDelay < 0.3 then
+                mobileNotify("⚡ Using fast mode", 1)
+            end
+        end
+    end)
+end
+
+-- Mobile orientation handling
+game:GetService("GuiService"):GetPropertyChangedSignal("ScreenResolution"):Connect(function()
+    task.wait(0.5) -- Wait for rotation to complete
+    
+    -- Recenter GUI after rotation
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    local newY = math.clamp(ui.MainContainer.Position.Y.Offset, 0, screenSize.Y - ui.MainContainer.AbsoluteSize.Y)
+    ui.MainContainer.Position = UDim2.new(ui.MainContainer.Position.X.Scale, ui.MainContainer.Position.X.Offset, 0, newY)
+    
+    mobileNotify("🔄 Screen rotated", 1)
+end)
+
+-- Initial notification
+mobileNotify("📱 Mobile Fish Spammer Ready!", 3)
