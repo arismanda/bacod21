@@ -1,194 +1,198 @@
--- MOBILE FISH SPAMMER ZETA v2.0
--- Ultra optimized for mobile, with hide/show toggle
+-- MOBILE FISH SPAMMER ZETA
+-- Compatible with: Android/iOS, Delta Mobile, ScriptWARE Mobile, etc.
 
-print("📱 ZETA MOBILE FISH SPAMMER LOADING...")
+print("📱 MOBILE FISH SPAMMER LOADING...")
 
--- Deteksi mobile
-local UserInputService = game:GetService("UserInputService")
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+-- Deteksi platform
+local isMobile = (game:GetService("UserInputService").TouchEnabled and not game:GetService("UserInputService").KeyboardEnabled)
+if not isMobile then
+    warn("⚠️ This script is optimized for mobile. Some features may not work on PC.")
+end
 
--- Wait for everything
-if not game:IsLoaded() then game.Loaded:Wait() end
+-- Wait for game
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-while not player do task.wait(0.5); player = Players.LocalPlayer end
+while not player do
+    task.wait(0.5)
+    player = Players.LocalPlayer
+end
 
--- Mobile optimized GUI
+-- Mobile-optimized GUI
 local function createMobileGUI()
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ZetaMobileSpammer"
+    screenGui.Name = "MobileFishSpammer"
     screenGui.ResetOnSpawn = false
-    screenGui.IgnoreGuiInset = true
+    screenGui.IgnoreGuiInset = true -- Important for mobile!
     
-    -- Main Container (compact for mobile)
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 280, 0, 220) -- Compact size
-    mainFrame.Position = UDim2.new(0, 10, 0, 10) -- Top-left corner
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    mainFrame.BorderSizePixel = 2
-    mainFrame.BorderColor3 = Color3.fromRGB(100, 0, 0)
-    mainFrame.Visible = true -- Start visible
-    mainFrame.Parent = screenGui
+    -- Main container (mobile-friendly sizing)
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(1, 0, 0, 300) -- Full width
+    mainContainer.Position = UDim2.new(0, 0, 0.5, -150) -- Center vertically
+    mainContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.Parent = screenGui
     
-    -- Mini Toggle Button (when hidden)
-    local miniToggle = Instance.new("TextButton")
-    miniToggle.Size = UDim2.new(0, 50, 0, 50)
-    miniToggle.Position = UDim2.new(0, 10, 0, 10)
-    miniToggle.Text = "🎣"
-    miniToggle.TextColor3 = Color3.new(1, 1, 1)
-    miniToggle.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
-    miniToggle.Font = Enum.Font.SourceSansBold
-    miniToggle.TextSize = 24
-    miniToggle.Visible = false -- Start hidden
-    miniToggle.Parent = screenGui
+    -- Header (big touch area)
+    local header = Instance.new("TextButton") -- Using button for better touch
+    header.Size = UDim2.new(1, 0, 0, 50)
+    header.Text = "🎣 MOBILE FISH SPAMMER 📱"
+    header.TextColor3 = Color3.new(1, 1, 1)
+    header.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    header.Font = Enum.Font.SourceSansBold
+    header.TextSize = 20
+    header.TextScaled = true -- Mobile text scaling
+    header.AutoButtonColor = false
+    header.Parent = mainContainer
     
-    -- Title Bar (drag + hide button)
-    local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
-    titleBar.BackgroundColor3 = Color3.fromRGB(40, 0, 0)
-    titleBar.Parent = mainFrame
-    
-    local titleText = Instance.new("TextLabel")
-    titleText.Size = UDim2.new(1, -60, 1, 0)
-    titleText.Text = "🎣 ZETA MOBILE"
-    titleText.TextColor3 = Color3.new(1, 1, 1)
-    titleText.BackgroundTransparency = 1
-    titleText.Font = Enum.Font.SourceSansBold
-    titleText.TextSize = 14
-    titleText.Parent = titleBar
-    
-    -- Hide/Show Button
-    local hideButton = Instance.new("TextButton")
-    hideButton.Size = UDim2.new(0, 30, 1, 0)
-    hideButton.Position = UDim2.new(1, -30, 0, 0)
-    hideButton.Text = "➖"
-    hideButton.TextColor3 = Color3.new(1, 1, 1)
-    hideButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    hideButton.Font = Enum.Font.SourceSansBold
-    hideButton.TextSize = 16
-    hideButton.Parent = titleBar
-    
-    -- Status Display
-    local statusBox = Instance.new("Frame")
-    statusBox.Size = UDim2.new(1, -20, 0, 30)
-    statusBox.Position = UDim2.new(0, 10, 0, 35)
-    statusBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    statusBox.BorderSizePixel = 1
-    statusBox.Parent = mainFrame
+    -- Status display (big text for mobile)
+    local statusFrame = Instance.new("Frame")
+    statusFrame.Size = UDim2.new(1, -20, 0, 40)
+    statusFrame.Position = UDim2.new(0, 10, 0, 60)
+    statusFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    statusFrame.BorderSizePixel = 1
+    statusFrame.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    statusFrame.Parent = mainContainer
     
     local statusText = Instance.new("TextLabel")
     statusText.Size = UDim2.new(1, 0, 1, 0)
-    statusText.Text = "READY"
+    statusText.Text = "🟢 READY"
     statusText.TextColor3 = Color3.fromRGB(0, 255, 0)
     statusText.BackgroundTransparency = 1
     statusText.Font = Enum.Font.SourceSansBold
-    statusText.TextSize = 14
-    statusText.Parent = statusBox
+    statusText.TextSize = 18
+    statusText.TextScaled = true
+    statusText.Parent = statusFrame
     
-    -- Fish ID (simplified)
+    -- Fish ID input (mobile keyboard optimized)
     local fishIdLabel = Instance.new("TextLabel")
-    fishIdLabel.Size = UDim2.new(1, -20, 0, 20)
-    fishIdLabel.Position = UDim2.new(0, 10, 0, 70)
+    fishIdLabel.Size = UDim2.new(1, -20, 0, 30)
+    fishIdLabel.Position = UDim2.new(0, 10, 0, 110)
     fishIdLabel.Text = "Fish ID:"
     fishIdLabel.TextColor3 = Color3.new(1, 1, 1)
     fishIdLabel.BackgroundTransparency = 1
     fishIdLabel.Font = Enum.Font.SourceSans
-    fishIdLabel.TextSize = 12
-    fishIdLabel.TextXAlignment = Enum.TextXAlignment.Left
-    fishIdLabel.Parent = mainFrame
+    fishIdLabel.TextSize = 16
+    fishIdLabel.TextScaled = true
+    fishIdLabel.Parent = mainContainer
     
     local fishIdBox = Instance.new("TextBox")
-    fishIdBox.Size = UDim2.new(1, -20, 0, 25)
-    fishIdBox.Position = UDim2.new(0, 10, 0, 90)
+    fishIdBox.Size = UDim2.new(1, -20, 0, 40)
+    fishIdBox.Position = UDim2.new(0, 10, 0, 145)
     fishIdBox.Text = "safsafwaetqw3fsa"
     fishIdBox.TextColor3 = Color3.new(1, 1, 1)
-    fishIdBox.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    fishIdBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     fishIdBox.BorderSizePixel = 1
+    fishIdBox.BorderColor3 = Color3.fromRGB(80, 80, 100)
     fishIdBox.Font = Enum.Font.SourceSans
-    fishIdBox.TextSize = 12
-    fishIdBox.ClearTextOnFocus = false
-    fishIdBox.Parent = mainFrame
+    fishIdBox.TextSize = 16
+    fishIdBox.TextScaled = true
+    fishIdBox.PlaceholderText = "Tap to enter Fish ID..."
+    fishIdBox.ClearTextOnFocus = false -- Mobile friendly
+    fishIdBox.Parent = mainContainer
     
-    -- Delay Control (compact)
-    local delayFrame = Instance.new("Frame")
-    delayFrame.Size = UDim2.new(1, -20, 0, 25)
-    delayFrame.Position = UDim2.new(0, 10, 0, 120)
-    delayFrame.BackgroundTransparency = 1
-    delayFrame.Parent = mainFrame
-    
+    -- Delay control (big touch buttons)
     local delayLabel = Instance.new("TextLabel")
-    delayLabel.Size = UDim2.new(0.5, -5, 1, 0)
+    delayLabel.Size = UDim2.new(0.6, -10, 0, 30)
+    delayLabel.Position = UDim2.new(0, 10, 0, 195)
     delayLabel.Text = "Delay: 0.5s"
     delayLabel.TextColor3 = Color3.new(1, 1, 1)
     delayLabel.BackgroundTransparency = 1
     delayLabel.Font = Enum.Font.SourceSans
-    delayLabel.TextSize = 12
-    delayLabel.TextXAlignment = Enum.TextXAlignment.Left
-    delayLabel.Parent = delayFrame
+    delayLabel.TextSize = 16
+    delayLabel.TextScaled = true
+    delayLabel.Parent = mainContainer
     
+    -- Plus button (big for touch)
     local plusBtn = Instance.new("TextButton")
-    plusBtn.Size = UDim2.new(0.2, 0, 1, 0)
-    plusBtn.Position = UDim2.new(0.5, 5, 0, 0)
+    plusBtn.Size = UDim2.new(0.18, 0, 0, 40)
+    plusBtn.Position = UDim2.new(0.6, 10, 0, 190)
     plusBtn.Text = "+"
     plusBtn.TextColor3 = Color3.new(0, 1, 0)
     plusBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 40)
     plusBtn.Font = Enum.Font.SourceSansBold
-    plusBtn.TextSize = 14
-    plusBtn.Parent = delayFrame
+    plusBtn.TextSize = 24
+    plusBtn.TextScaled = true
+    plusBtn.Parent = mainContainer
     
+    -- Minus button (big for touch)
     local minusBtn = Instance.new("TextButton")
-    minusBtn.Size = UDim2.new(0.2, 0, 1, 0)
-    minusBtn.Position = UDim2.new(0.7, 5, 0, 0)
+    minusBtn.Size = UDim2.new(0.18, 0, 0, 40)
+    minusBtn.Position = UDim2.new(0.8, 10, 0, 190)
     minusBtn.Text = "-"
     minusBtn.TextColor3 = Color3.new(1, 0, 0)
     minusBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 40)
     minusBtn.Font = Enum.Font.SourceSansBold
-    minusBtn.TextSize = 14
-    minusBtn.Parent = delayFrame
+    minusBtn.TextSize = 24
+    minusBtn.TextScaled = true
+    minusBtn.Parent = mainContainer
     
-    -- Loop Counter
+    -- Loop counter
     local loopLabel = Instance.new("TextLabel")
-    loopLabel.Size = UDim2.new(1, -20, 0, 20)
-    loopLabel.Position = UDim2.new(0, 10, 0, 150)
+    loopLabel.Size = UDim2.new(1, -20, 0, 30)
+    loopLabel.Position = UDim2.new(0, 10, 0, 240)
     loopLabel.Text = "Loops: 0"
     loopLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
     loopLabel.BackgroundTransparency = 1
-    loopLabel.Font = Enum.Font.SourceSans
-    loopLabel.TextSize = 12
-    loopLabel.TextXAlignment = Enum.TextXAlignment.Left
-    loopLabel.Parent = mainFrame
+    loopLabel.Font = Enum.Font.SourceSansBold
+    loopLabel.TextSize = 18
+    loopLabel.TextScaled = true
+    loopLabel.Parent = mainContainer
     
-    -- Control Buttons (side by side)
-    local buttonFrame = Instance.new("Frame")
-    buttonFrame.Size = UDim2.new(1, -20, 0, 35)
-    buttonFrame.Position = UDim2.new(0, 10, 1, -40)
-    buttonFrame.BackgroundTransparency = 1
-    buttonFrame.Parent = mainFrame
-    
+    -- Control buttons (big for mobile)
     local startBtn = Instance.new("TextButton")
-    startBtn.Size = UDim2.new(0.48, -2, 1, 0)
+    startBtn.Size = UDim2.new(0.48, -5, 0, 50)
+    startBtn.Position = UDim2.new(0, 10, 1, -60)
     startBtn.Text = "▶ START"
     startBtn.TextColor3 = Color3.new(0, 1, 0)
     startBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 40)
     startBtn.Font = Enum.Font.SourceSansBold
-    startBtn.TextSize = 14
-    startBtn.Parent = buttonFrame
+    startBtn.TextSize = 20
+    startBtn.TextScaled = true
+    startBtn.Parent = mainContainer
     
     local stopBtn = Instance.new("TextButton")
-    stopBtn.Size = UDim2.new(0.48, -2, 1, 0)
-    stopBtn.Position = UDim2.new(0.52, 0, 0, 0)
+    stopBtn.Size = UDim2.new(0.48, -5, 0, 50)
+    stopBtn.Position = UDim2.new(0.52, 5, 1, -60)
     stopBtn.Text = "⏹ STOP"
     stopBtn.TextColor3 = Color3.new(1, 0.5, 0)
     stopBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 20)
     stopBtn.Font = Enum.Font.SourceSansBold
-    stopBtn.TextSize = 14
-    stopBtn.Parent = buttonFrame
+    stopBtn.TextSize = 20
+    stopBtn.TextScaled = true
+    stopBtn.Parent = mainContainer
+    
+    -- Close button (top right)
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 50, 0, 30)
+    closeBtn.Position = UDim2.new(1, -60, 0, 10)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    closeBtn.Font = Enum.Font.SourceSansBold
+    closeBtn.TextSize = 18
+    closeBtn.TextScaled = true
+    closeBtn.Parent = mainContainer
+    
+    -- Mobile notification
+    local notifyLabel = Instance.new("TextLabel")
+    notifyLabel.Size = UDim2.new(1, -20, 0, 40)
+    notifyLabel.Position = UDim2.new(0, 10, 1, 10)
+    notifyLabel.Text = ""
+    notifyLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+    notifyLabel.BackgroundTransparency = 1
+    notifyLabel.Font = Enum.Font.SourceSans
+    notifyLabel.TextSize = 14
+    notifyLabel.TextScaled = true
+    notifyLabel.Visible = false
+    notifyLabel.Parent = screenGui
     
     return {
         Gui = screenGui,
-        MainFrame = mainFrame,
-        MiniToggle = miniToggle,
+        MainContainer = mainContainer,
         StatusText = statusText,
         FishIdBox = fishIdBox,
         DelayLabel = delayLabel,
@@ -197,41 +201,46 @@ local function createMobileGUI()
         LoopLabel = loopLabel,
         StartBtn = startBtn,
         StopBtn = stopBtn,
-        HideButton = hideButton
+        CloseBtn = closeBtn,
+        NotifyLabel = notifyLabel,
+        Header = header
     }
 end
 
--- Create GUI
+-- Mobile notification system
+local function mobileNotify(text, duration)
+    local ui = _G.MobileFishUI
+    if not ui then return end
+    
+    ui.NotifyLabel.Text = text
+    ui.NotifyLabel.Visible = true
+    
+    task.spawn(function()
+        task.wait(duration or 3)
+        if ui and ui.NotifyLabel then
+            ui.NotifyLabel.Visible = false
+        end
+    end)
+end
+
+-- Create and setup GUI
 local ui = createMobileGUI()
 ui.Gui.Parent = player:WaitForChild("PlayerGui")
+_G.MobileFishUI = ui -- Store globally for notifications
 
 -- Variables
 local isSpamming = false
 local loopCount = 0
-local currentDelay = 0.5
+local currentDelay = 0.5 -- Default lebih lambat untuk mobile
 local spamThread = nil
 
--- Toggle GUI visibility
-local function toggleGUI()
-    if ui.MainFrame.Visible then
-        -- Hide main frame, show mini toggle
-        ui.MainFrame.Visible = false
-        ui.MiniToggle.Visible = true
-        ui.MiniToggle.Position = UDim2.new(
-            0, ui.MainFrame.Position.X.Offset,
-            0, ui.MainFrame.Position.Y.Offset
-        )
-    else
-        -- Show main frame, hide mini toggle
-        ui.MainFrame.Visible = true
-        ui.MiniToggle.Visible = false
-    end
-end
-
--- Send fish function
+-- Fish sending function (mobile optimized)
 local function sendFish()
     local fishId = ui.FishIdBox.Text
-    if fishId == "" then return false end
+    if fishId == "" or fishId == ui.FishIdBox.PlaceholderText then
+        mobileNotify("⚠️ Enter Fish ID first!", 2)
+        return false
+    end
     
     local args = {[1] = fishId}
     
@@ -239,7 +248,12 @@ local function sendFish()
         return game:GetService("ReplicatedStorage").GiveFishFunction:InvokeServer(unpack(args))
     end)
     
-    return success
+    if success then
+        return true
+    else
+        mobileNotify("❌ Error: " .. tostring(result):sub(1, 30), 3)
+        return false
+    end
 end
 
 -- Update display
@@ -247,17 +261,30 @@ local function updateDisplay()
     ui.LoopLabel.Text = "Loops: " .. tostring(loopCount)
 end
 
--- Delay controls
+-- Delay controls (mobile touch optimized)
 ui.PlusBtn.MouseButton1Click:Connect(function()
     currentDelay = currentDelay + 0.1
-    if currentDelay > 2 then currentDelay = 2 end
+    if currentDelay > 5 then currentDelay = 5 end -- Max 5 seconds for mobile
     ui.DelayLabel.Text = "Delay: " .. string.format("%.1f", currentDelay) .. "s"
+    mobileNotify("Delay: " .. string.format("%.1f", currentDelay) .. "s", 1)
 end)
 
 ui.MinusBtn.MouseButton1Click:Connect(function()
     currentDelay = currentDelay - 0.1
-    if currentDelay < 0.1 then currentDelay = 0.1 end
+    if currentDelay < 0.1 then currentDelay = 0.1 end -- Min 0.1 seconds
     ui.DelayLabel.Text = "Delay: " .. string.format("%.1f", currentDelay) .. "s"
+    mobileNotify("Delay: " .. string.format("%.1f", currentDelay) .. "s", 1)
+end)
+
+-- Fish ID box focus handling (mobile)
+ui.FishIdBox.Focused:Connect(function()
+    mobileNotify("📝 Type Fish ID...", 1)
+end)
+
+ui.FishIdBox.FocusLost:Connect(function()
+    if ui.FishIdBox.Text == "" then
+        ui.FishIdBox.Text = "safsafwaetqw3fsa"
+    end
 end)
 
 -- Start button
@@ -265,9 +292,12 @@ ui.StartBtn.MouseButton1Click:Connect(function()
     if isSpamming then return end
     
     isSpamming = true
-    ui.StatusText.Text = "SPAMMING"
+    ui.StatusText.Text = "🟢 SPAMMING"
     ui.StatusText.TextColor3 = Color3.fromRGB(0, 255, 0)
     
+    mobileNotify("▶ Started fish spam!", 2)
+    
+    -- Start spam thread
     spamThread = task.spawn(function()
         while isSpamming do
             local success = sendFish()
@@ -275,9 +305,9 @@ ui.StartBtn.MouseButton1Click:Connect(function()
                 loopCount = loopCount + 1
                 updateDisplay()
                 
-                -- Update every 10 loops
+                -- Mobile vibration simulation (visual feedback)
                 if loopCount % 10 == 0 then
-                    ui.StatusText.Text = "SPAM: " .. loopCount
+                    mobileNotify("🎣 " .. loopCount .. " fish sent!", 1)
                 end
             end
             
@@ -296,127 +326,106 @@ ui.StopBtn.MouseButton1Click:Connect(function()
         spamThread = nil
     end
     
-    ui.StatusText.Text = "STOPPED"
+    ui.StatusText.Text = "🔴 STOPPED"
     ui.StatusText.TextColor3 = Color3.fromRGB(255, 50, 50)
-end)
-
--- Hide/Show button
-ui.HideButton.MouseButton1Click:Connect(toggleGUI)
-
--- Mini toggle button
-ui.MiniToggle.MouseButton1Click:Connect(toggleGUI)
-
--- Drag functionality
-local dragging = false
-local dragStart, startPos
-
-ui.MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = ui.MainFrame.Position
-    end
-end)
-
-ui.MiniToggle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = ui.MiniToggle.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.Touch then
-        local delta = input.Position - dragStart
-        local newPos = UDim2.new(0, startPos.X.Offset + delta.X, 0, startPos.Y.Offset + delta.Y)
-        
-        if ui.MainFrame.Visible then
-            ui.MainFrame.Position = newPos
-        else
-            ui.MiniToggle.Position = newPos
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
--- Auto-stop when menu opens (mobile)
-game:GetService("GuiService"):GetPropertyChangedSignal("MenuIsOpen"):Connect(function()
-    if game:GetService("GuiService").MenuIsOpen and isSpamming then
-        ui.StopBtn.MouseButton1Click()
-    end
-end)
-
--- Save position when moved
-local function savePosition()
-    local position = ui.MainFrame.Visible and ui.MainFrame.Position or ui.MiniToggle.Position
-    _G.ZetaSpammerPosition = {X = position.X.Offset, Y = position.Y.Offset}
-end
-
--- Load saved position
-if _G.ZetaSpammerPosition then
-    ui.MainFrame.Position = UDim2.new(0, _G.ZetaSpammerPosition.X, 0, _G.ZetaSpammerPosition.Y)
-    ui.MiniToggle.Position = UDim2.new(0, _G.ZetaSpammerPosition.X, 0, _G.ZetaSpammerPosition.Y)
-end
-
--- Save position on move
-game:GetService("RunService").Heartbeat:Connect(function()
-    if dragging then
-        savePosition()
-    end
-end)
-
--- Mobile notification (top-center)
-local function mobileNotify(text, duration)
-    local notify = Instance.new("TextLabel")
-    notify.Size = UDim2.new(0.8, 0, 0, 40)
-    notify.Position = UDim2.new(0.1, 0, 0.1, 0)
-    notify.Text = text
-    notify.TextColor3 = Color3.new(1, 1, 1)
-    notify.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    notify.BorderSizePixel = 2
-    notify.BorderColor3 = Color3.fromRGB(100, 100, 100)
-    notify.Font = Enum.Font.SourceSansBold
-    notify.TextSize = 14
-    notify.TextScaled = true
-    notify.ZIndex = 100
-    notify.Parent = ui.Gui
     
-    task.spawn(function()
-        for i = 1, 20 do
-            notify.Position = UDim2.new(0.1, 0, 0.1 - (i * 0.002), 0)
-            task.wait(0.02)
-        end
-    end)
-    
-    task.wait(duration or 2)
-    
-    for i = 1, 20 do
-        notify.BackgroundTransparency = i/20
-        notify.TextTransparency = i/20
-        task.wait(0.02)
-    end
-    
-    notify:Destroy()
-end
+    mobileNotify("⏹ Stopped after " .. loopCount .. " loops", 3)
+end)
 
--- Initial notification
-task.wait(1)
-mobileNotify("🎣 ZETA MOBILE SPAMMER LOADED", 2)
-
-print("✅ Mobile Fish Spammer ready!")
-print("📱 Tap [-] to hide, tap mini button to show")
-print("🔥 Drag to move, use +/- for delay")
-
--- Cleanup on script end
-game:BindToClose(function()
+-- Close button
+ui.CloseBtn.MouseButton1Click:Connect(function()
     isSpamming = false
     if spamThread then
         task.cancel(spamThread)
     end
+    
+    ui.Gui:Destroy()
+    _G.MobileFishUI = nil
 end)
+
+-- Header drag (mobile swipe to move)
+local dragging = false
+local dragStart, startPos
+
+ui.Header.MouseButton1Down:Connect(function()
+    dragging = true
+    dragStart = game:GetService("UserInputService"):GetMouseLocation()
+    startPos = ui.MainContainer.Position
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    if dragging then
+        local currentMouse = game:GetService("UserInputService"):GetMouseLocation()
+        local delta = currentMouse - dragStart
+        
+        -- Mobile screen boundary check
+        local screenSize = workspace.CurrentCamera.ViewportSize
+        local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - ui.MainContainer.AbsoluteSize.X)
+        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - ui.MainContainer.AbsoluteSize.Y)
+        
+        ui.MainContainer.Position = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+-- Mobile gestures support
+local lastTouchTime = 0
+local touchCount = 0
+
+game:GetService("UserInputService").TouchTap:Connect(function(touchPos, gameProcessed)
+    if gameProcessed then return end
+    
+    local currentTime = tick()
+    if currentTime - lastTouchTime < 0.5 then
+        touchCount = touchCount + 1
+        if touchCount >= 3 then
+            -- Triple tap to reset counter
+            loopCount = 0
+            updateDisplay()
+            mobileNotify("🔄 Counter reset!", 1)
+            touchCount = 0
+        end
+    else
+        touchCount = 1
+    end
+    lastTouchTime = currentTime
+end)
+
+-- Mobile auto-pause when minimized
+game:GetService("GuiService"):GetPropertyChangedSignal("MenuIsOpen"):Connect(function()
+    if game:GetService("GuiService").MenuIsOpen and isSpamming then
+        ui.StopBtn.MouseButton1Click()
+        mobileNotify("⏸ Auto-paused (menu open)", 2)
+    end
+end)
+
+-- Battery saving mode (slower when battery low)
+if isMobile then
+    task.spawn(function()
+        while task.wait(10) do
+            if isSpamming and currentDelay < 0.3 then
+                mobileNotify("⚡ Using fast mode", 1)
+            end
+        end
+    end)
+end
+
+-- Mobile orientation handling
+game:GetService("GuiService"):GetPropertyChangedSignal("ScreenResolution"):Connect(function()
+    task.wait(0.5) -- Wait for rotation to complete
+    
+    -- Recenter GUI after rotation
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    local newY = math.clamp(ui.MainContainer.Position.Y.Offset, 0, screenSize.Y - ui.MainContainer.AbsoluteSize.Y)
+    ui.MainContainer.Position = UDim2.new(ui.MainContainer.Position.X.Scale, ui.MainContainer.Position.X.Offset, 0, newY)
+    
+    mobileNotify("🔄 Screen rotated", 1)
+end)
+
+-- Initial notification
+mobileNotify("📱 Mobile Fish Spammer Ready!", 3)
