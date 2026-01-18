@@ -26,6 +26,7 @@ local Config = {
     WeightPrecision = 1,
     AutoSell = true,
     SellBelowRarity = "Rare",
+    DebugMode = false,
     FishGiver = {
         Enabled = false,
         TargetPlayer = "",
@@ -57,18 +58,19 @@ local RarityOrder = {
     Secret = 7
 }
 
-local RarityWeights = {
-    Common = 70,
-    Uncommon = 20,
-    Rare = 7,
-    Epic = 2.5,
-    Legendary = 0.45,
-    Mitos = 0.35,
-    Secret = 0.1
+local RarityColors = {
+    Common = Color3.fromRGB(200, 200, 200),
+    Uncommon = Color3.fromRGB(30, 255, 30),
+    Rare = Color3.fromRGB(30, 100, 255),
+    Epic = Color3.fromRGB(160, 30, 255),
+    Legendary = Color3.fromRGB(255, 128, 0),
+    Mitos = Color3.fromRGB(216, 0, 4),
+    Secret = Color3.fromRGB(83, 255, 255)
 }
 
 local originalModule
 local moduleHookActive = false
+local testResults = {}
 
 local function HookGameFunctions()
     if moduleHookActive then return end
@@ -96,12 +98,15 @@ local function HookGameFunctions()
                             end
                             
                             -- Cari rarity berdasarkan order
+                            local selectedRarity = Config.MaxRarity
                             for rarity, order in pairs(RarityOrder) do
                                 if order == targetOrder then
-                                    return rarity
+                                    selectedRarity = rarity
+                                    break
                                 end
                             end
-                            return Config.MaxRarity
+                            
+                            return selectedRarity
                         end
                         return originalGetRarity(pityTable, rodName, luckMultiplier)
                     end
@@ -269,6 +274,135 @@ local function HookGameFunctions()
             end
         end
     end
+end
+
+-- Fungsi untuk test rarity
+local function PerformRarityTest()
+    if not originalModule then
+        HookGameFunctions()
+        if not originalModule then
+            return "Module not found!"
+        end
+    end
+    
+    testResults = {}
+    local resultsText = ""
+    
+    -- Buat pity table
+    local pityTable = {
+        Rare = 0,
+        Epic = 0,
+        Legendary = 0,
+        Mitos = 0,
+        Secret = 0
+    }
+    
+    -- Test 10 kali untuk melihat distribusi rarity
+    for i = 1, 10 do
+        local rarity
+        if originalModule.GetRarityWithPity then
+            rarity = originalModule.GetRarityWithPity(pityTable, "Basic Rod", 1)
+        else
+            rarity = "Test Failed"
+        end
+        
+        -- Simpan hasil
+        testResults[rarity] = (testResults[rarity] or 0) + 1
+        
+        resultsText = resultsText .. "Test " .. i .. ": " .. rarity .. "\n"
+    end
+    
+    -- Buat summary
+    local summary = "\n--- Rarity Distribution ---\n"
+    for rarity, count in pairs(testResults) do
+        summary = summary .. rarity .. ": " .. count .. " times (" .. (count / 10 * 100) .. "%)\n"
+    end
+    
+    -- Cek apakah rarity sesuai dengan config
+    local configRange = "Config Range: " .. Config.MinRarity .. " - " .. Config.MaxRarity
+    summary = summary .. "\n" .. configRange
+    
+    -- Cek apakah ada rarity di luar range
+    local valid = true
+    for rarity, _ in pairs(testResults) do
+        local rarityOrder = RarityOrder[rarity] or 0
+        local minOrder = RarityOrder[Config.MinRarity] or 1
+        local maxOrder = RarityOrder[Config.MaxRarity] or 7
+        
+        if rarityOrder < minOrder or rarityOrder > maxOrder then
+            valid = false
+            summary = summary .. "\n⚠️ WARNING: Found " .. rarity .. " outside configured range!"
+        end
+    end
+    
+    if valid then
+        summary = summary .. "\n✅ All rarities are within configured range!"
+    end
+    
+    return resultsText .. summary
+end
+
+local function TestSpecificRarity(targetRarity)
+    if not originalModule then
+        HookGameFunctions()
+        if not originalModule then
+            return "Module not found!"
+        end
+    end
+    
+    if not originalModule.PickFishFromRarity then
+        return "PickFishFromRarity function not found!"
+    end
+    
+    local fish = originalModule.PickFishFromRarity(targetRarity)
+    if fish then
+        return "✅ Found fish for " .. targetRarity .. ":\n" ..
+               "Name: " .. (fish.name or "Unknown") .. "\n" ..
+               "Rarity: " .. (fish.rarity or "Unknown") .. "\n" ..
+               "Weight Range: " .. (fish.minKg or 0) .. "kg - " .. (fish.maxKg or 0) .. "kg\n" ..
+               "Probability: " .. (fish.probability or 0)
+    else
+        return "❌ No fish found for rarity: " .. targetRarity
+    end
+end
+
+local function TestFishWeight()
+    if not originalModule then
+        HookGameFunctions()
+        if not originalModule then
+            return "Module not found!"
+        end
+    end
+    
+    if not originalModule.GenerateFishWeight then
+        return "GenerateFishWeight function not found!"
+    end
+    
+    local testFish = {
+        name = "Test Fish",
+        rarity = "Common",
+        minKg = 0.5,
+        maxKg = 50
+    }
+    
+    local results = "Weight Test Results:\n\n"
+    
+    -- Test 5 kali
+    for i = 1, 5 do
+        local weight = originalModule.GenerateFishWeight(testFish, 1, 999)
+        results = results .. "Test " .. i .. ": " .. weight .. "kg\n"
+        
+        -- Cek apakah weight sesuai config
+        if weight < Config.MinWeight then
+            results = results .. "  ⚠️ Below Min Weight (" .. Config.MinWeight .. "kg)\n"
+        elseif weight > Config.MaxWeight then
+            results = results .. "  ⚠️ Above Max Weight (" .. Config.MaxWeight .. "kg)\n"
+        else
+            results = results .. "  ✅ Within configured range\n"
+        end
+    end
+    
+    return results
 end
 
 local function SilentCatchFish()
@@ -439,7 +573,7 @@ end
 
 -- Load UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Fishing Yahiko v5.0", "DarkTheme")
+local Window = Library.CreateLib("Fishing Yahiko v6.0", "DarkTheme")
 
 -- Main Tab
 local MainTab = Window:NewTab("Main")
@@ -464,6 +598,10 @@ end)
 
 FishingSection:NewToggle("Silent Catch", "No animation", function(state)
     Config.SilentCatch = state
+end)
+
+FishingSection:NewToggle("Debug Mode", "Show debug messages", function(state)
+    Config.DebugMode = state
 end)
 
 -- Rarity Tab
@@ -541,6 +679,264 @@ local PrecisionSlider = PrecisionSection:NewSlider("Decimal Places", "Weight pre
     Config.WeightPrecision = value
 end)
 PrecisionSlider:SetValue(1)
+
+-- Test Tab
+local TestTab = Window:NewTab("Testing")
+local TestSection = TestTab:NewSection("Rarity & Function Tests")
+
+TestSection:NewButton("Hook Functions", "Hook fishing module", function()
+    HookGameFunctions()
+    Library:Notify(moduleHookActive and "✅ Successfully hooked!" or "❌ Failed to hook", 3)
+end)
+
+TestSection:NewButton("Rarity Test (10x)", "Test rarity distribution", function()
+    local result = PerformRarityTest()
+    Library:Notify("Rarity Test Results", 5)
+    
+    -- Buat window untuk menampilkan hasil lengkap
+    local TextWindow = Instance.new("ScreenGui")
+    local TextFrame = Instance.new("Frame")
+    local TextBox = Instance.new("TextBox")
+    local CloseButton = Instance.new("TextButton")
+    
+    TextWindow.Name = "TestResultsWindow"
+    TextWindow.Parent = game.CoreGui
+    
+    TextFrame.Name = "MainFrame"
+    TextFrame.Parent = TextWindow
+    TextFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TextFrame.BorderSizePixel = 2
+    TextFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
+    TextFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
+    TextFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
+    
+    TextBox.Name = "ResultsText"
+    TextBox.Parent = TextFrame
+    TextBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    TextBox.BorderSizePixel = 0
+    TextBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+    TextBox.Size = UDim2.new(0.9, 0, 0.8, 0)
+    TextBox.Text = result
+    TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TextBox.TextSize = 14
+    TextBox.TextWrapped = true
+    TextBox.TextXAlignment = Enum.TextXAlignment.Left
+    TextBox.TextYAlignment = Enum.TextYAlignment.Top
+    TextBox.MultiLine = true
+    TextBox.ClearTextOnFocus = false
+    
+    CloseButton.Name = "CloseButton"
+    CloseButton.Parent = TextFrame
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Position = UDim2.new(0.8, 0, 0.92, 0)
+    CloseButton.Size = UDim2.new(0.15, 0, 0.05, 0)
+    CloseButton.Font = Enum.Font.SourceSans
+    CloseButton.Text = "Close"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextSize = 14
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        TextWindow:Destroy()
+    end)
+end)
+
+TestSection:NewButton("Test Specific Rarity", "Test fish for specific rarity", function()
+    local rarityOptions = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}
+    
+    -- Buat dropdown sederhana
+    local DropdownWindow = Instance.new("ScreenGui")
+    local DropdownFrame = Instance.new("Frame")
+    local DropdownText = Instance.new("TextLabel")
+    local DropdownBox = Instance.new("TextBox")
+    local TestButton = Instance.new("TextButton")
+    local CloseButton = Instance.new("TextButton")
+    
+    DropdownWindow.Name = "RarityTestWindow"
+    DropdownWindow.Parent = game.CoreGui
+    
+    DropdownFrame.Name = "MainFrame"
+    DropdownFrame.Parent = DropdownWindow
+    DropdownFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    DropdownFrame.BorderSizePixel = 2
+    DropdownFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
+    DropdownFrame.Position = UDim2.new(0.4, 0, 0.4, 0)
+    DropdownFrame.Size = UDim2.new(0.2, 0, 0.2, 0)
+    
+    DropdownText.Name = "Label"
+    DropdownText.Parent = DropdownFrame
+    DropdownText.BackgroundTransparency = 1
+    DropdownText.Position = UDim2.new(0.1, 0, 0.1, 0)
+    DropdownText.Size = UDim2.new(0.8, 0, 0.2, 0)
+    DropdownText.Text = "Select Rarity to Test:"
+    DropdownText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownText.TextSize = 14
+    
+    DropdownBox.Name = "RarityInput"
+    DropdownBox.Parent = DropdownFrame
+    DropdownBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    DropdownBox.BorderSizePixel = 0
+    DropdownBox.Position = UDim2.new(0.1, 0, 0.4, 0)
+    DropdownBox.Size = UDim2.new(0.8, 0, 0.15, 0)
+    DropdownBox.Text = "Common"
+    DropdownBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownBox.TextSize = 14
+    DropdownBox.PlaceholderText = "Enter rarity..."
+    
+    TestButton.Name = "TestBtn"
+    TestButton.Parent = DropdownFrame
+    TestButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    TestButton.BorderSizePixel = 0
+    TestButton.Position = UDim2.new(0.1, 0, 0.65, 0)
+    TestButton.Size = UDim2.new(0.35, 0, 0.15, 0)
+    TestButton.Font = Enum.Font.SourceSans
+    TestButton.Text = "Test"
+    TestButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TestButton.TextSize = 14
+    
+    CloseButton.Name = "CloseBtn"
+    CloseButton.Parent = DropdownFrame
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Position = UDim2.new(0.55, 0, 0.65, 0)
+    CloseButton.Size = UDim2.new(0.35, 0, 0.15, 0)
+    CloseButton.Font = Enum.Font.SourceSans
+    CloseButton.Text = "Close"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextSize = 14
+    
+    TestButton.MouseButton1Click:Connect(function()
+        local rarity = DropdownBox.Text
+        local result = TestSpecificRarity(rarity)
+        
+        -- Tampilkan hasil
+        local ResultWindow = Instance.new("ScreenGui")
+        local ResultFrame = Instance.new("Frame")
+        local ResultText = Instance.new("TextBox")
+        local CloseBtn = Instance.new("TextButton")
+        
+        ResultWindow.Name = "TestResultWindow"
+        ResultWindow.Parent = game.CoreGui
+        
+        ResultFrame.Name = "ResultFrame"
+        ResultFrame.Parent = ResultWindow
+        ResultFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        ResultFrame.BorderSizePixel = 2
+        ResultFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
+        ResultFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
+        ResultFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
+        
+        ResultText.Name = "ResultTextBox"
+        ResultText.Parent = ResultFrame
+        ResultText.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        ResultText.BorderSizePixel = 0
+        ResultText.Position = UDim2.new(0.05, 0, 0.1, 0)
+        ResultText.Size = UDim2.new(0.9, 0, 0.8, 0)
+        ResultText.Text = result
+        ResultText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ResultText.TextSize = 14
+        ResultText.TextWrapped = true
+        ResultText.TextXAlignment = Enum.TextXAlignment.Left
+        ResultText.TextYAlignment = Enum.TextYAlignment.Top
+        ResultText.MultiLine = true
+        ResultText.ClearTextOnFocus = false
+        
+        CloseBtn.Name = "CloseResultBtn"
+        CloseBtn.Parent = ResultFrame
+        CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        CloseBtn.BorderSizePixel = 0
+        CloseBtn.Position = UDim2.new(0.8, 0, 0.92, 0)
+        CloseBtn.Size = UDim2.new(0.15, 0, 0.05, 0)
+        CloseBtn.Font = Enum.Font.SourceSans
+        CloseBtn.Text = "Close"
+        CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        CloseBtn.TextSize = 14
+        
+        CloseBtn.MouseButton1Click:Connect(function()
+            ResultWindow:Destroy()
+        end)
+        
+        DropdownWindow:Destroy()
+    end)
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        DropdownWindow:Destroy()
+    end)
+end)
+
+TestSection:NewButton("Test Fish Weight", "Test weight generation", function()
+    local result = TestFishWeight()
+    Library:Notify("Weight Test Results", 5)
+    
+    -- Buat window untuk menampilkan hasil
+    local TextWindow = Instance.new("ScreenGui")
+    local TextFrame = Instance.new("Frame")
+    local TextBox = Instance.new("TextBox")
+    local CloseButton = Instance.new("TextButton")
+    
+    TextWindow.Name = "WeightTestWindow"
+    TextWindow.Parent = game.CoreGui
+    
+    TextFrame.Name = "MainFrame"
+    TextFrame.Parent = TextWindow
+    TextFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TextFrame.BorderSizePixel = 2
+    TextFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
+    TextFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
+    TextFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
+    
+    TextBox.Name = "ResultsText"
+    TextBox.Parent = TextFrame
+    TextBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    TextBox.BorderSizePixel = 0
+    TextBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+    TextBox.Size = UDim2.new(0.9, 0, 0.8, 0)
+    TextBox.Text = result
+    TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TextBox.TextSize = 14
+    TextBox.TextWrapped = true
+    TextBox.TextXAlignment = Enum.TextXAlignment.Left
+    TextBox.TextYAlignment = Enum.TextYAlignment.Top
+    TextBox.MultiLine = true
+    TextBox.ClearTextOnFocus = false
+    
+    CloseButton.Name = "CloseButton"
+    CloseButton.Parent = TextFrame
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Position = UDim2.new(0.8, 0, 0.92, 0)
+    CloseButton.Size = UDim2.new(0.15, 0, 0.05, 0)
+    CloseButton.Font = Enum.Font.SourceSans
+    CloseButton.Text = "Close"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextSize = 14
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        TextWindow:Destroy()
+    end)
+end)
+
+TestSection:NewButton("Test Silent Catch", "Test catch function", function()
+    local success = SilentCatchFish()
+    Library:Notify(success and "✅ Silent catch successful!" or "❌ Silent catch failed", 3)
+end)
+
+TestSection:NewButton("Check Module Status", "Check if module is hooked", function()
+    if originalModule then
+        local status = "✅ Module is hooked!\n"
+        status = status .. "Functions available:\n"
+        
+        if originalModule.GetRarityWithPity then status = status .. "- GetRarityWithPity ✓\n" end
+        if originalModule.PickFishFromRarity then status = status .. "- PickFishFromRarity ✓\n" end
+        if originalModule.GenerateFishWeight then status = status .. "- GenerateFishWeight ✓\n" end
+        if originalModule.RollFish then status = status .. "- RollFish ✓\n" end
+        if originalModule.RollFishWithZone then status = status .. "- RollFishWithZone ✓\n" end
+        
+        Library:Notify(status, 5)
+    else
+        Library:Notify("❌ Module not hooked!", 3)
+    end
+end)
 
 -- Give Tab
 local GiveTab = Window:NewTab("Fish Giver")
@@ -623,12 +1019,14 @@ local LiveStats = StatsTab:NewSection("Statistics")
 local TotalCatches = LiveStats:NewLabel("Total Catches: 0")
 local CurrentRarity = LiveStats:NewLabel("Rarity Range: Common - Secret")
 local CurrentWeight = LiveStats:NewLabel("Weight Range: 1kg - 999kg")
+local ModuleStatus = LiveStats:NewLabel("Module: Not Hooked")
 
 task.spawn(function()
     while task.wait(1) do
         TotalCatches:UpdateLabel("Total Catches: " .. CatchCount)
         CurrentRarity:UpdateLabel("Rarity Range: " .. Config.MinRarity .. " - " .. Config.MaxRarity)
         CurrentWeight:UpdateLabel("Weight Range: " .. Config.MinWeight .. "kg - " .. Config.MaxWeight .. "kg")
+        ModuleStatus:UpdateLabel("Module: " .. (moduleHookActive and "✅ Hooked" or "❌ Not Hooked"))
     end
 end)
 
@@ -651,33 +1049,6 @@ local ZoneDropdown = UtilitySection:NewDropdown("Fishing Zone", "Select fishing 
     end)
 ZoneDropdown:SetOption("Default")
 
-UtilitySection:NewButton("Hook Functions", "Hook module", function()
-    HookGameFunctions()
-    Library:Notify(moduleHookActive and "Successfully hooked!" or "Failed to hook", 3)
-end)
-
-UtilitySection:NewButton("Test Silent Catch", "Test catch", function()
-    local success = SilentCatchFish()
-    Library:Notify(success and "Silent catch successful!" or "Silent catch failed", 3)
-end)
-
-UtilitySection:NewButton("Force Rarity Test", "Test rarity control", function()
-    if originalModule and originalModule.GetRarityWithPity then
-        local pityTable = {
-            Rare = 0,
-            Epic = 0,
-            Legendary = 0,
-            Mitos = 0,
-            Secret = 0
-        }
-        
-        local rarity = originalModule.GetRarityWithPity(pityTable, "Basic Rod", 1)
-        Library:Notify("Current rarity: " .. rarity, 3)
-    else
-        Library:Notify("Module not hooked", 3)
-    end
-end)
-
 -- Anti-AFK
 if Config.AntiAFK then
     task.spawn(function()
@@ -693,8 +1064,8 @@ if Config.AntiAFK then
     end)
 end
 
-Library:Notify("Fishing Yahiko Exploit Loaded!", 5)
+Library:Notify("Fishing Yahiko Exploit v6.0 Loaded!", 5)
 
 -- Initial hook
-task.wait(1)
+task.wait(2)
 HookGameFunctions()
