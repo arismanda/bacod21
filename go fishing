@@ -4,7 +4,7 @@ local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
-local FishingSystem = ReplicatedStorage:WaitForChild("FishingYahiko", 10)
+local FishingSystem = ReplicatedStorage:WaitForChild("FishingConfig", 10) or ReplicatedStorage:FindFirstChild("FishingSystem")
 
 if not FishingSystem then
     for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
@@ -27,6 +27,7 @@ local Config = {
     AutoSell = true,
     SellBelowRarity = "Rare",
     DebugMode = false,
+    AutoUpgrade = false,
     FishGiver = {
         Enabled = false,
         TargetPlayer = "",
@@ -42,6 +43,13 @@ local Config = {
         Bias = 0.7,
         Fluctuation = 0.3
     },
+    RodStats = {
+        Override = false,
+        Strength = 4.0,
+        Control = 2.0,
+        Luck = 100.0,
+        Haste = 2.0
+    },
     WebhookNotify = false,
     AntiAFK = true,
     BypassCooldown = false,
@@ -54,7 +62,7 @@ local RarityOrder = {
     Rare = 3,
     Epic = 4,
     Legendary = 5,
-    Mitos = 6,
+    Mythical = 6,
     Secret = 7
 }
 
@@ -64,216 +72,324 @@ local RarityColors = {
     Rare = Color3.fromRGB(30, 100, 255),
     Epic = Color3.fromRGB(160, 30, 255),
     Legendary = Color3.fromRGB(255, 128, 0),
-    Mitos = Color3.fromRGB(216, 0, 4),
+    Mythical = Color3.fromRGB(216, 0, 4),
     Secret = Color3.fromRGB(83, 255, 255)
 }
 
+local RodList = {
+    "Beginner's Rod",
+    "Diadem Scepter",
+    "Skymark Spite",
+    "Moment Coil",
+    "Jade Caduceus",
+    "Sine Wisp",
+    "Rod of Cindermaw",
+    "Rod of Hyalinth Frost",
+    "The Bubbled Buffoon",
+    "The Jester's Pyre",
+    "The Scarlethorn",
+    "The Corrupted Scarlethorn",
+    "Atlanor",
+    "Enamora",
+    "Solaris"
+}
+
 local originalModule
+local originalRodModule
 local moduleHookActive = false
+local rodModuleHookActive = false
 local testResults = {}
 
-local function HookGameFunctions()
-    if moduleHookActive then return end
-    
+local function FindFishingModule()
     for _, module in pairs(getloadedmodules() or {}) do
         if module.Name:lower():find("fish") or module.Name:find("Fishing") or module.Name == "FishingYahiko" then
             local success, moduleData = pcall(require, module)
             if success and type(moduleData) == "table" then
-                originalModule = moduleData
-                
-                -- Override GetRarityWithPity untuk kontrol rarity
-                if moduleData.GetRarityWithPity then
-                    local originalGetRarity = moduleData.GetRarityWithPity
-                    moduleData.GetRarityWithPity = function(pityTable, rodName, luckMultiplier)
-                        if Config.InstantCatch then
-                            local minOrder = RarityOrder[Config.MinRarity] or 1
-                            local maxOrder = RarityOrder[Config.MaxRarity] or 7
-                            
-                            -- Generate rarity sesuai config
-                            local targetOrder
-                            if minOrder == maxOrder then
-                                targetOrder = minOrder
-                            else
-                                targetOrder = math.random(minOrder, maxOrder)
-                            end
-                            
-                            -- Cari rarity berdasarkan order
-                            local selectedRarity = Config.MaxRarity
-                            for rarity, order in pairs(RarityOrder) do
-                                if order == targetOrder then
-                                    selectedRarity = rarity
-                                    break
-                                end
-                            end
-                            
-                            return selectedRarity
-                        end
-                        return originalGetRarity(pityTable, rodName, luckMultiplier)
-                    end
+                -- Cek jika ini module yang berisi data ikan
+                if moduleData.FishTable or moduleData.GetRarityWithPity or moduleData.RollFish then
+                    return moduleData, module
                 end
-                
-                -- Override PickFishFromRarity untuk memastikan ikan sesuai rarity
-                if moduleData.PickFishFromRarity then
-                    local originalPickFish = moduleData.PickFishFromRarity
-                    moduleData.PickFishFromRarity = function(rarity)
-                        if Config.InstantCatch then
-                            local fishTable = moduleData.FishTable or {}
-                            local eligibleFish = {}
-                            
-                            -- Filter ikan berdasarkan rarity yang diinginkan
-                            for _, fish in pairs(fishTable) do
-                                if fish.rarity == rarity then
-                                    table.insert(eligibleFish, fish)
-                                end
-                            end
-                            
-                            -- Jika tidak ada ikan dengan rarity tersebut, cari rarity yang lebih rendah
-                            if #eligibleFish == 0 then
-                                for _, fish in pairs(fishTable) do
-                                    if fish.rarity == "Common" then
-                                        table.insert(eligibleFish, fish)
-                                    end
-                                end
-                            end
-                            
-                            if #eligibleFish > 0 then
-                                -- Hitung total probability
-                                local totalProbability = 0
-                                for _, fish in pairs(eligibleFish) do
-                                    totalProbability = totalProbability + (fish.probability or 30)
-                                end
-                                
-                                -- Pilih ikan berdasarkan probability
-                                local random = math.random() * totalProbability
-                                local cumulative = 0
-                                
-                                for _, fish in pairs(eligibleFish) do
-                                    cumulative = cumulative + (fish.probability or 30)
-                                    if random <= cumulative then
-                                        return fish
-                                    end
-                                end
-                                
-                                return eligibleFish[1]
-                            end
-                        end
-                        return originalPickFish(rarity)
-                    end
-                end
-                
-                -- Override GenerateFishWeight untuk kontrol berat
-                if moduleData.GenerateFishWeight then
-                    local originalGenWeight = moduleData.GenerateFishWeight
-                    moduleData.GenerateFishWeight = function(fishData, rodLuck, maxWeight)
-                        if Config.InstantCatch or Config.RandomWeight.Enabled then
-                            local weight
-                            
-                            if Config.RandomWeight.Enabled then
-                                local mode = Config.RandomWeight.Mode
-                                
-                                if mode == "CustomRange" then
-                                    weight = math.random(Config.RandomWeight.MinRange * 10, Config.RandomWeight.MaxRange * 10) / 10
-                                elseif mode == "Extreme" then
-                                    local scale = RarityOrder[fishData.rarity] or 1
-                                    weight = math.random(50 * scale, 500 * scale)
-                                elseif mode == "Chaos" then
-                                    weight = math.random(1, 999)
-                                else
-                                    local minW = math.max(Config.MinWeight, fishData.minKg or 1)
-                                    local maxW = math.min(Config.MaxWeight, fishData.maxKg or 999, maxWeight or 999)
-                                    weight = minW + math.random() * (maxW - minW)
-                                end
-                                
-                                -- Apply bias
-                                if Config.RandomWeight.Bias > 0.5 then
-                                    weight = weight * (1 + (Config.RandomWeight.Bias - 0.5))
-                                end
-                                
-                                -- Apply fluctuation
-                                if Config.RandomWeight.Fluctuation > 0 then
-                                    local fluctuation = (math.random() * 2 - 1) * Config.RandomWeight.Fluctuation
-                                    weight = weight * (1 + fluctuation)
-                                end
-                            else
-                                local minWeight = math.max(Config.MinWeight, fishData.minKg or 1)
-                                local maxWeightAllowed = math.min(Config.MaxWeight, fishData.maxKg or 999, maxWeight or 999)
-                                weight = minWeight + math.random() * (maxWeightAllowed - minWeight)
-                            end
-                            
-                            -- Apply precision
-                            local precision = Config.WeightPrecision or 1
-                            local multiplier = 10 ^ precision
-                            weight = math.floor(weight * multiplier + 0.5) / multiplier
-                            
-                            -- Clamp to min/max
-                            weight = math.max(Config.MinWeight, math.min(Config.MaxWeight, weight))
-                            
-                            return weight
-                        end
-                        return originalGenWeight(fishData, rodLuck, maxWeight)
-                    end
-                end
-                
-                -- Override RollFish untuk silent catch
-                if moduleData.RollFish then
-                    local originalRollFish = moduleData.RollFish
-                    moduleData.RollFish = function(pityTable, rodName, luckMultiplier)
-                        if Config.SilentCatch then
-                            local rarity
-                            
-                            -- Pilih rarity sesuai config
-                            local minOrder = RarityOrder[Config.MinRarity] or 1
-                            local maxOrder = RarityOrder[Config.MaxRarity] or 7
-                            local targetOrder = math.random(minOrder, maxOrder)
-                            
-                            for r, order in pairs(RarityOrder) do
-                                if order == targetOrder then
-                                    rarity = r
-                                    break
-                                end
-                            end
-                            rarity = rarity or Config.MaxRarity
-                            
-                            -- Dapatkan ikan berdasarkan rarity
-                            local fish = moduleData.PickFishFromRarity(rarity)
-                            if not fish then
-                                return originalRollFish(pityTable, rodName, luckMultiplier)
-                            end
-                            
-                            -- Generate berat
-                            local weight = moduleData.GenerateFishWeight(fish, luckMultiplier or 1, 999)
-                            
-                            -- Hitung nilai
-                            local value = math.floor(weight * 2 * (RarityOrder[rarity] or 1) * 10 + 0.5)
-                            
-                            return {
-                                name = fish.name,
-                                rarity = fish.rarity,
-                                weight = weight,
-                                value = value
-                            }
-                        end
-                        return originalRollFish(pityTable, rodName, luckMultiplier)
-                    end
-                end
-                
-                -- Override RollFishWithZone
-                if moduleData.RollFishWithZone then
-                    local originalRollFishZone = moduleData.RollFishWithZone
-                    moduleData.RollFishWithZone = function(pityTable, rodName, luckMultiplier, zone)
-                        if Config.SilentCatch then
-                            return moduleData.RollFish(pityTable, rodName, luckMultiplier)
-                        end
-                        return originalRollFishZone(pityTable, rodName, luckMultiplier, zone or Config.ZoneFishing)
-                    end
-                end
-                
-                moduleHookActive = true
-                warn("[Fishing Exploit] Module successfully hooked!")
-                break
             end
         end
     end
+    return nil
+end
+
+local function FindRodModule()
+    for _, module in pairs(getloadedmodules() or {}) do
+        if module.Name:lower():find("rod") or module.Name:find("Rod") then
+            local success, moduleData = pcall(require, module)
+            if success and type(moduleData) == "table" then
+                -- Cek jika ini module rod
+                if moduleData.Rod or moduleData.GetRodData then
+                    return moduleData, module
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function HookRodModule()
+    if rodModuleHookActive then return end
+    
+    local rodData, rodInstance = FindRodModule()
+    if rodData then
+        originalRodModule = rodData
+        
+        -- Override rod stats jika diaktifkan
+        if Config.RodStats.Override then
+            -- Override GetRodBonusStat untuk memberikan stats custom
+            if rodData.GetRodBonusStat then
+                local originalGetRodStats = rodData.GetRodBonusStat
+                rodData.GetRodBonusStat = function(rodName)
+                    local originalStats = originalGetRodStats(rodName)
+                    if originalStats and Config.RodStats.Override then
+                        return {
+                            Strength = Config.RodStats.Strength,
+                            Control = Config.RodStats.Control,
+                            Luck = Config.RodStats.Luck,
+                            Haste = Config.RodStats.Haste
+                        }
+                    end
+                    return originalStats
+                end
+            end
+            
+            -- Override rod data langsung jika tersedia
+            if rodData.Rod then
+                for rodName, rodInfo in pairs(rodData.Rod) do
+                    if rodInfo.Stats then
+                        -- Simpan stats asli
+                        if not rodInfo.OriginalStats then
+                            rodInfo.OriginalStats = {
+                                Strength = rodInfo.Stats.Strength,
+                                Control = rodInfo.Stats.Control,
+                                Luck = rodInfo.Stats.Luck,
+                                Haste = rodInfo.Stats.Haste
+                            }
+                        end
+                        
+                        -- Apply custom stats
+                        if Config.RodStats.Override then
+                            rodInfo.Stats.Strength = Config.RodStats.Strength
+                            rodInfo.Stats.Control = Config.RodStats.Control
+                            rodInfo.Stats.Luck = Config.RodStats.Luck
+                            rodInfo.Stats.Haste = Config.RodStats.Haste
+                        end
+                    end
+                end
+            end
+        end
+        
+        rodModuleHookActive = true
+        warn("[Rod Module] Successfully hooked!")
+        return true
+    end
+    return false
+end
+
+local function HookGameFunctions()
+    if moduleHookActive then return end
+    
+    local moduleData, moduleInstance = FindFishingModule()
+    if moduleData then
+        originalModule = moduleData
+        
+        -- Override GetRarityWithPity untuk kontrol rarity
+        if moduleData.GetRarityWithPity then
+            local originalGetRarity = moduleData.GetRarityWithPity
+            moduleData.GetRarityWithPity = function(pityTable, rodName, luckMultiplier)
+                if Config.InstantCatch then
+                    local minOrder = RarityOrder[Config.MinRarity] or 1
+                    local maxOrder = RarityOrder[Config.MaxRarity] or 7
+                    
+                    -- Generate rarity sesuai config
+                    local targetOrder
+                    if minOrder == maxOrder then
+                        targetOrder = minOrder
+                    else
+                        targetOrder = math.random(minOrder, maxOrder)
+                    end
+                    
+                    -- Cari rarity berdasarkan order
+                    local selectedRarity = Config.MaxRarity
+                    for rarity, order in pairs(RarityOrder) do
+                        if order == targetOrder then
+                            selectedRarity = rarity
+                            break
+                        end
+                    end
+                    
+                    if Config.DebugMode then
+                        warn("[Rarity] Selected:", selectedRarity, "Order:", targetOrder, "Range:", minOrder, "-", maxOrder)
+                    end
+                    
+                    return selectedRarity
+                end
+                return originalGetRarity(pityTable, rodName, luckMultiplier)
+            end
+        end
+        
+        -- Override PickFishFromRarity untuk memastikan ikan sesuai rarity
+        if moduleData.PickFishFromRarity then
+            local originalPickFish = moduleData.PickFishFromRarity
+            moduleData.PickFishFromRarity = function(rarity)
+                if Config.InstantCatch then
+                    local fishTable = moduleData.FishTable or {}
+                    local eligibleFish = {}
+                    
+                    -- Filter ikan berdasarkan rarity yang diinginkan
+                    for _, fish in pairs(fishTable) do
+                        if fish.rarity == rarity then
+                            table.insert(eligibleFish, fish)
+                        end
+                    end
+                    
+                    -- Jika tidak ada ikan dengan rarity tersebut, cari rarity yang lebih rendah
+                    if #eligibleFish == 0 then
+                        for _, fish in pairs(fishTable) do
+                            if fish.rarity == "Common" then
+                                table.insert(eligibleFish, fish)
+                            end
+                        end
+                    end
+                    
+                    if #eligibleFish > 0 then
+                        -- Pilih ikan acak dari yang eligible
+                        local selectedFish = eligibleFish[math.random(1, #eligibleFish)]
+                        
+                        if Config.DebugMode then
+                            warn("[PickFish] Selected:", selectedFish.name, "Rarity:", selectedFish.rarity)
+                        end
+                        
+                        return selectedFish
+                    end
+                end
+                return originalPickFish(rarity)
+            end
+        end
+        
+        -- Override GenerateFishWeight untuk kontrol berat
+        if moduleData.GenerateFishWeight then
+            local originalGenWeight = moduleData.GenerateFishWeight
+            moduleData.GenerateFishWeight = function(fishData, rodLuck, maxWeight)
+                if Config.InstantCatch or Config.RandomWeight.Enabled then
+                    local weight
+                    
+                    if Config.RandomWeight.Enabled then
+                        local mode = Config.RandomWeight.Mode
+                        
+                        if mode == "CustomRange" then
+                            weight = math.random(Config.RandomWeight.MinRange * 10, Config.RandomWeight.MaxRange * 10) / 10
+                        elseif mode == "Extreme" then
+                            local scale = RarityOrder[fishData.rarity] or 1
+                            weight = math.random(50 * scale, 500 * scale)
+                        elseif mode == "Chaos" then
+                            weight = math.random(1, 999)
+                        else
+                            local minW = math.max(Config.MinWeight, fishData.minKg or 1)
+                            local maxW = math.min(Config.MaxWeight, fishData.maxKg or 999, maxWeight or 999)
+                            weight = minW + math.random() * (maxW - minW)
+                        end
+                        
+                        -- Apply bias
+                        if Config.RandomWeight.Bias > 0.5 then
+                            weight = weight * (1 + (Config.RandomWeight.Bias - 0.5))
+                        end
+                        
+                        -- Apply fluctuation
+                        if Config.RandomWeight.Fluctuation > 0 then
+                            local fluctuation = (math.random() * 2 - 1) * Config.RandomWeight.Fluctuation
+                            weight = weight * (1 + fluctuation)
+                        end
+                    else
+                        local minWeight = math.max(Config.MinWeight, fishData.minKg or 1)
+                        local maxWeightAllowed = math.min(Config.MaxWeight, fishData.maxKg or 999, maxWeight or 999)
+                        weight = minWeight + math.random() * (maxWeightAllowed - minWeight)
+                    end
+                    
+                    -- Apply precision
+                    local precision = Config.WeightPrecision or 1
+                    local multiplier = 10 ^ precision
+                    weight = math.floor(weight * multiplier + 0.5) / multiplier
+                    
+                    -- Clamp to min/max
+                    weight = math.max(Config.MinWeight, math.min(Config.MaxWeight, weight))
+                    
+                    if Config.DebugMode then
+                        warn("[Weight] Generated:", weight, "kg")
+                    end
+                    
+                    return weight
+                end
+                return originalGenWeight(fishData, rodLuck, maxWeight)
+            end
+        end
+        
+        -- Override RollFish untuk silent catch
+        if moduleData.RollFish then
+            local originalRollFish = moduleData.RollFish
+            moduleData.RollFish = function(pityTable, rodName, luckMultiplier)
+                if Config.SilentCatch then
+                    local rarity
+                    
+                    -- Pilih rarity sesuai config
+                    local minOrder = RarityOrder[Config.MinRarity] or 1
+                    local maxOrder = RarityOrder[Config.MaxRarity] or 7
+                    local targetOrder = math.random(minOrder, maxOrder)
+                    
+                    for r, order in pairs(RarityOrder) do
+                        if order == targetOrder then
+                            rarity = r
+                            break
+                        end
+                    end
+                    rarity = rarity or Config.MaxRarity
+                    
+                    -- Dapatkan ikan berdasarkan rarity
+                    local fish = moduleData.PickFishFromRarity(rarity)
+                    if not fish then
+                        return originalRollFish(pityTable, rodName, luckMultiplier)
+                    end
+                    
+                    -- Generate berat
+                    local weight = moduleData.GenerateFishWeight(fish, luckMultiplier or 1, 999)
+                    
+                    -- Hitung nilai
+                    local value = math.floor(weight * 2 * (RarityOrder[rarity] or 1) * 10 + 0.5)
+                    
+                    if Config.DebugMode then
+                        warn("[RollFish] Generated:", fish.name, "Rarity:", rarity, "Weight:", weight, "kg")
+                    end
+                    
+                    return {
+                        name = fish.name,
+                        rarity = fish.rarity,
+                        weight = weight,
+                        value = value
+                    }
+                end
+                return originalRollFish(pityTable, rodName, luckMultiplier)
+            end
+        end
+        
+        -- Override RollFishWithZone jika ada
+        if moduleData.RollFishWithZone then
+            local originalRollFishZone = moduleData.RollFishWithZone
+            moduleData.RollFishWithZone = function(pityTable, rodName, luckMultiplier, zone)
+                if Config.SilentCatch then
+                    return moduleData.RollFish(pityTable, rodName, luckMultiplier)
+                end
+                return originalRollFishZone(pityTable, rodName, luckMultiplier, zone or Config.ZoneFishing)
+            end
+        end
+        
+        moduleHookActive = true
+        warn("[Fishing Module] Successfully hooked!")
+        return true
+    end
+    return false
 end
 
 -- Fungsi untuk test rarity
@@ -286,22 +402,24 @@ local function PerformRarityTest()
     end
     
     testResults = {}
-    local resultsText = ""
+    local resultsText = "=== RARITY TEST RESULTS ===\n\n"
     
     -- Buat pity table
     local pityTable = {
         Rare = 0,
         Epic = 0,
         Legendary = 0,
-        Mitos = 0,
+        Mythical = 0,
         Secret = 0
     }
     
-    -- Test 10 kali untuk melihat distribusi rarity
-    for i = 1, 10 do
+    -- Test 20 kali untuk melihat distribusi rarity
+    resultsText = resultsText .. "Running 20 tests...\n"
+    
+    for i = 1, 20 do
         local rarity
         if originalModule.GetRarityWithPity then
-            rarity = originalModule.GetRarityWithPity(pityTable, "Basic Rod", 1)
+            rarity = originalModule.GetRarityWithPity(pityTable, "Beginner's Rod", 1)
         else
             rarity = "Test Failed"
         end
@@ -309,21 +427,38 @@ local function PerformRarityTest()
         -- Simpan hasil
         testResults[rarity] = (testResults[rarity] or 0) + 1
         
-        resultsText = resultsText .. "Test " .. i .. ": " .. rarity .. "\n"
+        local colorCode = ""
+        if RarityColors[rarity] then
+            local color = RarityColors[rarity]
+            colorCode = string.format("RGB(%d,%d,%d)", 
+                math.floor(color.R * 255),
+                math.floor(color.G * 255),
+                math.floor(color.B * 255))
+        end
+        
+        resultsText = resultsText .. string.format("Test %02d: %-12s [%s]\n", i, rarity, colorCode)
     end
     
     -- Buat summary
-    local summary = "\n--- Rarity Distribution ---\n"
+    resultsText = resultsText .. "\n" .. string.rep("=", 40) .. "\n"
+    resultsText = resultsText .. "DISTRIBUTION SUMMARY:\n"
+    resultsText = resultsText .. string.rep("-", 40) .. "\n"
+    
+    local totalTests = 20
     for rarity, count in pairs(testResults) do
-        summary = summary .. rarity .. ": " .. count .. " times (" .. (count / 10 * 100) .. "%)\n"
+        local percentage = (count / totalTests) * 100
+        resultsText = resultsText .. string.format("%-12s: %2d times (%5.1f%%)\n", rarity, count, percentage)
     end
     
     -- Cek apakah rarity sesuai dengan config
-    local configRange = "Config Range: " .. Config.MinRarity .. " - " .. Config.MaxRarity
-    summary = summary .. "\n" .. configRange
+    resultsText = resultsText .. "\nCONFIGURATION CHECK:\n"
+    resultsText = resultsText .. string.rep("-", 40) .. "\n"
+    resultsText = resultsText .. "Min Rarity: " .. Config.MinRarity .. "\n"
+    resultsText = resultsText .. "Max Rarity: " .. Config.MaxRarity .. "\n"
     
     -- Cek apakah ada rarity di luar range
     local valid = true
+    local warnings = ""
     for rarity, _ in pairs(testResults) do
         local rarityOrder = RarityOrder[rarity] or 0
         local minOrder = RarityOrder[Config.MinRarity] or 1
@@ -331,15 +466,23 @@ local function PerformRarityTest()
         
         if rarityOrder < minOrder or rarityOrder > maxOrder then
             valid = false
-            summary = summary .. "\n⚠️ WARNING: Found " .. rarity .. " outside configured range!"
+            warnings = warnings .. "⚠️ WARNING: Found '" .. rarity .. "' outside configured range!\n"
         end
     end
     
-    if valid then
-        summary = summary .. "\n✅ All rarities are within configured range!"
+    if warnings ~= "" then
+        resultsText = resultsText .. "\n" .. warnings
     end
     
-    return resultsText .. summary
+    if valid then
+        resultsText = resultsText .. "\n✅ SUCCESS: All rarities are within configured range!\n"
+    else
+        resultsText = resultsText .. "\n❌ FAILED: Some rarities are outside configured range!\n"
+    end
+    
+    resultsText = resultsText .. "\n" .. string.rep("=", 40)
+    
+    return resultsText
 end
 
 local function TestSpecificRarity(targetRarity)
@@ -356,50 +499,108 @@ local function TestSpecificRarity(targetRarity)
     
     local fish = originalModule.PickFishFromRarity(targetRarity)
     if fish then
-        return "✅ Found fish for " .. targetRarity .. ":\n" ..
-               "Name: " .. (fish.name or "Unknown") .. "\n" ..
-               "Rarity: " .. (fish.rarity or "Unknown") .. "\n" ..
-               "Weight Range: " .. (fish.minKg or 0) .. "kg - " .. (fish.maxKg or 0) .. "kg\n" ..
-               "Probability: " .. (fish.probability or 0)
+        return string.format([[
+✅ FISH FOUND FOR RARITY: %s
+
+DETAILS:
+• Name: %s
+• Rarity: %s
+• Weight Range: %.1fkg - %.1fkg
+• Probability: %.2f
+• Min Order: %d
+• Max Order: %d
+
+STATUS: Ready to catch!]],
+            targetRarity,
+            fish.name or "Unknown",
+            fish.rarity or "Unknown",
+            fish.minKg or 0,
+            fish.maxKg or 0,
+            fish.probability or 0,
+            RarityOrder[Config.MinRarity] or 1,
+            RarityOrder[Config.MaxRarity] or 7)
     else
-        return "❌ No fish found for rarity: " .. targetRarity
+        return string.format([[
+❌ NO FISH FOUND FOR RARITY: %s
+
+TROUBLESHOOTING:
+1. Check if rarity '%s' exists in game
+2. Verify module is properly hooked
+3. Check FishTable in module data
+4. Try different rarity (Common, Uncommon, Rare, etc.)
+
+Current Config:
+• Min Rarity: %s
+• Max Rarity: %s]],
+            targetRarity,
+            targetRarity,
+            Config.MinRarity,
+            Config.MaxRarity)
     end
 end
 
-local function TestFishWeight()
-    if not originalModule then
-        HookGameFunctions()
-        if not originalModule then
-            return "Module not found!"
+local function TestRodStats()
+    if not originalRodModule then
+        HookRodModule()
+        if not originalRodModule then
+            return "Rod module not found!"
         end
     end
     
-    if not originalModule.GenerateFishWeight then
-        return "GenerateFishWeight function not found!"
-    end
+    local results = "=== ROD STATS TEST ===\n\n"
     
-    local testFish = {
-        name = "Test Fish",
-        rarity = "Common",
-        minKg = 0.5,
-        maxKg = 50
-    }
+    -- Test beberapa rod
+    local testRods = {"Beginner's Rod", "Atlanor", "Solaris"}
     
-    local results = "Weight Test Results:\n\n"
-    
-    -- Test 5 kali
-    for i = 1, 5 do
-        local weight = originalModule.GenerateFishWeight(testFish, 1, 999)
-        results = results .. "Test " .. i .. ": " .. weight .. "kg\n"
+    for _, rodName in ipairs(testRods) do
+        results = results .. "Rod: " .. rodName .. "\n"
+        results = results .. string.rep("-", 30) .. "\n"
         
-        -- Cek apakah weight sesuai config
-        if weight < Config.MinWeight then
-            results = results .. "  ⚠️ Below Min Weight (" .. Config.MinWeight .. "kg)\n"
-        elseif weight > Config.MaxWeight then
-            results = results .. "  ⚠️ Above Max Weight (" .. Config.MaxWeight .. "kg)\n"
-        else
-            results = results .. "  ✅ Within configured range\n"
+        -- Get rod data
+        local rodData
+        if originalRodModule.GetRodData then
+            rodData = originalRodModule.GetRodData(rodName)
+        elseif originalRodModule.Rod then
+            rodData = originalRodModule.Rod[rodName]
         end
+        
+        if rodData then
+            if rodData.Stats then
+                results = results .. string.format("Strength: %.2f\n", rodData.Stats.Strength or 0)
+                results = results .. string.format("Control: %.2f\n", rodData.Stats.Control or 0)
+                results = results .. string.format("Luck: %.2f\n", rodData.Stats.Luck or 0)
+                results = results .. string.format("Haste: %.2f\n", rodData.Stats.Haste or 0)
+            end
+            
+            if rodData.BaitCost then
+                results = results .. string.format("Bait Cost: %d\n", rodData.BaitCost or 0)
+            end
+            
+            if rodData.Rank then
+                results = results .. string.format("Rank: %d\n", rodData.Rank or 0)
+            end
+            
+            if Config.RodStats.Override then
+                results = results .. "✅ Custom Stats Applied\n"
+            else
+                results = results .. "⚠️ Using Original Stats\n"
+            end
+        else
+            results = results .. "❌ Rod data not found\n"
+        end
+        
+        results = results .. "\n"
+    end
+    
+    results = results .. string.rep("=", 40) .. "\n"
+    results = results .. "CONFIGURATION:\n"
+    results = results .. string.rep("-", 40) .. "\n"
+    results = results .. "Override Stats: " .. (Config.RodStats.Override and "✅ ON" or "❌ OFF") .. "\n"
+    if Config.RodStats.Override then
+        results = results .. string.format("Strength: %.1f\n", Config.RodStats.Strength)
+        results = results .. string.format("Control: %.1f\n", Config.RodStats.Control)
+        results = results .. string.format("Luck: %.1f\n", Config.RodStats.Luck)
+        results = results .. string.format("Haste: %.1f\n", Config.RodStats.Haste)
     end
     
     return results
@@ -451,6 +652,10 @@ local function SilentCatchFish()
             Value = math.floor(weight * 100 * (RarityOrder[rarity] or 1))
         }
         
+        if Config.DebugMode then
+            warn("[Silent Catch] Attempting catch:", fakeFishData)
+        end
+        
         local success = pcall(function()
             if catchRemote:IsA("RemoteEvent") then
                 catchRemote:FireServer(fakeFishData)
@@ -464,116 +669,9 @@ local function SilentCatchFish()
     return false
 end
 
-local function GiveFishToPlayer(targetName, fishName, rarity, weight)
-    if not Config.FishGiver.Enabled or targetName == "" then return false end
-    
-    local targetPlayer = nil
-    for _, player in pairs(Players:GetPlayers()) do
-        if player.Name:lower():find(targetName:lower()) or player.DisplayName:lower():find(targetName:lower()) then
-            targetPlayer = player
-            break
-        end
-    end
-    
-    if not targetPlayer then return false end
-    
-    local giveRemote = FishingSystem:FindFirstChild("GiveFish") or 
-                      FishingSystem:FindFirstChild("TradeFish") or
-                      FishingSystem:FindFirstChild("TransferFish")
-    
-    if giveRemote then
-        local fishData = {
-            Player = targetPlayer,
-            FishName = fishName or Config.FishGiver.FishName,
-            Rarity = rarity or Config.FishGiver.Rarity,
-            Weight = weight or Config.FishGiver.Weight,
-            Value = (weight or 999) * 100 * (RarityOrder[rarity or Config.FishGiver.Rarity] or 1)
-        }
-        
-        local success = pcall(function()
-            if giveRemote:IsA("RemoteEvent") then
-                giveRemote:FireServer(fishData)
-            elseif giveRemote:IsA("RemoteFunction") then
-                giveRemote:InvokeServer(fishData)
-            end
-        end)
-        
-        return success
-    end
-    
-    return false
-end
-
-local AutoFishThread
-local CatchCount = 0
-
-local function AdvancedAutoFishing()
-    if AutoFishThread then return end
-    
-    AutoFishThread = task.spawn(function()
-        while Config.AutoFish do
-            HookGameFunctions()
-            
-            local castRemote = FishingSystem:FindFirstChild("CastLine") or 
-                              FishingSystem:FindFirstChild("StartFishing")
-            
-            if castRemote then
-                -- Cast line
-                pcall(function()
-                    if castRemote:IsA("RemoteEvent") then
-                        castRemote:FireServer()
-                    elseif castRemote:IsA("RemoteFunction") then
-                        castRemote:InvokeServer()
-                    end
-                end)
-                
-                -- Tunggu sebentar sebelum catch
-                local waitTime = Config.BypassCooldown and 0.1 or math.random(0.5, 2.0)
-                task.wait(waitTime)
-                
-                -- Catch fish
-                if Config.SilentCatch then
-                    SilentCatchFish()
-                else
-                    local catchRemote = FishingSystem:FindFirstChild("CatchFish")
-                    if catchRemote then
-                        pcall(function()
-                            catchRemote:FireServer()
-                        end)
-                    end
-                end
-                
-                CatchCount = CatchCount + 1
-                
-                -- Auto sell
-                if Config.AutoSell and CatchCount % 5 == 0 then
-                    task.spawn(function()
-                        local sellRemote = FishingSystem:FindFirstChild("SellFish")
-                        if sellRemote then
-                            for rarity, order in pairs(RarityOrder) do
-                                local sellOrder = RarityOrder[Config.SellBelowRarity] or 3
-                                if order < sellOrder then
-                                    pcall(function()
-                                        sellRemote:FireServer(rarity)
-                                    end)
-                                    task.wait(0.1)
-                                end
-                            end
-                        end
-                    end)
-                end
-            end
-            
-            -- Delay antara fishing
-            local delay = math.random(100, 300) / 100
-            task.wait(delay)
-        end
-    end)
-end
-
 -- Load UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Fishing Yahiko v6.0", "DarkTheme")
+local Window = Library.CreateLib("Fishing Exploit v7.0", "DarkTheme")
 
 -- Main Tab
 local MainTab = Window:NewTab("Main")
@@ -581,14 +679,6 @@ local FishingSection = MainTab:NewSection("Fishing Features")
 
 FishingSection:NewToggle("Auto Fish", "Automatically fishes", function(state)
     Config.AutoFish = state
-    if state then
-        AdvancedAutoFishing()
-    else
-        if AutoFishThread then
-            task.cancel(AutoFishThread)
-            AutoFishThread = nil
-        end
-    end
 end)
 
 FishingSection:NewToggle("Instant Catch", "Skip minigame", function(state)
@@ -609,7 +699,7 @@ local RarityTab = Window:NewTab("Rarity Control")
 local MinRaritySection = RarityTab:NewSection("Minimum Rarity")
 
 local MinRarityDropdown = MinRaritySection:NewDropdown("Min Rarity", "Lowest rarity", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}, 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Secret"}, 
     function(selected)
         Config.MinRarity = selected
     end)
@@ -617,83 +707,65 @@ MinRarityDropdown:SetOption("Common")
 
 local MaxRaritySection = RarityTab:NewSection("Maximum Rarity")
 local MaxRarityDropdown = MaxRaritySection:NewDropdown("Max Rarity", "Highest rarity", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}, 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Secret"}, 
     function(selected)
         Config.MaxRarity = selected
     end)
 MaxRarityDropdown:SetOption("Secret")
 
--- Weight Tab
-local WeightTab = Window:NewTab("Weight Control")
-local WeightRangeSection = WeightTab:NewSection("Weight Range")
+-- Rod Stats Tab
+local RodTab = Window:NewTab("Rod Stats")
+local RodSection = RodTab:NewSection("Rod Configuration")
 
-local MinWeightSlider = WeightRangeSection:NewSlider("Min Weight", "Minimum weight", 1000, 0.1, function(value)
-    Config.MinWeight = value
-end)
-MinWeightSlider:SetValue(1)
-
-local MaxWeightSlider = WeightRangeSection:NewSlider("Max Weight", "Maximum weight", 1000, 0.1, function(value)
-    Config.MaxWeight = value
-end)
-MaxWeightSlider:SetValue(999)
-
-local RandomWeightSection = WeightTab:NewSection("Random Weight")
-
-RandomWeightSection:NewToggle("Enable Random Weight", "Randomize weights", function(state)
-    Config.RandomWeight.Enabled = state
+RodSection:NewToggle("Override Rod Stats", "Use custom rod stats", function(state)
+    Config.RodStats.Override = state
+    HookRodModule()
 end)
 
-local WeightModeDropdown = RandomWeightSection:NewDropdown("Weight Mode", "Weight generation mode", 
-    {"Original", "CustomRange", "Extreme", "Chaos"}, 
-    function(selected)
-        Config.RandomWeight.Mode = selected
-    end)
-WeightModeDropdown:SetOption("CustomRange")
-
-local CustomMinSlider = RandomWeightSection:NewSlider("Custom Min", "Minimum for custom mode", 
-    1000, 1, 100, function(value)
-    Config.RandomWeight.MinRange = value
+local StrengthSlider = RodSection:NewSlider("Strength", "Rod strength", 400, 0, function(value)
+    Config.RodStats.Strength = value / 100
 end)
-CustomMinSlider:SetValue(1)
+StrengthSlider:SetValue(400)
 
-local CustomMaxSlider = RandomWeightSection:NewSlider("Custom Max", "Maximum for custom mode", 
-    1000, 100, 999, function(value)
-    Config.RandomWeight.MaxRange = value
+local ControlSlider = RodSection:NewSlider("Control", "Rod control", 200, 0, function(value)
+    Config.RodStats.Control = value / 100
 end)
-CustomMaxSlider:SetValue(999)
+ControlSlider:SetValue(200)
 
-local BiasSlider = RandomWeightSection:NewSlider("Weight Bias", "Bias to high weights", 
-    100, 0, 100, function(value)
-    Config.RandomWeight.Bias = value / 100
+local LuckSlider = RodSection:NewSlider("Luck", "Rod luck", 10000, 0, function(value)
+    Config.RodStats.Luck = value / 100
 end)
-BiasSlider:SetValue(70)
+LuckSlider:SetValue(10000)
 
-local FluctuationSlider = RandomWeightSection:NewSlider("Fluctuation", "Random variation", 
-    100, 0, 100, function(value)
-    Config.RandomWeight.Fluctuation = value / 100
+local HasteSlider = RodSection:NewSlider("Haste", "Rod haste", 200, 0, function(value)
+    Config.RodStats.Haste = value / 100
 end)
-FluctuationSlider:SetValue(30)
+HasteSlider:SetValue(200)
 
-local PrecisionSection = WeightTab:NewSection("Precision")
-local PrecisionSlider = PrecisionSection:NewSlider("Decimal Places", "Weight precision", 3, 0, function(value)
-    Config.WeightPrecision = value
+RodSection:NewButton("Apply Rod Stats", "Apply custom stats to rods", function()
+    HookRodModule()
+    Library:Notify("Rod stats applied!", 3)
 end)
-PrecisionSlider:SetValue(1)
 
 -- Test Tab
 local TestTab = Window:NewTab("Testing")
-local TestSection = TestTab:NewSection("Rarity & Function Tests")
+local TestSection = TestTab:NewSection("Function Tests")
 
-TestSection:NewButton("Hook Functions", "Hook fishing module", function()
-    HookGameFunctions()
-    Library:Notify(moduleHookActive and "✅ Successfully hooked!" or "❌ Failed to hook", 3)
+TestSection:NewButton("Hook All Modules", "Hook fishing and rod modules", function()
+    local fishingHooked = HookGameFunctions()
+    local rodHooked = HookRodModule()
+    
+    local msg = ""
+    if fishingHooked then msg = msg .. "✅ Fishing Module\n" else msg = msg .. "❌ Fishing Module\n" end
+    if rodHooked then msg = msg .. "✅ Rod Module\n" else msg = msg .. "❌ Rod Module\n" end
+    
+    Library:Notify(msg, 5)
 end)
 
-TestSection:NewButton("Rarity Test (10x)", "Test rarity distribution", function()
+TestSection:NewButton("Rarity Test (20x)", "Test rarity distribution", function()
     local result = PerformRarityTest()
-    Library:Notify("Rarity Test Results", 5)
     
-    -- Buat window untuk menampilkan hasil lengkap
+    -- Buat window untuk hasil
     local TextWindow = Instance.new("ScreenGui")
     local TextFrame = Instance.new("Frame")
     local TextBox = Instance.new("TextBox")
@@ -707,18 +779,19 @@ TestSection:NewButton("Rarity Test (10x)", "Test rarity distribution", function(
     TextFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     TextFrame.BorderSizePixel = 2
     TextFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
-    TextFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
-    TextFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
+    TextFrame.Position = UDim2.new(0.25, 0, 0.2, 0)
+    TextFrame.Size = UDim2.new(0.5, 0, 0.6, 0)
     
     TextBox.Name = "ResultsText"
     TextBox.Parent = TextFrame
     TextBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     TextBox.BorderSizePixel = 0
-    TextBox.Position = UDim2.new(0.05, 0, 0.1, 0)
-    TextBox.Size = UDim2.new(0.9, 0, 0.8, 0)
+    TextBox.Position = UDim2.new(0.02, 0, 0.05, 0)
+    TextBox.Size = UDim2.new(0.96, 0, 0.9, 0)
     TextBox.Text = result
     TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.TextSize = 14
+    TextBox.Font = Enum.Font.Code
     TextBox.TextWrapped = true
     TextBox.TextXAlignment = Enum.TextXAlignment.Left
     TextBox.TextYAlignment = Enum.TextYAlignment.Top
@@ -729,8 +802,8 @@ TestSection:NewButton("Rarity Test (10x)", "Test rarity distribution", function(
     CloseButton.Parent = TextFrame
     CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     CloseButton.BorderSizePixel = 0
-    CloseButton.Position = UDim2.new(0.8, 0, 0.92, 0)
-    CloseButton.Size = UDim2.new(0.15, 0, 0.05, 0)
+    CloseButton.Position = UDim2.new(0.4, 0, 0.96, 0)
+    CloseButton.Size = UDim2.new(0.2, 0, 0.03, 0)
     CloseButton.Font = Enum.Font.SourceSans
     CloseButton.Text = "Close"
     CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -741,140 +814,15 @@ TestSection:NewButton("Rarity Test (10x)", "Test rarity distribution", function(
     end)
 end)
 
-TestSection:NewButton("Test Specific Rarity", "Test fish for specific rarity", function()
-    local rarityOptions = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}
+TestSection:NewButton("Test Rod Stats", "Test rod statistics", function()
+    local result = TestRodStats()
     
-    -- Buat dropdown sederhana
-    local DropdownWindow = Instance.new("ScreenGui")
-    local DropdownFrame = Instance.new("Frame")
-    local DropdownText = Instance.new("TextLabel")
-    local DropdownBox = Instance.new("TextBox")
-    local TestButton = Instance.new("TextButton")
-    local CloseButton = Instance.new("TextButton")
-    
-    DropdownWindow.Name = "RarityTestWindow"
-    DropdownWindow.Parent = game.CoreGui
-    
-    DropdownFrame.Name = "MainFrame"
-    DropdownFrame.Parent = DropdownWindow
-    DropdownFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    DropdownFrame.BorderSizePixel = 2
-    DropdownFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
-    DropdownFrame.Position = UDim2.new(0.4, 0, 0.4, 0)
-    DropdownFrame.Size = UDim2.new(0.2, 0, 0.2, 0)
-    
-    DropdownText.Name = "Label"
-    DropdownText.Parent = DropdownFrame
-    DropdownText.BackgroundTransparency = 1
-    DropdownText.Position = UDim2.new(0.1, 0, 0.1, 0)
-    DropdownText.Size = UDim2.new(0.8, 0, 0.2, 0)
-    DropdownText.Text = "Select Rarity to Test:"
-    DropdownText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    DropdownText.TextSize = 14
-    
-    DropdownBox.Name = "RarityInput"
-    DropdownBox.Parent = DropdownFrame
-    DropdownBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    DropdownBox.BorderSizePixel = 0
-    DropdownBox.Position = UDim2.new(0.1, 0, 0.4, 0)
-    DropdownBox.Size = UDim2.new(0.8, 0, 0.15, 0)
-    DropdownBox.Text = "Common"
-    DropdownBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    DropdownBox.TextSize = 14
-    DropdownBox.PlaceholderText = "Enter rarity..."
-    
-    TestButton.Name = "TestBtn"
-    TestButton.Parent = DropdownFrame
-    TestButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-    TestButton.BorderSizePixel = 0
-    TestButton.Position = UDim2.new(0.1, 0, 0.65, 0)
-    TestButton.Size = UDim2.new(0.35, 0, 0.15, 0)
-    TestButton.Font = Enum.Font.SourceSans
-    TestButton.Text = "Test"
-    TestButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TestButton.TextSize = 14
-    
-    CloseButton.Name = "CloseBtn"
-    CloseButton.Parent = DropdownFrame
-    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    CloseButton.BorderSizePixel = 0
-    CloseButton.Position = UDim2.new(0.55, 0, 0.65, 0)
-    CloseButton.Size = UDim2.new(0.35, 0, 0.15, 0)
-    CloseButton.Font = Enum.Font.SourceSans
-    CloseButton.Text = "Close"
-    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CloseButton.TextSize = 14
-    
-    TestButton.MouseButton1Click:Connect(function()
-        local rarity = DropdownBox.Text
-        local result = TestSpecificRarity(rarity)
-        
-        -- Tampilkan hasil
-        local ResultWindow = Instance.new("ScreenGui")
-        local ResultFrame = Instance.new("Frame")
-        local ResultText = Instance.new("TextBox")
-        local CloseBtn = Instance.new("TextButton")
-        
-        ResultWindow.Name = "TestResultWindow"
-        ResultWindow.Parent = game.CoreGui
-        
-        ResultFrame.Name = "ResultFrame"
-        ResultFrame.Parent = ResultWindow
-        ResultFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        ResultFrame.BorderSizePixel = 2
-        ResultFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
-        ResultFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
-        ResultFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
-        
-        ResultText.Name = "ResultTextBox"
-        ResultText.Parent = ResultFrame
-        ResultText.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-        ResultText.BorderSizePixel = 0
-        ResultText.Position = UDim2.new(0.05, 0, 0.1, 0)
-        ResultText.Size = UDim2.new(0.9, 0, 0.8, 0)
-        ResultText.Text = result
-        ResultText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        ResultText.TextSize = 14
-        ResultText.TextWrapped = true
-        ResultText.TextXAlignment = Enum.TextXAlignment.Left
-        ResultText.TextYAlignment = Enum.TextYAlignment.Top
-        ResultText.MultiLine = true
-        ResultText.ClearTextOnFocus = false
-        
-        CloseBtn.Name = "CloseResultBtn"
-        CloseBtn.Parent = ResultFrame
-        CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        CloseBtn.BorderSizePixel = 0
-        CloseBtn.Position = UDim2.new(0.8, 0, 0.92, 0)
-        CloseBtn.Size = UDim2.new(0.15, 0, 0.05, 0)
-        CloseBtn.Font = Enum.Font.SourceSans
-        CloseBtn.Text = "Close"
-        CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        CloseBtn.TextSize = 14
-        
-        CloseBtn.MouseButton1Click:Connect(function()
-            ResultWindow:Destroy()
-        end)
-        
-        DropdownWindow:Destroy()
-    end)
-    
-    CloseButton.MouseButton1Click:Connect(function()
-        DropdownWindow:Destroy()
-    end)
-end)
-
-TestSection:NewButton("Test Fish Weight", "Test weight generation", function()
-    local result = TestFishWeight()
-    Library:Notify("Weight Test Results", 5)
-    
-    -- Buat window untuk menampilkan hasil
     local TextWindow = Instance.new("ScreenGui")
     local TextFrame = Instance.new("Frame")
     local TextBox = Instance.new("TextBox")
     local CloseButton = Instance.new("TextButton")
     
-    TextWindow.Name = "WeightTestWindow"
+    TextWindow.Name = "RodTestWindow"
     TextWindow.Parent = game.CoreGui
     
     TextFrame.Name = "MainFrame"
@@ -882,23 +830,23 @@ TestSection:NewButton("Test Fish Weight", "Test weight generation", function()
     TextFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     TextFrame.BorderSizePixel = 2
     TextFrame.BorderColor3 = Color3.fromRGB(0, 170, 255)
-    TextFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
-    TextFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
+    TextFrame.Position = UDim2.new(0.3, 0, 0.25, 0)
+    TextFrame.Size = UDim2.new(0.4, 0, 0.5, 0)
     
     TextBox.Name = "ResultsText"
     TextBox.Parent = TextFrame
     TextBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     TextBox.BorderSizePixel = 0
-    TextBox.Position = UDim2.new(0.05, 0, 0.1, 0)
-    TextBox.Size = UDim2.new(0.9, 0, 0.8, 0)
+    TextBox.Position = UDim2.new(0.05, 0, 0.05, 0)
+    TextBox.Size = UDim2.new(0.9, 0, 0.9, 0)
     TextBox.Text = result
     TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.TextSize = 14
+    TextBox.Font = Enum.Font.Code
     TextBox.TextWrapped = true
     TextBox.TextXAlignment = Enum.TextXAlignment.Left
     TextBox.TextYAlignment = Enum.TextYAlignment.Top
     TextBox.MultiLine = true
-    TextBox.ClearTextOnFocus = false
     
     CloseButton.Name = "CloseButton"
     CloseButton.Parent = TextFrame
@@ -916,138 +864,155 @@ TestSection:NewButton("Test Fish Weight", "Test weight generation", function()
     end)
 end)
 
-TestSection:NewButton("Test Silent Catch", "Test catch function", function()
-    local success = SilentCatchFish()
-    Library:Notify(success and "✅ Silent catch successful!" or "❌ Silent catch failed", 3)
-end)
-
-TestSection:NewButton("Check Module Status", "Check if module is hooked", function()
-    if originalModule then
-        local status = "✅ Module is hooked!\n"
-        status = status .. "Functions available:\n"
-        
-        if originalModule.GetRarityWithPity then status = status .. "- GetRarityWithPity ✓\n" end
-        if originalModule.PickFishFromRarity then status = status .. "- PickFishFromRarity ✓\n" end
-        if originalModule.GenerateFishWeight then status = status .. "- GenerateFishWeight ✓\n" end
-        if originalModule.RollFish then status = status .. "- RollFish ✓\n" end
-        if originalModule.RollFishWithZone then status = status .. "- RollFishWithZone ✓\n" end
-        
-        Library:Notify(status, 5)
-    else
-        Library:Notify("❌ Module not hooked!", 3)
-    end
-end)
-
--- Give Tab
-local GiveTab = Window:NewTab("Fish Giver")
-local GiveSection = GiveTab:NewSection("Give Fish")
-
-GiveSection:NewToggle("Enable FishGiver", "Allow giving", function(state)
-    Config.FishGiver.Enabled = state
-end)
-
-local PlayerTextBox = GiveSection:NewTextBox("Target Player", "Player name", function(text)
-    Config.FishGiver.TargetPlayer = text
-end)
-
-local FishDropdown = GiveSection:NewDropdown("Fish Type", "Select fish", 
-    {"Megalodon", "Ancient Whale", "Celestial Dragon", "Plasma Shark", "Pink Dolphin", "Kraken", "Leviathan", "Sotong", "King Crab"}, 
-    function(selected)
-        Config.FishGiver.FishName = selected
-    end)
-FishDropdown:SetOption("Megalodon")
-
-local GiveRarityDropdown = GiveSection:NewDropdown("Give Rarity", "Rarity", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}, 
-    function(selected)
-        Config.FishGiver.Rarity = selected
-    end)
-GiveRarityDropdown:SetOption("Secret")
-
-local GiveWeightSlider = GiveSection:NewSlider("Give Weight", "Weight", 1000, 1, function(value)
-    Config.FishGiver.Weight = value
-end)
-GiveWeightSlider:SetValue(999)
-
-GiveSection:NewButton("Give Fish Now", "Execute give", function()
-    local target = Config.FishGiver.TargetPlayer
-    if target and target ~= "" then
-        GiveFishToPlayer(target, Config.FishGiver.FishName, Config.FishGiver.Rarity, Config.FishGiver.Weight)
-        Library:Notify("Fish give attempted", 3)
-    else
-        Library:Notify("Enter player name", 5)
-    end
-end)
-
--- Sell Tab
-local SellTab = Window:NewTab("Auto Sell")
-local SellSettings = SellTab:NewSection("Sell Configuration")
-
-SellSettings:NewToggle("Auto Sell", "Automatically sell", function(state)
-    Config.AutoSell = state
-end)
-
-local SellBelowDropdown = SellSettings:NewDropdown("Sell Below", "Sell below rarity", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}, 
-    function(selected)
-        Config.SellBelowRarity = selected
-    end)
-SellBelowDropdown:SetOption("Rare")
-
-SellSettings:NewButton("Sell All Now", "Sell all", function()
-    local sellRemote = FishingSystem:FindFirstChild("SellFish") or 
-                      FishingSystem:FindFirstChild("SellAllFish")
+TestSection:NewButton("Check Module Status", "Check hooked modules", function()
+    local status = "=== MODULE STATUS ===\n\n"
     
-    if sellRemote then
-        for rarity, order in pairs(RarityOrder) do
-            local sellOrder = RarityOrder[Config.SellBelowRarity] or 3
-            if order < sellOrder then
-                pcall(function()
-                    sellRemote:FireServer(rarity)
-                    task.wait(0.1)
-                end)
-            end
-        end
-        Library:Notify("Sell completed", 3)
+    if originalModule then
+        status = status .. "✅ FISHING MODULE:\n"
+        if originalModule.GetRarityWithPity then status = status .. "  • GetRarityWithPity ✓\n" end
+        if originalModule.PickFishFromRarity then status = status .. "  • PickFishFromRarity ✓\n" end
+        if originalModule.GenerateFishWeight then status = status .. "  • GenerateFishWeight ✓\n" end
+        if originalModule.RollFish then status = status .. "  • RollFish ✓\n" end
+        if originalModule.FishTable then status = status .. "  • FishTable (" .. #originalModule.FishTable .. " fish) ✓\n" end
+    else
+        status = status .. "❌ FISHING MODULE: Not hooked\n"
     end
-end)
-
--- Stats Tab
-local StatsTab = Window:NewTab("Stats")
-local LiveStats = StatsTab:NewSection("Statistics")
-
-local TotalCatches = LiveStats:NewLabel("Total Catches: 0")
-local CurrentRarity = LiveStats:NewLabel("Rarity Range: Common - Secret")
-local CurrentWeight = LiveStats:NewLabel("Weight Range: 1kg - 999kg")
-local ModuleStatus = LiveStats:NewLabel("Module: Not Hooked")
-
-task.spawn(function()
-    while task.wait(1) do
-        TotalCatches:UpdateLabel("Total Catches: " .. CatchCount)
-        CurrentRarity:UpdateLabel("Rarity Range: " .. Config.MinRarity .. " - " .. Config.MaxRarity)
-        CurrentWeight:UpdateLabel("Weight Range: " .. Config.MinWeight .. "kg - " .. Config.MaxWeight .. "kg")
-        ModuleStatus:UpdateLabel("Module: " .. (moduleHookActive and "✅ Hooked" or "❌ Not Hooked"))
+    
+    status = status .. "\n"
+    
+    if originalRodModule then
+        status = status .. "✅ ROD MODULE:\n"
+        if originalRodModule.GetRodData then status = status .. "  • GetRodData ✓\n" end
+        if originalRodModule.Rod then status = status .. "  • Rod Table (" .. #RodList .. " rods) ✓\n" end
+        status = status .. "  • Stats Override: " .. (Config.RodStats.Override and "✅ ON" or "❌ OFF") .. "\n"
+    else
+        status = status .. "❌ ROD MODULE: Not hooked\n"
     end
+    
+    Library:Notify(status, 5)
 end)
 
 -- Utilities Tab
 local UtilTab = Window:NewTab("Utilities")
 local UtilitySection = UtilTab:NewSection("Tools")
 
-UtilitySection:NewToggle("Bypass Cooldown", "Remove cooldown", function(state)
-    Config.BypassCooldown = state
-end)
-
 UtilitySection:NewToggle("Anti-AFK", "Prevent AFK", function(state)
     Config.AntiAFK = state
 end)
 
-local ZoneDropdown = UtilitySection:NewDropdown("Fishing Zone", "Select fishing zone", 
-    {"Default", "Ocean", "River", "Lake", "DeepSea"}, 
-    function(selected)
-        Config.ZoneFishing = selected
+UtilitySection:NewButton("Force Rarity Test", "Manual rarity test", function()
+    if originalModule and originalModule.GetRarityWithPity then
+        local pityTable = {
+            Rare = 0,
+            Epic = 0,
+            Legendary = 0,
+            Mythical = 0,
+            Secret = 0
+        }
+        
+        local rarity = originalModule.GetRarityWithPity(pityTable, "Beginner's Rod", 1)
+        local color = RarityColors[rarity] or Color3.fromRGB(255, 255, 255)
+        
+        local message = string.format("Rarity: %s\nOrder: %d\nColor: RGB(%d,%d,%d)\nConfig: %s - %s",
+            rarity,
+            RarityOrder[rarity] or 0,
+            math.floor(color.R * 255),
+            math.floor(color.G * 255),
+            math.floor(color.B * 255),
+            Config.MinRarity,
+            Config.MaxRarity)
+        
+        Library:Notify(message, 5)
+    else
+        Library:Notify("Module not hooked or function missing", 3)
+    end
+end)
+
+-- Stats Tab
+local StatsTab = Window:NewTab("Stats")
+local LiveStats = StatsTab:NewSection("Live Statistics")
+
+local FishingStatus = LiveStats:NewLabel("Fishing Module: Not Hooked")
+local RodStatus = LiveStats:NewLabel("Rod Module: Not Hooked")
+local RarityRange = LiveStats:NewLabel("Rarity Range: Common - Secret")
+local RodStatsStatus = LiveStats:NewLabel("Rod Stats: Original")
+
+task.spawn(function()
+    while task.wait(1) do
+        FishingStatus:UpdateLabel("Fishing Module: " .. (moduleHookActive and "✅ Hooked" or "❌ Not Hooked"))
+        RodStatus:UpdateLabel("Rod Module: " .. (rodModuleHookActive and "✅ Hooked" or "❌ Not Hooked"))
+        RarityRange:UpdateLabel("Rarity Range: " .. Config.MinRarity .. " - " .. Config.MaxRarity)
+        
+        if Config.RodStats.Override then
+            RodStatsStatus:UpdateLabel(string.format("Rod Stats: %.1fS %.1fC %.1fL %.1fH",
+                Config.RodStats.Strength,
+                Config.RodStats.Control,
+                Config.RodStats.Luck,
+                Config.RodStats.Haste))
+        else
+            RodStatsStatus:UpdateLabel("Rod Stats: Original")
+        end
+    end
+end)
+
+-- Auto fishing thread
+local AutoFishThread
+
+local function AdvancedAutoFishing()
+    if AutoFishThread then return end
+    
+    AutoFishThread = task.spawn(function()
+        while Config.AutoFish do
+            -- Hook modules jika belum
+            if not moduleHookActive then
+                HookGameFunctions()
+            end
+            if not rodModuleHookActive then
+                HookRodModule()
+            end
+            
+            local castRemote = FishingSystem:FindFirstChild("CastLine") or 
+                              FishingSystem:FindFirstChild("StartFishing")
+            
+            if castRemote then
+                -- Cast line
+                pcall(function()
+                    if castRemote:IsA("RemoteEvent") then
+                        castRemote:FireServer()
+                    elseif castRemote:IsA("RemoteFunction") then
+                        castRemote:InvokeServer()
+                    end
+                end)
+                
+                -- Tunggu sebentar
+                local waitTime = Config.BypassCooldown and 0.1 or math.random(0.5, 2.0)
+                task.wait(waitTime)
+                
+                -- Catch fish
+                if Config.SilentCatch then
+                    SilentCatchFish()
+                else
+                    local catchRemote = FishingSystem:FindFirstChild("CatchFish")
+                    if catchRemote then
+                        pcall(function()
+                            catchRemote:FireServer()
+                        end)
+                    end
+                end
+            end
+            
+            -- Delay antara fishing
+            local delay = math.random(100, 300) / 100
+            task.wait(delay)
+        end
     end)
-ZoneDropdown:SetOption("Default")
+end
+
+-- Start auto fishing jika diaktifkan
+if Config.AutoFish then
+    task.wait(2)
+    AdvancedAutoFishing()
+end
 
 -- Anti-AFK
 if Config.AntiAFK then
@@ -1064,8 +1029,9 @@ if Config.AntiAFK then
     end)
 end
 
-Library:Notify("Fishing Yahiko Exploit v6.0 Loaded!", 5)
+Library:Notify("Fishing Exploit v7.0 Loaded!", 5)
 
 -- Initial hook
 task.wait(2)
 HookGameFunctions()
+HookRodModule()
