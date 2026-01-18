@@ -1,0 +1,94 @@
+-- SIMPLE FISHING CATCH SCRIPT
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local function GenerateUUID()
+    local template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+    return string.gsub(template, '[xy]', function(c)
+        local v = (c == 'x') and math.random(0, 0xf) or math.random(8, 0xb)
+        return string.format('%x', v)
+    end)
+end
+
+-- Function untuk catch fish
+local function CatchFish()
+    local sessionId = GenerateUUID()
+    
+    -- Start fishing
+    local args1 = {0.7619961112499141, sessionId}
+    ReplicatedStorage:WaitForChild("Fishing_RemoteThrow"):FireServer(unpack(args1))
+    
+    -- Immediately complete
+    local args2 = {
+        {
+            duration = 0.5,  -- Very fast
+            result = "SUCCESS",
+            insideRatio = 0.95  -- 95% success
+        },
+        sessionId
+    }
+    ReplicatedStorage:WaitForChild("Fishing"):WaitForChild("ToServer"):WaitForChild("ReelFinished"):FireServer(unpack(args2))
+    
+    return true
+end
+
+-- Auto catch loop
+local autoCatch = false
+local catchCount = 0
+
+local function StartAutoCatch()
+    autoCatch = true
+    while autoCatch do
+        CatchFish()
+        catchCount += 1
+        wait(0.5)  -- Catch every 0.5 seconds
+    end
+end
+
+local function StopAutoCatch()
+    autoCatch = false
+end
+
+-- Simple GUI
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local StartBtn = Instance.new("TextButton")
+local StopBtn = Instance.new("TextButton")
+local InstantBtn = Instance.new("TextButton")
+local Counter = Instance.new("TextLabel")
+
+ScreenGui.Parent = game.CoreGui
+Frame.Parent = ScreenGui
+Frame.Size = UDim2.new(0, 200, 0, 150)
+Frame.Position = UDim2.new(0.5, -100, 0.5, -75)
+Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+
+StartBtn.Parent = Frame
+StartBtn.Size = UDim2.new(0.8, 0, 0.2, 0)
+StartBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
+StartBtn.Text = "Start Auto Catch"
+StartBtn.MouseButton1Click:Connect(StartAutoCatch)
+
+StopBtn.Parent = Frame
+StopBtn.Size = UDim2.new(0.8, 0, 0.2, 0)
+StopBtn.Position = UDim2.new(0.1, 0, 0.35, 0)
+StopBtn.Text = "Stop Auto Catch"
+StopBtn.MouseButton1Click:Connect(StopAutoCatch)
+
+InstantBtn.Parent = Frame
+InstantBtn.Size = UDim2.new(0.8, 0, 0.2, 0)
+InstantBtn.Position = UDim2.new(0.1, 0, 0.6, 0)
+InstantBtn.Text = "Instant Catch"
+InstantBtn.MouseButton1Click:Connect(function()
+    CatchFish()
+    catchCount += 1
+    Counter.Text = "Catches: " .. catchCount
+end)
+
+Counter.Parent = Frame
+Counter.Size = UDim2.new(0.8, 0, 0.2, 0)
+Counter.Position = UDim2.new(0.1, 0, 0.85, 0)
+Counter.Text = "Catches: 0"
+Counter.BackgroundTransparency = 1
+Counter.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+print("Fishing Script Loaded! Use GUI to control.")
