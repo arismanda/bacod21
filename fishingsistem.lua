@@ -463,7 +463,7 @@ end
 
 -- GUI ADVANCED v3.0 dengan Random Weights
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Fishing Simulator Exploit v3.0", "DarkTheme")
+local Window = Library.CreateLib("Fishing Simulator Exploit v4.0", "DarkTheme")
 
 -- MAIN FEATURES
 local MainTab = Window:NewTab("Main")
@@ -748,3 +748,4 @@ HookGameFunctions()
 if Config.RandomWeights.Enabled then
     ToggleRandomWeights(true)
 end
+
