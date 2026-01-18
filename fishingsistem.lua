@@ -1,6 +1,6 @@
 -- ============================================
--- SIMPLE FISHING CHEAT - MOBILE FRIENDLY
--- GUI Sederhana untuk Instant Catch
+-- SIMPLE FISHING CHEAT - FIXED VERSION
+-- Error handling untuk GetRarityColor
 -- ============================================
 
 -- Services
@@ -14,7 +14,7 @@ local IS_MOBILE = UserInputService.TouchEnabled
 local UI_SCALE = IS_MOBILE and 1.2 or 1
 
 -- ============================================
--- CONFIGURASI CHEAT
+-- CONFIGURASI CHEAT - FIXED
 -- ============================================
 
 local CheatConfig = {
@@ -22,21 +22,87 @@ local CheatConfig = {
     MinWeight = 200,
     MaxWeight = 999,
     InstantCatch = true,
-    AutoSell = false,
-    NoMinigame = true
+    AutoSell = false
 }
 
 -- ============================================
--- FUNGSI UTAMA
+-- FIXED FUNCTIONS - ERROR HANDLING
+-- ============================================
+
+-- Safe GetRarityColor dengan fallback
+local function GetRarityColorSafe(rarity)
+    local success, color = pcall(function()
+        if module_2_upvr.RarityColors and module_2_upvr.RarityColors[rarity] then
+            return module_2_upvr.RarityColors[rarity]
+        end
+        return nil
+    end)
+    
+    if success and color then
+        return color
+    end
+    
+    -- Fallback colors jika error
+    local fallbackColors = {
+        Unknown = Color3.fromRGB(190, 0, 3),
+        Legendary = Color3.fromRGB(255, 128, 0),
+        Epic = Color3.fromRGB(160, 30, 255),
+        Rare = Color3.fromRGB(30, 100, 255),
+        Uncommon = Color3.fromRGB(30, 255, 30),
+        Common = Color3.fromRGB(200, 200, 200)
+    }
+    
+    return fallbackColors[rarity] or Color3.fromRGB(255, 255, 255)
+end
+
+-- Safe GetRodConfig
+local function GetRodConfigSafe(rodName)
+    local success, config = pcall(function()
+        if module_2_upvr.GetRodConfig then
+            return module_2_upvr.GetRodConfig(rodName)
+        end
+        return nil
+    end)
+    
+    if success and config then
+        return config
+    end
+    
+    return {
+        hookName = "BasicHook",
+        beamColor = Color3.fromRGB(106, 106, 106),
+        beamWidth = 0.05,
+        baseLuck = 0.5,
+        maxWeight = 100,
+        maxRarity = "Common"
+    }
+end
+
+-- ============================================
+-- FUNGSI UTAMA - SAFE VERSION
 -- ============================================
 
 local function GetFishByRarity(rarity)
     local fishList = {}
-    for _, fish in pairs(module_2_upvr.FishTable) do
-        if fish.rarity == rarity then
-            table.insert(fishList, fish)
+    
+    local success = pcall(function()
+        if module_2_upvr.FishTable then
+            for _, fish in pairs(module_2_upvr.FishTable) do
+                if fish.rarity == rarity then
+                    table.insert(fishList, fish)
+                end
+            end
         end
+    end)
+    
+    if not success or #fishList == 0 then
+        -- Fallback fish list
+        fishList = {
+            {name = "Boar Fish", rarity = "Common", minKg = 0.5, maxKg = 50},
+            {name = "Blackcap Basslet", rarity = "Common", minKg = 0.5, maxKg = 45}
+        }
     end
+    
     return fishList
 end
 
@@ -55,18 +121,24 @@ local function CreateFakeFish()
         Name = fish.name,
         Weight = weight,
         Rarity = rarity,
-        Price = 0,
+        Price = weight * 100, -- Harga estimasi
         Timestamp = os.time()
     }
 end
 
 -- ============================================
--- HOOK FISHING SYSTEM
+-- HOOK FISHING SYSTEM - SAFE
 -- ============================================
 
 local function SetupHook()
-    local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 5)
-    if not FishingSystem then return false end
+    local success, FishingSystem = pcall(function()
+        return ReplicatedStorage:WaitForChild("FishingSystem", 5)
+    end)
+    
+    if not success or not FishingSystem then
+        print("⚠️ FishingSystem tidak ditemukan")
+        return false
+    end
     
     local remotes = {}
     for _, child in pairs(FishingSystem:GetChildren()) do
@@ -79,7 +151,16 @@ local function SetupHook()
     if startRemote then
         local originalFire = startRemote.FireServer
         startRemote.FireServer = function(self, ...)
-            local result = originalFire(self, ...)
+            local args = {...}
+            local result
+            
+            local success2, err = pcall(function()
+                result = originalFire(self, unpack(args))
+            end)
+            
+            if not success2 then
+                print("❌ Error in original fire:", err)
+            end
             
             if CheatConfig.InstantCatch then
                 task.wait(0.3)
@@ -87,14 +168,20 @@ local function SetupHook()
                 local catchRemote = remotes["CatchFish"] or remotes["CompleteFishing"]
                 if catchRemote then
                     local fakeFish = CreateFakeFish()
-                    catchRemote:FireServer(fakeFish)
+                    pcall(function()
+                        catchRemote:FireServer(fakeFish)
+                        print("✅ Caught: " .. fakeFish.Name .. " (" .. fakeFish.Weight .. "kg)")
+                    end)
                 end
                 
                 if CheatConfig.AutoSell then
                     local sellRemote = remotes["SellFish"]
                     if sellRemote then
                         task.wait(0.5)
-                        sellRemote:FireServer({fakeFish})
+                        pcall(function()
+                            sellRemote:FireServer({fakeFish})
+                            print("💰 Sold fish")
+                        end)
                     end
                 end
             end
@@ -107,22 +194,31 @@ local function SetupHook()
 end
 
 -- ============================================
--- SIMPLE MOBILE GUI
+-- SIMPLE GUI - WITH ERROR HANDLING
 -- ============================================
 
 local function CreateSimpleGUI()
     -- ScreenGui
-    local screen = Instance.new("ScreenGui")
-    screen.Parent = game.CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-    screen.Name = "SimpleFishCheat"
-    screen.ResetOnSpawn = false
+    local success, screen = pcall(function()
+        local gui = Instance.new("ScreenGui")
+        gui.Parent = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+        gui.Name = "SimpleFishCheatV2"
+        gui.ResetOnSpawn = false
+        return gui
+    end)
+    
+    if not success then
+        print("❌ Gagal membuat ScreenGui")
+        return nil
+    end
     
     -- Main Container
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 300 * UI_SCALE, 0, 400 * UI_SCALE)
-    main.Position = UDim2.new(0.5, -150 * UI_SCALE, 0.5, -200 * UI_SCALE)
+    main.Size = UDim2.new(0, 300 * UI_SCALE, 0, 350 * UI_SCALE)
+    main.Position = UDim2.new(0.5, -150 * UI_SCALE, 0.5, -175 * UI_SCALE)
     main.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
     main.BorderSizePixel = 0
+    main.AnchorPoint = Vector2.new(0.5, 0.5)
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 15)
@@ -130,10 +226,10 @@ local function CreateSimpleGUI()
     
     main.Parent = screen
     
-    -- Header
+    -- Header dengan color safe
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 50 * UI_SCALE)
-    header.BackgroundColor3 = module_2_upvr.GetRarityColor("Unknown")
+    header.BackgroundColor3 = GetRarityColorSafe("Unknown")
     header.BorderSizePixel = 0
     
     local headerCorner = Instance.new("UICorner")
@@ -144,12 +240,14 @@ local function CreateSimpleGUI()
     
     -- Title
     local title = Instance.new("TextLabel")
-    title.Text = "🎣 FISHING CHEAT"
-    title.Size = UDim2.new(1, 0, 1, 0)
+    title.Text = "🎣 FISH CHEAT"
+    title.Size = UDim2.new(0.7, 0, 1, 0)
+    title.Position = UDim2.new(0.15, 0, 0, 0)
     title.BackgroundTransparency = 1
     title.TextColor3 = Color3.new(1, 1, 1)
     title.Font = Enum.Font.GothamBold
-    title.TextSize = 20 * UI_SCALE
+    title.TextSize = 18 * UI_SCALE
+    title.TextScaled = true
     title.Parent = header
     
     -- Close Button
@@ -168,75 +266,76 @@ local function CreateSimpleGUI()
     
     closeBtn.Parent = header
     closeBtn.MouseButton1Click:Connect(function()
-        screen:Destroy()
+        pcall(function()
+            screen:Destroy()
+        end)
     end)
     
-    -- Content
-    local content = Instance.new("ScrollingFrame")
-    content.Size = UDim2.new(1, -10, 1, -60 * UI_SCALE)
-    content.Position = UDim2.new(0, 5, 0, 55 * UI_SCALE)
+    -- Content Frame
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, -20, 1, -60 * UI_SCALE)
+    content.Position = UDim2.new(0, 10, 0, 55 * UI_SCALE)
     content.BackgroundTransparency = 1
-    content.ScrollBarThickness = 6
-    content.AutomaticCanvasSize = Enum.AutomaticSize.Y
     content.Parent = main
     
-    -- Rarity Section
+    -- Rarity Selection Label
     local rarityLabel = Instance.new("TextLabel")
     rarityLabel.Text = "PILIH RARITY:"
-    rarityLabel.Size = UDim2.new(1, 0, 0, 30 * UI_SCALE)
+    rarityLabel.Size = UDim2.new(1, 0, 0, 25 * UI_SCALE)
     rarityLabel.BackgroundTransparency = 1
     rarityLabel.TextColor3 = Color3.new(1, 1, 1)
     rarityLabel.Font = Enum.Font.GothamBold
-    rarityLabel.TextSize = 16 * UI_SCALE
+    rarityLabel.TextSize = 14 * UI_SCALE
     rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
     rarityLabel.Parent = content
     
-    -- Rarity Buttons
+    -- Rarity Buttons - Disederhanakan
     local rarities = {"Unknown", "Legendary", "Epic", "Rare", "Uncommon", "Common"}
     
     for i, rarity in pairs(rarities) do
         local btn = Instance.new("TextButton")
         btn.Text = rarity
-        btn.Size = UDim2.new(1, 0, 0, 40 * UI_SCALE)
-        btn.Position = UDim2.new(0, 0, 0, (i-1) * 45 * UI_SCALE + 35)
-        btn.BackgroundColor3 = module_2_upvr.GetRarityColor(rarity)
+        btn.Size = UDim2.new(1, 0, 0, 30 * UI_SCALE)
+        btn.Position = UDim2.new(0, 0, 0, (i-1) * 35 * UI_SCALE + 30)
+        btn.BackgroundColor3 = GetRarityColorSafe(rarity)
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.Font = Enum.Font.Gotham
-        btn.TextSize = 16 * UI_SCALE
+        btn.TextSize = 14 * UI_SCALE
+        btn.AutoButtonColor = true
         
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.CornerRadius = UDim.new(0, 6)
         btnCorner.Parent = btn
         
         btn.Parent = content
         
         btn.MouseButton1Click:Connect(function()
             CheatConfig.SelectedRarity = rarity
-            print("Selected: " .. rarity)
+            print("🎯 Rarity: " .. rarity)
         end)
     end
     
-    -- Weight Control
+    -- Weight Control Label
     local weightLabel = Instance.new("TextLabel")
-    weightLabel.Text = "BERAT IKAN (kg):"
-    weightLabel.Size = UDim2.new(1, 0, 0, 30 * UI_SCALE)
-    weightLabel.Position = UDim2.new(0, 0, 0, 280 * UI_SCALE)
+    weightLabel.Text = "BERAT IKAN:"
+    weightLabel.Size = UDim2.new(1, 0, 0, 25 * UI_SCALE)
+    weightLabel.Position = UDim2.new(0, 0, 0, 240 * UI_SCALE)
     weightLabel.BackgroundTransparency = 1
     weightLabel.TextColor3 = Color3.new(1, 1, 1)
     weightLabel.Font = Enum.Font.GothamBold
-    weightLabel.TextSize = 16 * UI_SCALE
+    weightLabel.TextSize = 14 * UI_SCALE
     weightLabel.TextXAlignment = Enum.TextXAlignment.Left
     weightLabel.Parent = content
     
     -- Weight Display
     local weightDisplay = Instance.new("TextLabel")
     weightDisplay.Text = CheatConfig.MinWeight .. " - " .. CheatConfig.MaxWeight .. " kg"
-    weightDisplay.Size = UDim2.new(1, 0, 0, 35 * UI_SCALE)
-    weightDisplay.Position = UDim2.new(0, 0, 0, 310 * UI_SCALE)
+    weightDisplay.Size = UDim2.new(1, 0, 0, 30 * UI_SCALE)
+    weightDisplay.Position = UDim2.new(0, 0, 0, 265 * UI_SCALE)
     weightDisplay.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     weightDisplay.TextColor3 = Color3.new(1, 1, 1)
     weightDisplay.Font = Enum.Font.GothamBold
-    weightDisplay.TextSize = 18 * UI_SCALE
+    weightDisplay.TextSize = 16 * UI_SCALE
     
     local displayCorner = Instance.new("UICorner")
     displayCorner.CornerRadius = UDim.new(0, 8)
@@ -244,99 +343,102 @@ local function CreateSimpleGUI()
     
     weightDisplay.Parent = content
     
-    -- Weight Buttons
+    -- Weight Control Buttons
     local weightControls = Instance.new("Frame")
-    weightControls.Size = UDim2.new(1, 0, 0, 50 * UI_SCALE)
-    weightControls.Position = UDim2.new(0, 0, 0, 350 * UI_SCALE)
+    weightControls.Size = UDim2.new(1, 0, 0, 40 * UI_SCALE)
+    weightControls.Position = UDim2.new(0, 0, 0, 300 * UI_SCALE)
     weightControls.BackgroundTransparency = 1
     weightControls.Parent = content
     
-    local function UpdateWeight()
+    local function UpdateWeightDisplay()
         weightDisplay.Text = CheatConfig.MinWeight .. " - " .. CheatConfig.MaxWeight .. " kg"
     end
     
-    -- Minus
+    -- Minus Button
     local minusBtn = Instance.new("TextButton")
-    minusBtn.Text = "-100"
-    minusBtn.Size = UDim2.new(0.45, 0, 1, 0)
-    minusBtn.Position = UDim2.new(0, 0, 0, 0)
+    minusBtn.Text = "-"
+    minusBtn.Size = UDim2.new(0.2, 0, 1, 0)
+    minusBtn.Position = UDim2.new(0.1, 0, 0, 0)
     minusBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
     minusBtn.TextColor3 = Color3.new(1, 1, 1)
     minusBtn.Font = Enum.Font.GothamBold
-    minusBtn.TextSize = 18 * UI_SCALE
+    minusBtn.TextSize = 20 * UI_SCALE
     
     local minusCorner = Instance.new("UICorner")
-    minusCorner.CornerRadius = UDim.new(0, 10)
+    minusCorner.CornerRadius = UDim.new(0, 8)
     minusCorner.Parent = minusBtn
     
     minusBtn.Parent = weightControls
     
     minusBtn.MouseButton1Click:Connect(function()
-        if CheatConfig.MinWeight > 100 then
-            CheatConfig.MinWeight = CheatConfig.MinWeight - 100
-            CheatConfig.MaxWeight = CheatConfig.MaxWeight - 100
-            UpdateWeight()
+        if CheatConfig.MinWeight > 50 then
+            CheatConfig.MinWeight = CheatConfig.MinWeight - 50
+            CheatConfig.MaxWeight = CheatConfig.MaxWeight - 50
+            UpdateWeightDisplay()
         end
     end)
     
-    -- Plus
+    -- Weight Value
+    local weightValue = Instance.new("TextLabel")
+    weightValue.Text = "WEIGHT"
+    weightValue.Size = UDim2.new(0.4, 0, 1, 0)
+    weightValue.Position = UDim2.new(0.3, 0, 0, 0)
+    weightValue.BackgroundTransparency = 1
+    weightValue.TextColor3 = Color3.new(1, 1, 1)
+    weightValue.Font = Enum.Font.Gotham
+    weightValue.TextSize = 14 * UI_SCALE
+    weightValue.Parent = weightControls
+    
+    -- Plus Button
     local plusBtn = Instance.new("TextButton")
-    plusBtn.Text = "+100"
-    plusBtn.Size = UDim2.new(0.45, 0, 1, 0)
-    plusBtn.Position = UDim2.new(0.55, 0, 0, 0)
+    plusBtn.Text = "+"
+    plusBtn.Size = UDim2.new(0.2, 0, 1, 0)
+    plusBtn.Position = UDim2.new(0.7, 0, 0, 0)
     plusBtn.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
     plusBtn.TextColor3 = Color3.new(1, 1, 1)
     plusBtn.Font = Enum.Font.GothamBold
-    plusBtn.TextSize = 18 * UI_SCALE
+    plusBtn.TextSize = 20 * UI_SCALE
     
     local plusCorner = Instance.new("UICorner")
-    plusCorner.CornerRadius = UDim.new(0, 10)
+    plusCorner.CornerRadius = UDim.new(0, 8)
     plusCorner.Parent = plusBtn
     
     plusBtn.Parent = weightControls
     
     plusBtn.MouseButton1Click:Connect(function()
-        CheatConfig.MinWeight = CheatConfig.MinWeight + 100
-        CheatConfig.MaxWeight = CheatConfig.MaxWeight + 100
-        UpdateWeight()
+        CheatConfig.MinWeight = CheatConfig.MinWeight + 50
+        CheatConfig.MaxWeight = CheatConfig.MaxWeight + 50
+        UpdateWeightDisplay()
     end)
     
-    -- Quick Actions
-    local actionsLabel = Instance.new("TextLabel")
-    actionsLabel.Text = "AKSI CEPAT:"
-    actionsLabel.Size = UDim2.new(1, 0, 0, 30 * UI_SCALE)
-    actionsLabel.Position = UDim2.new(0, 0, 0, 410 * UI_SCALE)
-    actionsLabel.BackgroundTransparency = 1
-    actionsLabel.TextColor3 = Color3.new(1, 1, 1)
-    actionsLabel.Font = Enum.Font.GothamBold
-    actionsLabel.TextSize = 16 * UI_SCALE
-    actionsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    actionsLabel.Parent = content
+    -- Action Button
+    local actionBtn = Instance.new("TextButton")
+    actionBtn.Text = "🎣 CATCH FISH"
+    actionBtn.Size = UDim2.new(1, 0, 0, 45 * UI_SCALE)
+    actionBtn.Position = UDim2.new(0, 0, 0, 350 * UI_SCALE)
+    actionBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    actionBtn.TextColor3 = Color3.new(0, 0, 0)
+    actionBtn.Font = Enum.Font.GothamBold
+    actionBtn.TextSize = 16 * UI_SCALE
     
-    -- Catch Now Button
-    local catchBtn = Instance.new("TextButton")
-    catchBtn.Text = "🎣 CATCH NOW"
-    catchBtn.Size = UDim2.new(1, 0, 0, 50 * UI_SCALE)
-    catchBtn.Position = UDim2.new(0, 0, 0, 440 * UI_SCALE)
-    catchBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-    catchBtn.TextColor3 = Color3.new(0, 0, 0)
-    catchBtn.Font = Enum.Font.GothamBold
-    catchBtn.TextSize = 18 * UI_SCALE
+    local actionCorner = Instance.new("UICorner")
+    actionCorner.CornerRadius = UDim.new(0, 10)
+    actionCorner.Parent = actionBtn
     
-    local catchCorner = Instance.new("UICorner")
-    catchCorner.CornerRadius = UDim.new(0, 12)
-    catchCorner.Parent = catchBtn
+    actionBtn.Parent = content
     
-    catchBtn.Parent = content
-    
-    catchBtn.MouseButton1Click:Connect(function()
+    actionBtn.MouseButton1Click:Connect(function()
         local fakeFish = CreateFakeFish()
         local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
         local catchRemote = FishingSystem:FindFirstChild("CatchFish")
         
         if catchRemote then
-            catchRemote:FireServer(fakeFish)
-            print("Caught: " .. fakeFish.Name .. " (" .. fakeFish.Weight .. "kg)")
+            pcall(function()
+                catchRemote:FireServer(fakeFish)
+                print("✅ Caught: " .. fakeFish.Name)
+            end)
+        else
+            print("❌ Remote tidak ditemukan")
         end
     end)
     
@@ -374,117 +476,108 @@ local function CreateSimpleGUI()
 end
 
 -- ============================================
--- MINIMAL GUI (FLOATING BUTTON)
+-- MINIMAL GUI - ULTRA SIMPLE
 -- ============================================
 
 local function CreateMinimalGUI()
     local screen = Instance.new("ScreenGui")
-    screen.Parent = game.CoreGui or LocalPlayer:WaitForChild("PlayerGui")
-    screen.Name = "FishCheatMinimal"
+    screen.Parent = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+    screen.Name = "FishCheatMini"
     screen.ResetOnSpawn = false
     
-    -- Floating Action Button
-    local fab = Instance.new("TextButton")
-    fab.Text = "🎣"
-    fab.Size = UDim2.new(0, 60 * UI_SCALE, 0, 60 * UI_SCALE)
-    fab.Position = UDim2.new(1, -70 * UI_SCALE, 0.5, -30 * UI_SCALE)
-    fab.BackgroundColor3 = module_2_upvr.GetRarityColor("Unknown")
-    fab.TextColor3 = Color3.new(1, 1, 1)
-    fab.Font = Enum.Font.GothamBold
-    fab.TextSize = 28 * UI_SCALE
-    fab.ZIndex = 999
+    -- Main Button
+    local mainBtn = Instance.new("TextButton")
+    mainBtn.Text = "🎣"
+    mainBtn.Size = UDim2.new(0, 70 * UI_SCALE, 0, 70 * UI_SCALE)
+    mainBtn.Position = UDim2.new(1, -80 * UI_SCALE, 0.5, -35 * UI_SCALE)
+    mainBtn.BackgroundColor3 = GetRarityColorSafe("Unknown")
+    mainBtn.TextColor3 = Color3.new(1, 1, 1)
+    mainBtn.Font = Enum.Font.GothamBold
+    mainBtn.TextSize = 30 * UI_SCALE
+    mainBtn.ZIndex = 999
     
-    local fabCorner = Instance.new("UICorner")
-    fabCorner.CornerRadius = UDim.new(1, 0)
-    fabCorner.Parent = fab
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(1, 0)
+    btnCorner.Parent = mainBtn
     
-    fab.Parent = screen
+    mainBtn.Parent = screen
     
-    -- Mini Panel
-    local panel = Instance.new("Frame")
-    panel.Size = UDim2.new(0, 180 * UI_SCALE, 0, 200 * UI_SCALE)
-    panel.Position = UDim2.new(1, -190 * UI_SCALE, 0.5, -100 * UI_SCALE)
-    panel.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-    panel.BackgroundTransparency = 0.1
-    panel.Visible = false
+    -- Dropdown Menu
+    local dropdown = Instance.new("Frame")
+    dropdown.Size = UDim2.new(0, 150 * UI_SCALE, 0, 180 * UI_SCALE)
+    dropdown.Position = UDim2.new(1, -160 * UI_SCALE, mainBtn.Position.Y.Scale, mainBtn.Position.Y.Offset)
+    dropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    dropdown.BackgroundTransparency = 0.1
+    dropdown.Visible = false
     
-    local panelCorner = Instance.new("UICorner")
-    panelCorner.CornerRadius = UDim.new(0, 15)
-    panelCorner.Parent = panel
+    local dropdownCorner = Instance.new("UICorner")
+    dropdownCorner.CornerRadius = UDim.new(0, 10)
+    dropdownCorner.Parent = dropdown
     
-    panel.Parent = screen
+    dropdown.Parent = screen
     
-    -- Rarity Selection in Panel
-    local rarities = {"Unknown", "Legendary", "Epic", "Rare"}
+    -- Menu Items
+    local menuItems = {
+        {text = "Unknown", color = GetRarityColorSafe("Unknown")},
+        {text = "Legendary", color = GetRarityColorSafe("Legendary")},
+        {text = "Epic", color = GetRarityColorSafe("Epic")},
+        {text = "Catch Now", color = Color3.fromRGB(255, 200, 0)}
+    }
     
-    for i, rarity in pairs(rarities) do
+    for i, item in pairs(menuItems) do
         local btn = Instance.new("TextButton")
-        btn.Text = rarity
+        btn.Text = item.text
         btn.Size = UDim2.new(0.9, 0, 0, 35 * UI_SCALE)
         btn.Position = UDim2.new(0.05, 0, 0, (i-1) * 40 * UI_SCALE + 10)
-        btn.BackgroundColor3 = module_2_upvr.GetRarityColor(rarity)
+        btn.BackgroundColor3 = item.color
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.Font = Enum.Font.Gotham
         btn.TextSize = 14 * UI_SCALE
         
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 8)
-        btnCorner.Parent = btn
+        local itemCorner = Instance.new("UICorner")
+        itemCorner.CornerRadius = UDim.new(0, 8)
+        itemCorner.Parent = btn
         
-        btn.Parent = panel
+        btn.Parent = dropdown
         
         btn.MouseButton1Click:Connect(function()
-            CheatConfig.SelectedRarity = rarity
-            local fakeFish = CreateFakeFish()
-            local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
-            local catchRemote = FishingSystem:FindFirstChild("CatchFish")
-            
-            if catchRemote then
-                catchRemote:FireServer(fakeFish)
+            if item.text ~= "Catch Now" then
+                CheatConfig.SelectedRarity = item.text
+                print("🎯 Set: " .. item.text)
+            else
+                local fakeFish = CreateFakeFish()
+                local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
+                local catchRemote = FishingSystem:FindFirstChild("CatchFish")
+                
+                if catchRemote then
+                    pcall(function()
+                        catchRemote:FireServer(fakeFish)
+                        print("✅ Caught: " .. fakeFish.Name)
+                    end)
+                end
             end
-            
-            panel.Visible = false
+            dropdown.Visible = false
         end)
     end
     
-    -- Close Panel Button
-    local closePanel = Instance.new("TextButton")
-    closePanel.Text = "✕"
-    closePanel.Size = UDim2.new(0, 30 * UI_SCALE, 0, 30 * UI_SCALE)
-    closePanel.Position = UDim2.new(1, -35 * UI_SCALE, 0, 5 * UI_SCALE)
-    closePanel.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-    closePanel.TextColor3 = Color3.new(1, 1, 1)
-    closePanel.Font = Enum.Font.GothamBold
-    closePanel.TextSize = 16 * UI_SCALE
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 8)
-    closeCorner.Parent = closePanel
-    
-    closePanel.Parent = panel
-    
-    closePanel.MouseButton1Click:Connect(function()
-        panel.Visible = false
+    -- Toggle Dropdown
+    mainBtn.MouseButton1Click:Connect(function()
+        dropdown.Visible = not dropdown.Visible
     end)
     
-    -- Toggle Panel
-    fab.MouseButton1Click:Connect(function()
-        panel.Visible = not panel.Visible
-    end)
-    
-    -- Draggable FAB
+    -- Draggable
     local dragging = false
     local dragStart, startPos
     
-    fab.InputBegan:Connect(function(input)
+    mainBtn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
-            startPos = fab.Position
+            startPos = mainBtn.Position
         end
     end)
     
-    fab.InputEnded:Connect(function(input)
+    mainBtn.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
@@ -493,18 +586,16 @@ local function CreateMinimalGUI()
     UserInputService.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.Touch then
             local delta = input.Position - dragStart
-            fab.Position = UDim2.new(
+            mainBtn.Position = UDim2.new(
                 startPos.X.Scale, 
                 startPos.X.Offset + delta.X,
                 startPos.Y.Scale, 
                 startPos.Y.Offset + delta.Y
             )
-            
-            -- Update panel position
-            panel.Position = UDim2.new(
-                1, -190 * UI_SCALE,
-                fab.Position.Y.Scale,
-                fab.Position.Y.Offset - 100 * UI_SCALE
+            dropdown.Position = UDim2.new(
+                1, -160 * UI_SCALE,
+                mainBtn.Position.Y.Scale,
+                mainBtn.Position.Y.Offset
             )
         end
     end)
@@ -513,72 +604,98 @@ local function CreateMinimalGUI()
 end
 
 -- ============================================
--- INISIALISASI
+-- INISIALISASI - WITH ERROR HANDLING
 -- ============================================
 
 print("========================================")
-print("   SIMPLE FISHING CHEAT")
-print("   Mobile Support: " .. (IS_MOBILE and "YES" or "NO"))
+print("   FISHING CHEAT - FIXED VERSION")
+print("   Error handling enabled")
 print("========================================")
 
 -- Tunggu game load
 repeat task.wait() until game:IsLoaded()
 task.wait(2)
 
--- Setup hook
-local hookSuccess = SetupHook()
+-- Setup hook dengan error handling
+local hookSuccess = false
+local success, err = pcall(function()
+    hookSuccess = SetupHook()
+end)
 
-if hookSuccess then
-    print("✅ Hook berhasil!")
+if success then
+    if hookSuccess then
+        print("✅ Hook berhasil diinstall")
+    else
+        print("⚠️ Hook gagal, mode manual")
+    end
 else
-    print("⚠️ Hook gagal, menggunakan manual mode")
+    print("❌ Error saat setup hook:", err)
 end
 
 -- Buat GUI berdasarkan platform
-if IS_MOBILE then
-    -- Pilih salah satu GUI untuk mobile:
-    
-    -- 1. GUI Minimal (Floating Button)
-    CreateMinimalGUI()
-    print("📱 Minimal GUI created")
-    
-    -- 2. GUI Full
-    -- CreateSimpleGUI()
-    -- print("📱 Full GUI created")
-else
-    CreateSimpleGUI()
-    print("💻 Desktop GUI created")
+local guiSuccess, guiError = pcall(function()
+    if IS_MOBILE then
+        -- Pilih GUI untuk mobile
+        local useMinimal = true -- true untuk minimal, false untuk full
+        
+        if useMinimal then
+            CreateMinimalGUI()
+            print("📱 Minimal GUI created")
+        else
+            CreateSimpleGUI()
+            print("📱 Full GUI created")
+        end
+    else
+        CreateSimpleGUI()
+        print("💻 Desktop GUI created")
+    end
+end)
+
+if not guiSuccess then
+    print("❌ Error membuat GUI:", guiError)
 end
 
--- Export Functions
+-- Export Functions dengan error handling
 getgenv().catchFish = function(rarity)
     if rarity then
         CheatConfig.SelectedRarity = rarity
     end
     
     local fakeFish = CreateFakeFish()
-    local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
-    local catchRemote = FishingSystem:FindFirstChild("CatchFish")
+    local success3, result = pcall(function()
+        local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
+        local catchRemote = FishingSystem:FindFirstChild("CatchFish")
+        
+        if catchRemote then
+            catchRemote:FireServer(fakeFish)
+            return fakeFish
+        end
+        return nil
+    end)
     
-    if catchRemote then
-        catchRemote:FireServer(fakeFish)
-        return fakeFish
+    if success3 then
+        return result
+    else
+        print("❌ Error in catchFish:", result)
+        return nil
     end
-    return nil
 end
 
 getgenv().setRarity = function(rarity)
     CheatConfig.SelectedRarity = rarity
-    print("Rarity set to: " .. rarity)
+    print("🎯 Rarity set to: " .. rarity)
 end
 
 getgenv().setWeight = function(min, max)
     CheatConfig.MinWeight = min
     CheatConfig.MaxWeight = max
-    print("Weight set to: " .. min .. "-" .. max .. "kg")
+    print("⚖️ Weight set to: " .. min .. "-" .. max .. "kg")
 end
 
 print("========================================")
-print("   Ready to use!")
-print("   Commands: catchFish(), setRarity(), setWeight()")
+print("   READY TO USE!")
+print("   Commands available:")
+print("   - catchFish('Unknown')")
+print("   - setRarity('Legendary')")
+print("   - setWeight(300, 800)")
 print("========================================")
