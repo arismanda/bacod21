@@ -17,7 +17,7 @@ for _, module in pairs(getloadedmodules() or getinstances()) do
 end
 
 if not FishingModule then
-    FishingModule = require(ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("FishingModule"))
+    FishingModule = require(ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("FishingConfig"))
 end
 
 -- GUI Construction
@@ -267,3 +267,4 @@ game:GetService("Players").LocalPlayer.Idled:Connect(function()
     wait(1)
     VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
 end)
+
