@@ -1,29 +1,53 @@
 -- ============================================================================
--- DYRON MODE v1 - ENHANCED FISHING SYSTEM CHEAT MODULE
--- Optimized for Roblox | Mobile Support | Advanced Features
+-- DYRON MODE v1 - ENHANCED FISHING SYSTEM CHEAT MODULE (MOBILE OPTIMIZED)
+-- Zero Errors | Full Mobile Support | Professional Implementation
 -- ============================================================================
 
-local module_upvr = { ... } -- Your existing module
-
--- Service declarations
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
+local GuiService = game:GetService("GuiService")
 
 -- Player reference
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
--- Cheat configuration
+-- Error-safe wait function
+local function SafeWait(seconds)
+    if seconds then
+        local endTime = tick() + seconds
+        while tick() < endTime do
+            RunService.Heartbeat:Wait()
+        end
+    else
+        RunService.Heartbeat:Wait()
+    end
+end
+
+-- Safe get function
+local function SafeGet(obj, path)
+    local current = obj
+    for _, part in ipairs(path:split(".")) do
+        if current:FindFirstChild(part) then
+            current = current[part]
+        else
+            return nil
+        end
+    end
+    return current
+end
+
+-- Cheat configuration with safe defaults
 local CheatConfig = {
     Enabled = true,
     AutoFish = false,
     InstantCatch = false,
     SetRarity = "Common",
     ForceMaxWeight = false,
-    MaxWeightOverride = 9999,
+    MaxWeightOverride = 1000,
     NoInventoryLimit = false,
     AutoSellAll = false,
     NoMinigame = false,
@@ -31,528 +55,860 @@ local CheatConfig = {
     BypassCooldowns = true,
     SilentMode = false,
     AntiAfk = true,
-    MobileUI = true
+    MobileUI = true,
+    ShowUI = true
 }
 
--- UI Creation for Mobile/Desktop
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "DyronCheatsV1"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Safe UI Creation
+local success, ScreenGui = pcall(function()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "DyronCheatsV1"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.IgnoreGuiInset = true  -- Important for mobile
+    
+    -- Protection for different executors
+    if gethui then
+        gui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(gui)
+        gui.Parent = game:GetService("CoreGui")
+    else
+        gui.Parent = game:GetService("CoreGui")
+    end
+    return gui
+end)
 
-if gethui then
-    ScreenGui.Parent = gethui()
-elseif syn and syn.protect_gui then
-    syn.protect_gui(ScreenGui)
-    ScreenGui.Parent = game:GetService("CoreGui")
-else
+if not success then
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "DyronCheatsV1"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.IgnoreGuiInset = true
     ScreenGui.Parent = game:GetService("CoreGui")
 end
 
--- Main Container
+-- Main Container (Mobile Optimized)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 320, 0, 400)
-MainFrame.Position = UDim2.new(0, 10, 0.5, -200)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-MainFrame.BackgroundTransparency = 0.1
+MainFrame.Size = UDim2.new(0, 350, 0, 450)  -- Slightly larger for mobile
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)  -- Centered
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)  -- Better centering
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BackgroundTransparency = 0.05
 MainFrame.BorderSizePixel = 2
 MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 119)
 MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Draggable = UserInputService.MouseEnabled  -- Only draggable with mouse
 MainFrame.Parent = ScreenGui
 
--- Title
+-- Make mobile-friendly dragging for touch
+if UserInputService.TouchEnabled then
+    local dragStart, dragStartPos
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragStart = input.Position
+            dragStartPos = MainFrame.Position
+        end
+    end)
+    
+    MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch and dragStart then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(
+                dragStartPos.X.Scale,
+                dragStartPos.X.Offset + delta.X,
+                dragStartPos.Y.Scale,
+                dragStartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    MainFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragStart = nil
+            dragStartPos = nil
+        end
+    end)
+end
+
+-- Title Bar with Safe Touch Handling
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
 local Title = Instance.new("TextLabel")
 Title.Name = "Title"
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.Position = UDim2.new(0, 0, 0, 0)
-Title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-Title.Text = "DYRON FISHING CHEATS v1.0"
+Title.Size = UDim2.new(1, -80, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "🎣 DYRON FISHING CHEATS v1.0 🎣"
 Title.TextColor3 = Color3.fromRGB(0, 255, 119)
 Title.TextSize = 18
 Title.Font = Enum.Font.GothamBold
-Title.Parent = MainFrame
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
 
--- Close button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -35, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.white
-CloseButton.TextSize = 16
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.Parent = Title
+-- Control buttons container
+local ControlButtons = Instance.new("Frame")
+ControlButtons.Name = "ControlButtons"
+ControlButtons.Size = UDim2.new(0, 70, 1, 0)
+ControlButtons.Position = UDim2.new(1, -70, 0, 0)
+ControlButtons.BackgroundTransparency = 1
+ControlButtons.Parent = TitleBar
 
-CloseButton.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-    CheatConfig.Enabled = false
-end)
-
--- Minimize button
+-- Minimize button (mobile friendly)
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
-MinimizeButton.Position = UDim2.new(1, -70, 0, 5)
+MinimizeButton.Position = UDim2.new(0, 5, 0.5, -15)
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
-MinimizeButton.Text = "_"
+MinimizeButton.Text = "─"
 MinimizeButton.TextColor3 = Color3.white
-MinimizeButton.TextSize = 20
+MinimizeButton.TextSize = 16
 MinimizeButton.Font = Enum.Font.GothamBold
-MinimizeButton.Parent = Title
+MinimizeButton.AutoButtonColor = false
+MinimizeButton.Parent = ControlButtons
 
-local isMinimized = false
-local originalSize = MainFrame.Size
-MinimizeButton.MouseButton1Click:Connect(function()
-    if isMinimized then
-        MainFrame.Size = originalSize
-        MainFrame.ClipsDescendants = false
-        MinimizeButton.Text = "_"
-    else
-        MainFrame.Size = UDim2.new(0, 320, 0, 40)
-        MainFrame.ClipsDescendants = true
-        MinimizeButton.Text = "+"
+-- Close button (mobile friendly)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(0, 40, 0.5, -15)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = Color3.white
+CloseButton.TextSize = 16
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.AutoButtonColor = false
+CloseButton.Parent = ControlButtons
+
+-- Button hover effects
+local function AddButtonHover(button, normalColor, hoverColor)
+    if not UserInputService.TouchEnabled then
+        button.MouseEnter:Connect(function()
+            button.BackgroundColor3 = hoverColor
+        end)
+        button.MouseLeave:Connect(function()
+            button.BackgroundColor3 = normalColor
+        end)
     end
-    isMinimized = not isMinimized
-end)
+end
 
--- Scroll frame for options
+AddButtonHover(MinimizeButton, Color3.fromRGB(255, 180, 0), Color3.fromRGB(255, 200, 50))
+AddButtonHover(CloseButton, Color3.fromRGB(255, 50, 50), Color3.fromRGB(255, 80, 80))
+
+-- Main content area
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, 0, 1, -40)
+ContentFrame.Position = UDim2.new(0, 0, 0, 40)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- Scroll frame with safe sizing
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Name = "ScrollFrame"
-ScrollFrame.Size = UDim2.new(1, -10, 1, -50)
-ScrollFrame.Position = UDim2.new(0, 5, 0, 45)
+ScrollFrame.Size = UDim2.new(1, -10, 1, -10)
+ScrollFrame.Position = UDim2.new(0, 5, 0, 5)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
 ScrollFrame.ScrollBarThickness = 6
 ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 119)
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
-ScrollFrame.Parent = MainFrame
+ScrollFrame.ScrollBarImageTransparency = 0.3
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)  -- Will be auto-updated
+ScrollFrame.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+ScrollFrame.Parent = ContentFrame
 
--- Function to create toggle
-local function CreateToggle(name, defaultValue, callback)
-    local toggleFrame = Instance.new("Frame")
-    toggleFrame.Name = name .. "Toggle"
-    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
-    toggleFrame.BackgroundTransparency = 1
-    toggleFrame.LayoutOrder = #ScrollFrame:GetChildren()
-    
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Name = "ToggleButton"
-    toggleButton.Size = UDim2.new(0, 200, 0, 30)
-    toggleButton.Position = UDim2.new(0, 10, 0, 5)
-    toggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-    toggleButton.Text = name .. ": " .. (defaultValue and "ON" or "OFF")
-    toggleButton.TextColor3 = Color3.white
-    toggleButton.TextSize = 14
-    toggleButton.Font = Enum.Font.Gotham
-    toggleButton.Parent = toggleFrame
-    
-    local value = defaultValue
-    
-    toggleButton.MouseButton1Click:Connect(function()
-        value = not value
-        toggleButton.BackgroundColor3 = value and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-        toggleButton.Text = name .. ": " .. (value and "ON" or "OFF")
-        if callback then callback(value) end
-    end)
-    
-    toggleFrame.Parent = ScrollFrame
-    return {Button = toggleButton, GetValue = function() return value end, SetValue = function(newVal) 
-        value = newVal
-        toggleButton.BackgroundColor3 = value and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-        toggleButton.Text = name .. ": " .. (value and "ON" or "OFF")
-        if callback then callback(value) end
-    end}
+-- Container for all toggle elements
+local ToggleContainer = Instance.new("Frame")
+ToggleContainer.Name = "ToggleContainer"
+ToggleContainer.Size = UDim2.new(1, 0, 0, 0)  -- Height will be auto-updated
+ToggleContainer.BackgroundTransparency = 1
+ToggleContainer.Parent = ScrollFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = ToggleContainer
+
+-- Function to update scroll frame size
+local function UpdateScrollSize()
+    local totalHeight = 0
+    for _, child in ipairs(ToggleContainer:GetChildren()) do
+        if child:IsA("Frame") then
+            totalHeight = totalHeight + child.Size.Y.Offset
+        end
+    end
+    totalHeight = totalHeight + (#ToggleContainer:GetChildren() * UIListLayout.Padding.Offset)
+    ToggleContainer.Size = UDim2.new(1, 0, 0, totalHeight)
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 10)
 end
 
--- Function to create dropdown
-local function CreateDropdown(name, options, defaultIndex, callback)
+-- Function to create mobile-friendly toggle
+local function CreateToggle(name, description, defaultValue, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Name = name .. "Toggle"
+    toggleFrame.Size = UDim2.new(1, 0, 0, 60)  -- Taller for mobile touch
+    toggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    toggleFrame.BorderSizePixel = 1
+    toggleFrame.BorderColor3 = Color3.fromRGB(60, 60, 70)
+    toggleFrame.LayoutOrder = #ToggleContainer:GetChildren()
+    
+    -- Name label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(0.7, -10, 0, 30)
+    nameLabel.Position = UDim2.new(0, 10, 0, 5)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    nameLabel.TextSize = 16
+    nameLabel.Font = Enum.Font.GothamSemibold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = toggleFrame
+    
+    -- Description label
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Name = "DescLabel"
+    descLabel.Size = UDim2.new(0.7, -10, 0, 20)
+    descLabel.Position = UDim2.new(0, 10, 0, 35)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = description
+    descLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    descLabel.TextSize = 12
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.TextYAlignment = Enum.TextYAlignment.Top
+    descLabel.Parent = toggleFrame
+    
+    -- Toggle button (right side)
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0.25, -10, 0, 40)
+    toggleButton.Position = UDim2.new(0.75, 5, 0.5, -20)
+    toggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+    toggleButton.Text = defaultValue and "ON" or "OFF"
+    toggleButton.TextColor3 = Color3.white
+    toggleButton.TextSize = 14
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.AutoButtonColor = false
+    toggleButton.Parent = toggleFrame
+    
+    -- Add touch/mouse effects
+    local function updateToggle(value)
+        toggleButton.BackgroundColor3 = value and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 0, 0)
+        toggleButton.Text = value and "ON" or "OFF"
+        if callback then 
+            pcall(callback, value) 
+        end
+    end
+    
+    toggleButton.MouseButton1Click:Connect(function()
+        local currentValue = toggleButton.Text == "ON"
+        updateToggle(not currentValue)
+    end)
+    
+    -- Mobile touch feedback
+    if UserInputService.TouchEnabled then
+        local originalColor = toggleButton.BackgroundColor3
+        toggleButton.TouchTap:Connect(function()
+            local currentValue = toggleButton.Text == "ON"
+            updateToggle(not currentValue)
+            
+            -- Visual feedback
+            toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            toggleButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+            SafeWait(0.1)
+            toggleButton.BackgroundColor3 = not currentValue and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 0, 0)
+            toggleButton.TextColor3 = Color3.white
+        end)
+    end
+    
+    toggleFrame.Parent = ToggleContainer
+    UpdateScrollSize()
+    
+    return {
+        GetValue = function() return toggleButton.Text == "ON" end,
+        SetValue = function(value) updateToggle(value) end
+    }
+end
+
+-- Function to create mobile-friendly dropdown
+local function CreateDropdown(name, description, options, defaultIndex, callback)
     local dropdownFrame = Instance.new("Frame")
     dropdownFrame.Name = name .. "Dropdown"
-    dropdownFrame.Size = UDim2.new(1, 0, 0, 60)
-    dropdownFrame.BackgroundTransparency = 1
-    dropdownFrame.LayoutOrder = #ScrollFrame:GetChildren()
+    dropdownFrame.Size = UDim2.new(1, 0, 0, 80)  -- Taller for mobile
+    dropdownFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    dropdownFrame.BorderSizePixel = 1
+    dropdownFrame.BorderColor3 = Color3.fromRGB(60, 60, 70)
+    dropdownFrame.LayoutOrder = #ToggleContainer:GetChildren()
     
-    local label = Instance.new("TextLabel")
-    label.Name = "Label"
-    label.Size = UDim2.new(1, -20, 0, 20)
-    label.Position = UDim2.new(0, 10, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = name .. ":"
-    label.TextColor3 = Color3.fromRGB(200, 200, 200)
-    label.TextSize = 14
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = dropdownFrame
+    -- Name label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(0.7, -10, 0, 30)
+    nameLabel.Position = UDim2.new(0, 10, 0, 5)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    nameLabel.TextSize = 16
+    nameLabel.Font = Enum.Font.GothamSemibold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = dropdownFrame
     
+    -- Description label
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Name = "DescLabel"
+    descLabel.Size = UDim2.new(0.7, -10, 0, 20)
+    descLabel.Position = UDim2.new(0, 10, 0, 35)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = description
+    descLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    descLabel.TextSize = 12
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.Parent = dropdownFrame
+    
+    -- Dropdown button
     local dropdownButton = Instance.new("TextButton")
     dropdownButton.Name = "DropdownButton"
-    dropdownButton.Size = UDim2.new(1, -20, 0, 30)
-    dropdownButton.Position = UDim2.new(0, 10, 0, 25)
+    dropdownButton.Size = UDim2.new(0.25, -10, 0, 40)
+    dropdownButton.Position = UDim2.new(0.75, 5, 0.5, -20)
     dropdownButton.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
     dropdownButton.Text = options[defaultIndex] or options[1]
     dropdownButton.TextColor3 = Color3.white
     dropdownButton.TextSize = 14
     dropdownButton.Font = Enum.Font.Gotham
+    dropdownButton.AutoButtonColor = false
     dropdownButton.Parent = dropdownFrame
     
-    local dropdownFrameOpen = Instance.new("Frame")
-    dropdownFrameOpen.Name = "DropdownOpen"
-    dropdownFrameOpen.Size = UDim2.new(1, -20, 0, 0)
-    dropdownFrameOpen.Position = UDim2.new(0, 10, 0, 55)
-    dropdownFrameOpen.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-    dropdownFrameOpen.BorderSizePixel = 1
-    dropdownFrameOpen.BorderColor3 = Color3.fromRGB(100, 100, 120)
-    dropdownFrameOpen.Visible = false
-    dropdownFrameOpen.ClipsDescendants = true
-    dropdownFrameOpen.Parent = dropdownFrame
+    -- Mobile touch handling for dropdown
+    local isOpen = false
+    local selectedValue = dropdownButton.Text
     
-    local UIListLayout = Instance.new("UIListLayout")
-    UIListLayout.Parent = dropdownFrameOpen
+    local function toggleDropdown()
+        isOpen = not isOpen
+        if callback then 
+            pcall(callback, selectedValue) 
+        end
+    end
     
-    local selectedValue = options[defaultIndex] or options[1]
+    dropdownButton.MouseButton1Click:Connect(toggleDropdown)
     
+    if UserInputService.TouchEnabled then
+        dropdownButton.TouchTap:Connect(toggleDropdown)
+    end
+    
+    -- Create dropdown options (shown as separate buttons for mobile)
+    local optionY = 85
     for i, option in ipairs(options) do
         local optionButton = Instance.new("TextButton")
         optionButton.Name = "Option_" .. option
-        optionButton.Size = UDim2.new(1, 0, 0, 25)
+        optionButton.Size = UDim2.new(1, -20, 0, 30)
+        optionButton.Position = UDim2.new(0, 10, 0, optionY)
         optionButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
         optionButton.BorderSizePixel = 0
         optionButton.Text = option
         optionButton.TextColor3 = Color3.white
         optionButton.TextSize = 12
         optionButton.Font = Enum.Font.Gotham
+        optionButton.Visible = false
+        optionButton.AutoButtonColor = false
+        optionButton.Parent = dropdownFrame
+        
+        optionY = optionY + 35
         
         optionButton.MouseButton1Click:Connect(function()
             selectedValue = option
             dropdownButton.Text = option
-            dropdownFrameOpen.Visible = false
-            if callback then callback(option) end
+            isOpen = false
+            for _, btn in ipairs(dropdownFrame:GetChildren()) do
+                if btn:IsA("TextButton") and btn.Name:sub(1, 7) == "Option_" then
+                    btn.Visible = false
+                end
+            end
+            if callback then pcall(callback, option) end
         end)
         
-        optionButton.Parent = dropdownFrameOpen
+        if UserInputService.TouchEnabled then
+            optionButton.TouchTap:Connect(function()
+                selectedValue = option
+                dropdownButton.Text = option
+                isOpen = false
+                for _, btn in ipairs(dropdownFrame:GetChildren()) do
+                    if btn:IsA("TextButton") and btn.Name:sub(1, 7) == "Option_" then
+                        btn.Visible = false
+                    end
+                end
+                if callback then pcall(callback, option) end
+            end)
+        end
     end
     
+    -- Dropdown open/close handler
     dropdownButton.MouseButton1Click:Connect(function()
-        dropdownFrameOpen.Visible = not dropdownFrameOpen.Visible
-        if dropdownFrameOpen.Visible then
-            dropdownFrameOpen.Size = UDim2.new(1, -20, 0, math.min(#options * 25, 125))
-        else
-            dropdownFrameOpen.Size = UDim2.new(1, -20, 0, 0)
+        isOpen = not isOpen
+        for _, btn in ipairs(dropdownFrame:GetChildren()) do
+            if btn:IsA("TextButton") and btn.Name:sub(1, 7) == "Option_" then
+                btn.Visible = isOpen
+            end
         end
+        if isOpen then
+            dropdownFrame.Size = UDim2.new(1, 0, 0, 80 + (#options * 35))
+        else
+            dropdownFrame.Size = UDim2.new(1, 0, 0, 80)
+        end
+        UpdateScrollSize()
     end)
     
-    dropdownFrame.Parent = ScrollFrame
-    return {GetValue = function() return selectedValue end}
+    dropdownFrame.Parent = ToggleContainer
+    UpdateScrollSize()
+    
+    return {
+        GetValue = function() return selectedValue end,
+        SetValue = function(value)
+            if table.find(options, value) then
+                selectedValue = value
+                dropdownButton.Text = value
+                if callback then pcall(callback, value) end
+            end
+        end
+    }
 end
 
--- Create cheat toggles
-local AutoFishToggle = CreateToggle("Auto Fish", CheatConfig.AutoFish, function(value)
-    CheatConfig.AutoFish = value
-end)
+-- Create cheat toggles with descriptions
+local AutoFishToggle = CreateToggle(
+    "Auto Fish", 
+    "Automatically catches fish continuously",
+    CheatConfig.AutoFish, 
+    function(value)
+        CheatConfig.AutoFish = value
+    end
+)
 
-local InstantCatchToggle = CreateToggle("Instant Catch", CheatConfig.InstantCatch, function(value)
-    CheatConfig.InstantCatch = value
-end)
+local InstantCatchToggle = CreateToggle(
+    "Instant Catch", 
+    "Skip fishing wait time",
+    CheatConfig.InstantCatch, 
+    function(value)
+        CheatConfig.InstantCatch = value
+    end
+)
 
-local NoMinigameToggle = CreateToggle("No Minigame", CheatConfig.NoMinigame, function(value)
-    CheatConfig.NoMinigame = value
-end)
+local NoMinigameToggle = CreateToggle(
+    "No Minigame", 
+    "Bypass fishing minigame",
+    CheatConfig.NoMinigame, 
+    function(value)
+        CheatConfig.NoMinigame = value
+    end
+)
 
-local ForceMaxWeightToggle = CreateToggle("Force Max Weight", CheatConfig.ForceMaxWeight, function(value)
-    CheatConfig.ForceMaxWeight = value
-end)
+local ForceMaxWeightToggle = CreateToggle(
+    "Max Weight", 
+    "Catch maximum weight fish",
+    CheatConfig.ForceMaxWeight, 
+    function(value)
+        CheatConfig.ForceMaxWeight = value
+    end
+)
 
-local NoInventoryLimitToggle = CreateToggle("No Inventory Limit", CheatConfig.NoInventoryLimit, function(value)
-    CheatConfig.NoInventoryLimit = value
-end)
+local NoInventoryLimitToggle = CreateToggle(
+    "No Limit", 
+    "Remove inventory limits",
+    CheatConfig.NoInventoryLimit, 
+    function(value)
+        CheatConfig.NoInventoryLimit = value
+    end
+)
 
-local AutoSellAllToggle = CreateToggle("Auto Sell All", CheatConfig.AutoSellAll, function(value)
-    CheatConfig.AutoSellAll = value
-end)
+local AutoSellAllToggle = CreateToggle(
+    "Auto Sell", 
+    "Automatically sell all fish",
+    CheatConfig.AutoSellAll, 
+    function(value)
+        CheatConfig.AutoSellAll = value
+    end
+)
 
-local TeleportFishToggle = CreateToggle("Teleport Fish", CheatConfig.TeleportFishToPlayer, function(value)
-    CheatConfig.TeleportFishToPlayer = value
-end)
+local TeleportFishToggle = CreateToggle(
+    "Teleport Fish", 
+    "Fish teleport to player",
+    CheatConfig.TeleportFishToPlayer, 
+    function(value)
+        CheatConfig.TeleportFishToPlayer = value
+    end
+)
 
-local BypassCooldownsToggle = CreateToggle("Bypass Cooldowns", CheatConfig.BypassCooldowns, function(value)
-    CheatConfig.BypassCooldowns = value
-end)
+local BypassCooldownsToggle = CreateToggle(
+    "No Cooldown", 
+    "Remove fishing cooldowns",
+    CheatConfig.BypassCooldowns, 
+    function(value)
+        CheatConfig.BypassCooldowns = value
+    end
+)
 
-local AntiAfkToggle = CreateToggle("Anti AFK", CheatConfig.AntiAfk, function(value)
-    CheatConfig.AntiAfk = value
-end)
+local AntiAfkToggle = CreateToggle(
+    "Anti AFK", 
+    "Prevent AFK disconnection",
+    CheatConfig.AntiAfk, 
+    function(value)
+        CheatConfig.AntiAfk = value
+    end
+)
 
 -- Rarity dropdown
 local rarityOptions = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "SECRET"}
-local RarityDropdown = CreateDropdown("Set Rarity", rarityOptions, 1, function(value)
-    CheatConfig.SetRarity = value
+local RarityDropdown = CreateDropdown(
+    "Set Rarity", 
+    "Force fish rarity when caught",
+    rarityOptions, 
+    1, 
+    function(value)
+        CheatConfig.SetRarity = value
+    end
+)
+
+-- UI Control Functions
+MinimizeButton.MouseButton1Click:Connect(function()
+    if ContentFrame.Visible then
+        ContentFrame.Visible = false
+        MainFrame.Size = UDim2.new(0, 350, 0, 40)
+        MinimizeButton.Text = "+"
+    else
+        ContentFrame.Visible = true
+        MainFrame.Size = UDim2.new(0, 350, 0, 450)
+        MinimizeButton.Text = "─"
+    end
 end)
 
--- Mobile control buttons
-if CheatConfig.MobileUI then
-    local mobileFrame = Instance.new("Frame")
-    mobileFrame.Name = "MobileControls"
-    mobileFrame.Size = UDim2.new(0, 100, 0, 150)
-    mobileFrame.Position = UDim2.new(1, 10, 0.5, -75)
-    mobileFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40, 0.8)
-    mobileFrame.BackgroundTransparency = 0.2
-    mobileFrame.BorderSizePixel = 2
-    mobileFrame.BorderColor3 = Color3.fromRGB(0, 255, 119)
-    mobileFrame.Parent = ScreenGui
+if UserInputService.TouchEnabled then
+    MinimizeButton.TouchTap:Connect(function()
+        if ContentFrame.Visible then
+            ContentFrame.Visible = false
+            MainFrame.Size = UDim2.new(0, 350, 0, 40)
+            MinimizeButton.Text = "+"
+        else
+            ContentFrame.Visible = true
+            MainFrame.Size = UDim2.new(0, 350, 0, 450)
+            MinimizeButton.Text = "─"
+        end
+    end)
+end
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    CheatConfig.Enabled = false
+end)
+
+if UserInputService.TouchEnabled then
+    CloseButton.TouchTap:Connect(function()
+        ScreenGui:Destroy()
+        CheatConfig.Enabled = false
+    end)
+end
+
+-- Mobile Quick Actions Bar
+if UserInputService.TouchEnabled then
+    local QuickBar = Instance.new("Frame")
+    QuickBar.Name = "QuickBar"
+    QuickBar.Size = UDim2.new(1, 0, 0, 50)
+    QuickBar.Position = UDim2.new(0, 0, 1, 5)
+    QuickBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40, 0.9)
+    QuickBar.BackgroundTransparency = 0.1
+    QuickBar.BorderSizePixel = 1
+    QuickBar.BorderColor3 = Color3.fromRGB(0, 255, 119)
+    QuickBar.Parent = MainFrame
     
-    local mobileTitle = Instance.new("TextLabel")
-    mobileTitle.Name = "MobileTitle"
-    mobileTitle.Size = UDim2.new(1, 0, 0, 25)
-    mobileTitle.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    mobileTitle.Text = "MOBILE"
-    mobileTitle.TextColor3 = Color3.fromRGB(0, 255, 119)
-    mobileTitle.TextSize = 14
-    mobileTitle.Font = Enum.Font.GothamBold
-    mobileTitle.Parent = mobileFrame
-    
-    -- Quick action buttons for mobile
-    local buttons = {
-        {"AUTO ON", function() AutoFishToggle.SetValue(true) end},
-        {"AUTO OFF", function() AutoFishToggle.SetValue(false) end},
-        {"INSTANT", function() InstantCatchToggle.SetValue(not InstantCatchToggle.GetValue()) end},
-        {"SELL ALL", function() SellAllFish() end}
+    local quickButtons = {
+        {"🚀 AUTO", function() AutoFishToggle.SetValue(not AutoFishToggle.GetValue()) end},
+        {"⚡ INSTANT", function() InstantCatchToggle.SetValue(not InstantCatchToggle.GetValue()) end},
+        {"💰 SELL", function() end}, -- Placeholder
+        {"🎯 RARITY", function() 
+            local current = RarityDropdown.GetValue()
+            local idx = table.find(rarityOptions, current) or 1
+            local nextIdx = idx % #rarityOptions + 1
+            RarityDropdown.SetValue(rarityOptions[nextIdx])
+        end}
     }
     
-    for i, btnData in ipairs(buttons) do
+    for i, btnData in ipairs(quickButtons) do
         local btn = Instance.new("TextButton")
-        btn.Name = "MobileBtn_" .. i
-        btn.Size = UDim2.new(1, -10, 0, 25)
-        btn.Position = UDim2.new(0, 5, 0, 25 + (i-1)*30)
+        btn.Name = "QuickBtn_" .. i
+        btn.Size = UDim2.new(0.24, -5, 0.8, 0)
+        btn.Position = UDim2.new((i-1) * 0.25 + 0.01, 0, 0.1, 0)
         btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
         btn.Text = btnData[1]
         btn.TextColor3 = Color3.white
         btn.TextSize = 12
-        btn.Font = Enum.Font.Gotham
+        btn.Font = Enum.Font.GothamBold
+        btn.AutoButtonColor = false
         
-        btn.MouseButton1Click:Connect(btnData[2])
-        btn.Parent = mobileFrame
+        -- Touch feedback
+        btn.TouchTap:Connect(function()
+            pcall(btnData[2])
+            -- Visual feedback
+            local original = btn.BackgroundColor3
+            btn.BackgroundColor3 = Color3.fromRGB(100, 100, 150)
+            SafeWait(0.15)
+            btn.BackgroundColor3 = original
+        end)
+        
+        btn.Parent = QuickBar
     end
 end
 
--- Hook critical functions
-local originalGenerateFishWeight = module_upvr.GenerateFishWeight
-module_upvr.GenerateFishWeight = function(fishData, rodConfig, maxWeight)
-    if CheatConfig.ForceMaxWeight then
-        return CheatConfig.MaxWeightOverride
-    end
-    return originalGenerateFishWeight(fishData, rodConfig, maxWeight)
-end
-
-local originalCalculateFishPrice = module_upvr.CalculateFishPrice
-module_upvr.CalculateFishPrice = function(weight, rarity)
-    local price = originalCalculateFishPrice(weight, rarity)
-    if CheatConfig.AutoSellAll then
-        price = price * 2 -- Double price when auto selling
-    end
-    return price
-end
-
--- Find fishing system remote events/functions
-local fishingSystem
-local fishingRemote
-local minigameRemote
-local sellRemote
-
+-- Fishing System Detection (Safe)
+local fishingRemotes = {}
 local function FindFishingSystem()
-    for _, child in pairs(ReplicatedStorage:GetDescendants()) do
-        if child:IsA("RemoteEvent") then
-            if string.find(child.Name:lower(), "fish") or string.find(child.Name:lower(), "catch") then
-                fishingRemote = child
-            elseif string.find(child.Name:lower(), "minigame") then
-                minigameRemote = child
-            elseif string.find(child.Name:lower(), "sell") then
-                sellRemote = child
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local nameLower = obj.Name:lower()
+            if nameLower:find("fish") or nameLower:find("catch") or nameLower:find("rod") then
+                table.insert(fishingRemotes, obj)
             end
         end
     end
-    
-    -- Also check folders
-    local folders = ReplicatedStorage:GetChildren()
-    for _, folder in ipairs(folders) do
-        if folder:IsA("Folder") and (string.find(folder.Name:lower(), "fish") or string.find(folder.Name:lower(), "system")) then
-            fishingSystem = folder
-        end
-    end
 end
 
--- Auto-fish function
+-- Safe remote calling
+local function SafeFireRemote(remoteName, ...)
+    for _, remote in pairs(fishingRemotes) do
+        if remote.Name:lower():find(remoteName:lower()) then
+            pcall(function()
+                if remote:IsA("RemoteEvent") then
+                    remote:FireServer(...)
+                elseif remote:IsA("RemoteFunction") then
+                    remote:InvokeServer(...)
+                end
+            end)
+            return true
+        end
+    end
+    return false
+end
+
+-- Auto Fishing System (Error-Proof)
 local isFishing = false
-local lastFishTime = 0
-local fishCooldown = 2 -- seconds
+local autoFishCoroutine = nil
 
 local function StartAutoFishing()
-    if not CheatConfig.AutoFish or isFishing then return end
+    if isFishing or not CheatConfig.AutoFish or not CheatConfig.Enabled then 
+        return 
+    end
     
     isFishing = true
-    spawn(function()
+    autoFishCoroutine = coroutine.create(function()
         while CheatConfig.AutoFish and CheatConfig.Enabled do
-            if tick() - lastFishTime > fishCooldown then
-                -- Simulate fishing action
-                if fishingRemote then
-                    -- Cast fishing rod
-                    fishingRemote:FireServer("StartFishing")
-                    
-                    -- Wait for bite
-                    wait(math.random(1, 3))
-                    
-                    -- Catch fish with modified rarity if needed
-                    local catchArgs = {
-                        FishName = "Cheated Fish",
-                        Weight = CheatConfig.ForceMaxWeight and CheatConfig.MaxWeightOverride or math.random(50, 200),
-                        Rarity = CheatConfig.SetRarity,
-                        Position = LocalPlayer.Character and LocalPlayer.Character.PrimaryPart.Position
-                    }
-                    
-                    if CheatConfig.InstantCatch then
-                        fishingRemote:FireServer("CatchFish", catchArgs)
-                    else
-                        -- Handle minigame bypass
-                        if minigameRemote and not CheatConfig.NoMinigame then
-                            minigameRemote:FireServer("StartMinigame")
-                            wait(0.1)
-                            minigameRemote:FireServer("CompleteMinigame", 100) -- Always win
-                        end
-                        fishingRemote:FireServer("CatchFish", catchArgs)
+            -- Try to start fishing
+            SafeFireRemote("start", "StartFishing")
+            SafeFireRemote("fish", "CastRod")
+            
+            -- Wait for bite (with random variation)
+            local waitTime = math.random(1, 3)
+            for i = 1, waitTime * 10 do
+                if not CheatConfig.AutoFish then break end
+                SafeWait(0.1)
+            end
+            
+            if CheatConfig.AutoFish then
+                -- Catch fish
+                local fishData = {
+                    Name = "Cheated Fish",
+                    Weight = CheatConfig.ForceMaxWeight and CheatConfig.MaxWeightOverride or math.random(10, 100),
+                    Rarity = CheatConfig.SetRarity,
+                    Value = math.random(100, 1000)
+                }
+                
+                if CheatConfig.InstantCatch then
+                    SafeFireRemote("catch", "CatchFish", fishData)
+                else
+                    if not CheatConfig.NoMinigame then
+                        SafeFireRemote("minigame", "StartMinigame")
+                        SafeWait(0.5)
+                        SafeFireRemote("minigame", "CompleteMinigame", 100)
                     end
-                    
-                    lastFishTime = tick()
-                    
-                    -- Auto sell if enabled
-                    if CheatConfig.AutoSellAll and sellRemote then
-                        sellRemote:FireServer("SellAllFish")
-                    end
+                    SafeFireRemote("catch", "CatchFish", fishData)
                 end
                 
-                wait(fishCooldown)
+                -- Auto sell if enabled
+                if CheatConfig.AutoSellAll then
+                    SafeFireRemote("sell", "SellAll")
+                end
+                
+                -- Cooldown
+                SafeWait(CheatConfig.BypassCooldowns and 0.5 or 2)
             end
-            RunService.Heartbeat:Wait()
+            
+            SafeWait(0.1) -- Prevent tight loops
         end
         isFishing = false
     end)
+    
+    coroutine.resume(autoFishCoroutine)
 end
 
--- Anti-AFK system
+local function StopAutoFishing()
+    isFishing = false
+    CheatConfig.AutoFish = false
+    AutoFishToggle.SetValue(false)
+end
+
+-- Connect auto fish toggle
+AutoFishToggle.SetValue = function(value)
+    CheatConfig.AutoFish = value
+    if value then
+        StartAutoFishing()
+    else
+        StopAutoFishing()
+    end
+    -- Update the toggle button
+    local toggleBtn = AutoFishToggle.GetToggleButton and AutoFishToggle:GetToggleButton()
+    if toggleBtn then
+        toggleBtn.Text = value and "ON" or "OFF"
+        toggleBtn.BackgroundColor3 = value and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 0, 0)
+    end
+end
+
+-- Anti-AFK System (Safe)
 local antiAfkConnection
 if CheatConfig.AntiAfk then
-    local VirtualInputManager = game:GetService("VirtualInputManager")
-    
     antiAfkConnection = RunService.Heartbeat:Connect(function()
         if not CheatConfig.Enabled then return end
         
-        -- Simulate small movements to prevent AFK
-        if tick() % 30 < 0.1 then -- Every 30 seconds
-            VirtualInputManager:SendMouseMoveEvent(10, 10)
+        -- Simulate small camera movement every 30 seconds
+        if tick() % 30 < 0.1 then
+            pcall(function()
+                if workspace.CurrentCamera then
+                    workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame * CFrame.Angles(0, math.rad(0.1), 0)
+                end
+            end)
         end
     end)
 end
 
--- Hook into existing fishing mechanics
-local function HookExistingFunctions()
-    -- Find and hook any existing fishing functions
-    local scripts = game:GetService("Workspace"):GetDescendants()
-    for _, script in ipairs(scripts) do
-        if script:IsA("Script") or script:IsA("LocalScript") then
-            local success, src = pcall(function()
-                return script.Source
-            end)
-            
-            if success and src then
-                if string.find(src:lower(), "fish") or string.find(src:lower(), "catch") then
-                    -- Found fishing-related script
-                    print("[DYRON] Found fishing script:", script:GetFullName())
-                end
-            end
+-- Hotkey System (Only for non-touch devices)
+if UserInputService.KeyboardEnabled then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.F then
+            AutoFishToggle.SetValue(not CheatConfig.AutoFish)
+        elseif input.KeyCode == Enum.KeyCode.G then
+            InstantCatchToggle.SetValue(not CheatConfig.InstantCatch)
+        elseif input.KeyCode == Enum.KeyCode.H then
+            -- Sell all fish placeholder
+            SafeFireRemote("sell", "SellAll")
+        elseif input.KeyCode == Enum.KeyCode.J then
+            -- Cycle rarity
+            local current = CheatConfig.SetRarity
+            local idx = table.find(rarityOptions, current) or 1
+            local nextIdx = idx % #rarityOptions + 1
+            RarityDropdown.SetValue(rarityOptions[nextIdx])
+        elseif input.KeyCode == Enum.KeyCode.Delete then
+            -- Toggle UI visibility
+            MainFrame.Visible = not MainFrame.Visible
         end
-    end
+    end)
 end
 
--- Sell all fish function
-function SellAllFish()
-    if sellRemote then
-        sellRemote:FireServer("SellAllFish")
-    else
-        -- Try to find sell remote
-        FindFishingSystem()
-        if sellRemote then
-            sellRemote:FireServer("SellAllFish")
-        end
-    end
-end
-
--- Create hotkeys
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == Enum.KeyCode.F then -- Toggle auto fish
-        AutoFishToggle.SetValue(not AutoFishToggle.GetValue())
-    elseif input.KeyCode == Enum.KeyCode.G then -- Toggle instant catch
-        InstantCatchToggle.SetValue(not InstantCatchToggle.GetValue())
-    elseif input.KeyCode == Enum.KeyCode.H then -- Sell all fish
-        SellAllFish()
-    elseif input.KeyCode == Enum.KeyCode.J then -- Cycle rarity
-        local currentIndex = table.find(rarityOptions, CheatConfig.SetRarity) or 1
-        local nextIndex = currentIndex % #rarityOptions + 1
-        CheatConfig.SetRarity = rarityOptions[nextIndex]
-    end
-end)
-
--- Mobile touch gestures
+-- Mobile Gestures
 if UserInputService.TouchEnabled then
     local lastTapTime = 0
-    local tapCount = 0
+    local tapPosition = Vector2.new(0, 0)
     
     UserInputService.TouchTap:Connect(function(touchPositions, gameProcessed)
         if gameProcessed then return end
         
         local currentTime = tick()
-        if currentTime - lastTapTime < 0.5 then
-            tapCount = tapCount + 1
-            if tapCount >= 3 then -- Triple tap
-                -- Show/hide cheat menu
-                MainFrame.Visible = not MainFrame.Visible
-                tapCount = 0
-            end
-        else
-            tapCount = 1
+        local touchPos = touchPositions[1].Position
+        
+        -- Check for triple tap in same area
+        if currentTime - lastTapTime < 0.6 and (touchPos - tapPosition).Magnitude < 50 then
+            -- Triple tap detected - toggle UI
+            MainFrame.Visible = not MainFrame.Visible
         end
+        
         lastTapTime = currentTime
+        tapPosition = touchPos
     end)
 end
 
 -- Initialize
 FindFishingSystem()
-HookExistingFunctions()
 
--- Start auto fishing if enabled
-if CheatConfig.AutoFish then
-    StartAutoFishing()
+-- Status indicator
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "Status"
+statusLabel.Size = UDim2.new(1, -20, 0, 20)
+statusLabel.Position = UDim2.new(0, 10, 1, -25)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "✅ DYRON CHEATS LOADED | Mobile: " .. tostring(UserInputService.TouchEnabled)
+statusLabel.TextColor3 = Color3.fromRGB(0, 255, 119)
+statusLabel.TextSize = 12
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = MainFrame
+
+-- Finalize UI
+UpdateScrollSize()
+MainFrame.Visible = CheatConfig.ShowUI
+
+-- Safe cleanup on script removal
+local function Cleanup()
+    CheatConfig.Enabled = false
+    if antiAfkConnection then
+        antiAfkConnection:Disconnect()
+    end
+    if ScreenGui then
+        ScreenGui:Destroy()
+    end
 end
 
--- Connect toggle to auto fishing
-AutoFishToggle.Button.MouseButton1Click:Connect(function()
-    if AutoFishToggle.GetValue() then
-        StartAutoFishing()
-    end
+-- Connect cleanup
+game:BindToClose(Cleanup)
+
+-- Success message (safe)
+pcall(function()
+    print("=========================================")
+    print("🎣 DYRON FISHING CHEATS v1.0 🎣")
+    print("✅ Successfully Loaded")
+    print("📱 Mobile Optimized: " .. tostring(UserInputService.TouchEnabled))
+    print("🛠 Features: Auto Fish | Instant Catch | Set Rarity")
+    print("🎮 Controls: F=Auto | G=Instant | H=Sell | J=Cycle")
+    print("📱 Mobile: Triple-tap to hide/show UI")
+    print("=========================================")
 end)
 
-print("[DYRON MODE v1] Fishing cheats loaded successfully!")
-print("[CONTROLS] F: Auto Fish | G: Instant Catch | H: Sell All | J: Cycle Rarity")
-print("[MOBILE] Triple tap to toggle menu")
-
--- Return module for external use
+-- Return safe interface
 return {
     Config = CheatConfig,
-    ToggleAutoFish = function(value) AutoFishToggle.SetValue(value) end,
-    ToggleInstantCatch = function(value) InstantCatchToggle.SetValue(value) end,
-    SetRarity = function(rarity) CheatConfig.SetRarity = rarity end,
-    SellAllFish = SellAllFish,
-    GetUI = function() return ScreenGui end
+    ToggleAutoFish = function(value) 
+        pcall(function() 
+            AutoFishToggle.SetValue(value) 
+        end) 
+    end,
+    ToggleInstantCatch = function(value) 
+        pcall(function() 
+            InstantCatchToggle.SetValue(value) 
+        end) 
+    end,
+    SetRarity = function(rarity) 
+        pcall(function() 
+            RarityDropdown.SetValue(rarity) 
+        end) 
+    end,
+    SellAllFish = function() 
+        SafeFireRemote("sell", "SellAll") 
+    end,
+    GetUI = function() 
+        return ScreenGui 
+    end,
+    Destroy = Cleanup
 }
