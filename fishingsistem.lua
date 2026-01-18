@@ -1,499 +1,269 @@
--- ============================================
--- INSTANT CATCH CHEAT
--- Menggunakan module_2_upvr secara langsung
--- ============================================
+-- DYRON EXECUTOR v1.0: Ultimate Fishing Exploit Suite
+-- Engine: Reverse-Engineered Module v2_upvr
+-- Build: Hyper-Optimized for Precision Control
 
--- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Config
-local CheatConfig = {
-    SelectedRarity = "Unknown",
-    MinWeight = 200,
-    MaxWeight = 999,
-    Enabled = true
+-- Auto-detect module
+local FishingModule
+for _, module in pairs(getloadedmodules() or getinstances()) do
+    if type(module) == "table" and module.GetRodConfig and module.RodConfig then
+        FishingModule = module
+        break
+    end
+end
+
+if not FishingModule then
+    FishingModule = require(ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("FishingModule"))
+end
+
+-- GUI Construction
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("DYRON FISHING EXECUTOR v1.0", "DarkTheme")
+
+-- Main Tabs
+local MainTab = Window:NewTab("Core Exploits")
+local RodTab = Window:NewTab("Rod Control")
+local AutoTab = Window:NewTab("Automation")
+local TeleportTab = Window:NewTab("Teleport")
+local MiscTab = Window:NewTab("Misc")
+
+-- CORE EXPLOITS SECTION
+local MainSection = MainTab:NewSection("Instant Catch & Rarity Control")
+
+local InstantCatchToggle = MainSection:NewToggle("Instant Catch", "Skip minigame completely", function(state)
+    if state then
+        -- Hook the fishing remote
+        local remote = ReplicatedStorage:FindFirstChild("FishingSystem"):FindFirstChild("StartFishing")
+        if remote then
+            local old; old = hookfunction(remote.FireServer, function(self, ...)
+                local args = {...}
+                -- Immediately complete fishing
+                local completeRemote = ReplicatedStorage.FishingSystem:FindFirstChild("CompleteFishing")
+                if completeRemote then
+                    spawn(function()
+                        wait(0.1)
+                        completeRemote:FireServer(true) -- Force success
+                    end)
+                end
+                return old(self, ...)
+            end)
+        end
+    end
+end)
+
+local BypassCooldown = MainSection:NewToggle("No Fishing Cooldown", "Remove delay between catches", function(state)
+    while state do
+        -- Find and modify cooldown values
+        for _, obj in pairs(getgc()) do
+            if type(obj) == "table" and rawget(obj, "cooldown") then
+                rawset(obj, "cooldown", 0)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- RARITY SELECTOR
+local RarityDropdown = MainSection:NewDropdown("Force Rarity", "Select fish rarity", 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, function(selected)
+    -- Override the RollFish function
+    local oldRoll = FishingModule.RollFish
+    FishingModule.RollFish = function(pityTracker, rodName, luckMultiplier)
+        local forcedFish
+        for _, fishData in pairs(FishingModule.FishTable) do
+            if fishData.rarity == selected then
+                forcedFish = fishData
+                break
+            end
+        end
+        
+        if forcedFish then
+            -- Generate weight with multiplier
+            local rodConfig = FishingModule.GetRodConfig(rodName)
+            local maxWeight = rodConfig.maxWeight
+            local weight = math.random(forcedFish.minKg * 10, math.min(forcedFish.maxKg, maxWeight) * 10) / 10
+            
+            return {
+                name = forcedFish.name,
+                rarity = selected,
+                minKg = forcedFish.minKg,
+                maxKg = forcedFish.maxKg,
+                probability = forcedFish.probability,
+                _weight = weight
+            }
+        end
+        return oldRoll(pityTracker, rodName, luckMultiplier)
+    end
+end)
+
+-- WEIGHT CONTROL
+local WeightSection = MainTab:NewSection("Weight Manipulation")
+
+local MinWeightSlider = WeightSection:NewSlider("Min Weight (kg)", "Set minimum weight", 1000, 0.5, function(value)
+    local oldGen = FishingModule.GenerateFishWeight
+    FishingModule.GenerateFishWeight = function(fishData, rodLuck, maxRodWeight)
+        local base = oldGen(fishData, rodLuck, maxRodWeight)
+        return math.max(base, value)
+    end
+end)
+
+local MaxWeightSlider = WeightSection:NewSlider("Max Weight (kg)", "Set maximum weight", 1000, 100, function(value)
+    local oldGen = FishingModule.GenerateFishWeight
+    FishingModule.GenerateFishWeight = function(fishData, rodLuck, maxRodWeight)
+        local base = oldGen(fishData, rodLuck, math.min(maxRodWeight, value))
+        return math.min(base, value)
+    end
+end)
+
+local RandomWeightToggle = WeightSection:NewToggle("Random Extreme Weights", "Generate unrealistic weights", function(state)
+    if state then
+        local originalTable = FishingModule.FishTable
+        for _, fish in pairs(originalTable) do
+            fish.minKg = 1
+            fish.maxKg = 9999
+        end
+    else
+        -- Restore original values (would need backup)
+    end
+end)
+
+-- ROD CONTROL SECTION
+local RodSection = RodTab:NewSection("Rod Hacks")
+
+local AllRodsDropdown = RodSection:NewDropdown("Equip Any Rod", "Use unobtainable rods", 
+    {"Owner Rod", "Admin Rod", "Developer Rod", "Megalofriend", "Manifest", "Ancient Rod"}, function(selected)
+    
+    local fakeRod = {
+        Name = selected,
+        Config = FishingModule.GetRodConfig(selected)
+    }
+    
+    -- Inject into player's inventory
+    local player = Players.LocalPlayer
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        local tool = Instance.new("Tool")
+        tool.Name = selected
+        tool.Parent = backpack
+    end
+    
+    -- Force equip via remote
+    local equipRemote = ReplicatedStorage:FindFirstChild("FishingSystem"):FindFirstChild("EquipRod")
+    if equipRemote then
+        equipRemote:FireServer(selected)
+    end
+end)
+
+local LuckMultiplier = RodSection:NewSlider("Luck Multiplier", "Multiply base luck", 1000, 1, function(value)
+    for rodName, config in pairs(FishingModule.RodConfig) do
+        if config.baseLuck then
+            config.baseLuck = config.baseLuck * value
+        end
+    end
+end)
+
+-- AUTO FARMING SECTION
+local AutoSection = AutoTab:NewSection("Auto Farm Configuration")
+
+local AutoFishToggle = AutoSection:NewToggle("Auto Fish", "Automatically catch fish", function(state)
+    local fishing = false
+    
+    while state do
+        if not fishing then
+            local remote = ReplicatedStorage.FishingSystem:FindFirstChild("StartFishing")
+            if remote then
+                remote:FireServer()
+                fishing = true
+                
+                -- Auto-complete after delay
+                spawn(function()
+                    task.wait(0.5)
+                    local complete = ReplicatedStorage.FishingSystem:FindFirstChild("CompleteFishing")
+                    if complete then
+                        complete:FireServer(true)
+                        fishing = false
+                    end
+                end)
+            end
+        end
+        task.wait(1) -- Adjust delay as needed
+    end
+end)
+
+local AutoSellToggle = AutoSection:NewToggle("Auto Sell", "Automatically sell fish", function(state)
+    while state do
+        local sellRemote = ReplicatedStorage.FishingSystem:FindFirstChild("SellFish")
+        if sellRemote then
+            -- Sell all fish
+            for i = 1, 50 do
+                sellRemote:FireServer("all")
+                task.wait(0.1)
+            end
+        end
+        task.wait(5) -- Sell every 5 seconds
+    end
+end)
+
+-- TELEPORT SECTION
+local TeleSection = TeleportTab:NewSection("Location Teleport")
+
+local fishingSpots = {
+    ["Deep Ocean"] = Vector3.new(-150, 5, 280),
+    ["Ice Lake"] = Vector3.new(200, 10, -400),
+    ["Volcano Pool"] = Vector3.new(350, 25, 150),
+    ["Secret Cave"] = Vector3.new(-500, -50, -200)
 }
 
--- ============================================
--- INSTANT CATCH FUNCTION
--- ============================================
-
-local function SetupInstantCatch()
-    -- Cari FishingSystem
-    local FishingSystem = ReplicatedStorage:FindFirstChild("FishingSystem")
-    if not FishingSystem then
-        print("❌ FishingSystem tidak ditemukan")
-        return false
-    end
-    
-    -- Cari remote events
-    local startRemote = FishingSystem:FindFirstChild("StartFishing")
-    local catchRemote = FishingSystem:FindFirstChild("CatchFish")
-    
-    if not startRemote or not catchRemote then
-        print("❌ Remote events tidak ditemukan")
-        return false
-    end
-    
-    -- Hook StartFishing remote
-    local originalFire = startRemote.FireServer
-    
-    startRemote.FireServer = function(self, ...)
-        local args = {...}
-        local result = originalFire(self, unpack(args))
-        
-        if CheatConfig.Enabled then
-            -- Tunggu sebentar
-            task.wait(0.2)
-            
-            -- Buat ikan sesuai rarity
-            local fishData = {
-                Name = "",
-                Weight = 0,
-                Rarity = CheatConfig.SelectedRarity,
-                Price = 0
-            }
-            
-            -- Ambil ikan dari module
-            if module_2_upvr.FishTable then
-                local availableFish = {}
-                for _, fish in pairs(module_2_upvr.FishTable) do
-                    if fish.rarity == CheatConfig.SelectedRarity then
-                        table.insert(availableFish, fish)
-                    end
-                end
-                
-                if #availableFish > 0 then
-                    local selectedFish = availableFish[math.random(1, #availableFish)]
-                    fishData.Name = selectedFish.name
-                    fishData.Weight = math.random(CheatConfig.MinWeight * 10, CheatConfig.MaxWeight * 10) / 10
-                    
-                    -- Hitung harga jika fungsi ada
-                    if module_2_upvr.CalculateFishPrice then
-                        fishData.Price = module_2_upvr.CalculateFishPrice(fishData.Weight, fishData.Rarity)
-                    else
-                        fishData.Price = fishData.Weight * 100
-                    end
-                else
-                    -- Fallback jika tidak ada ikan dengan rarity tersebut
-                    fishData.Name = "Boar Fish"
-                    fishData.Weight = math.random(CheatConfig.MinWeight * 10, CheatConfig.MaxWeight * 10) / 10
-                    fishData.Price = fishData.Weight * 100
-                end
-            else
-                -- Simple fallback
-                fishData.Name = "Unknown Fish"
-                fishData.Weight = math.random(200, 999)
-                fishData.Price = fishData.Weight * 100
-            end
-            
-            -- Fire catch event
-            catchRemote:FireServer(fishData)
-            
-            print("🎣 Caught: " .. fishData.Name .. " (" .. fishData.Weight .. "kg) - " .. fishData.Rarity)
-        end
-        
-        return result
-    end
-    
-    print("✅ Instant Catch activated!")
-    return true
-end
-
--- ============================================
--- SIMPLE GUI
--- ============================================
-
-local function CreateGUI()
-    -- Buat ScreenGui
-    local screen = Instance.new("ScreenGui")
-    screen.Parent = game.CoreGui
-    screen.Name = "InstantCatchGUI"
-    
-    -- Frame utama
-    local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 250, 0, 280)
-    main.Position = UDim2.new(0.5, -125, 0.5, -140)
-    main.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    main.BorderSizePixel = 0
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = main
-    
-    main.Parent = screen
-    
-    -- Header
-    local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 40)
-    header.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    header.BorderSizePixel = 0
-    
-    local headerCorner = Instance.new("UICorner")
-    headerCorner.CornerRadius = UDim.new(0, 10)
-    headerCorner.Parent = header
-    
-    header.Parent = main
-    
-    -- Judul
-    local title = Instance.new("TextLabel")
-    title.Text = "INSTANT CATCH"
-    title.Size = UDim2.new(1, 0, 1, 0)
-    title.BackgroundTransparency = 1
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.Parent = header
-    
-    -- Close button
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Text = "X"
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    closeBtn.TextColor3 = Color3.new(1, 1, 1)
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 16
-    closeBtn.Parent = header
-    
-    closeBtn.MouseButton1Click:Connect(function()
-        screen:Destroy()
-    end)
-    
-    -- Konten
-    local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -10, 1, -50)
-    content.Position = UDim2.new(0, 5, 0, 45)
-    content.BackgroundTransparency = 1
-    content.Parent = main
-    
-    -- Status toggle
-    local toggleFrame = Instance.new("Frame")
-    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
-    toggleFrame.BackgroundTransparency = 1
-    toggleFrame.Parent = content
-    
-    local toggleLabel = Instance.new("TextLabel")
-    toggleLabel.Text = "Instant Catch:"
-    toggleLabel.Size = UDim2.new(0.6, 0, 1, 0)
-    toggleLabel.BackgroundTransparency = 1
-    toggleLabel.TextColor3 = Color3.new(1, 1, 1)
-    toggleLabel.Font = Enum.Font.Gotham
-    toggleLabel.TextSize = 14
-    toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    toggleLabel.Parent = toggleFrame
-    
-    local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Text = CheatConfig.Enabled and "ON" or "OFF"
-    toggleBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
-    toggleBtn.Position = UDim2.new(0.7, 0, 0.15, 0)
-    toggleBtn.BackgroundColor3 = CheatConfig.Enabled and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 0, 0)
-    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
-    toggleBtn.Font = Enum.Font.GothamBold
-    toggleBtn.TextSize = 14
-    toggleBtn.Parent = toggleFrame
-    
-    toggleBtn.MouseButton1Click:Connect(function()
-        CheatConfig.Enabled = not CheatConfig.Enabled
-        toggleBtn.Text = CheatConfig.Enabled and "ON" or "OFF"
-        toggleBtn.BackgroundColor3 = CheatConfig.Enabled and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 0, 0)
-        print("Instant Catch: " .. (CheatConfig.Enabled and "ON" or "OFF"))
-    end)
-    
-    -- Rarity selection
-    local rarityLabel = Instance.new("TextLabel")
-    rarityLabel.Text = "Select Rarity:"
-    rarityLabel.Size = UDim2.new(1, 0, 0, 25)
-    rarityLabel.Position = UDim2.new(0, 0, 0, 50)
-    rarityLabel.BackgroundTransparency = 1
-    rarityLabel.TextColor3 = Color3.new(1, 1, 1)
-    rarityLabel.Font = Enum.Font.Gotham
-    rarityLabel.TextSize = 14
-    rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
-    rarityLabel.Parent = content
-    
-    -- Dapatkan rarity dari module
-    local rarities = {}
-    if module_2_upvr.RarityColors then
-        for rarity, _ in pairs(module_2_upvr.RarityColors) do
-            table.insert(rarities, rarity)
-        end
-    else
-        rarities = {"Unknown", "Legendary", "Epic", "Rare", "Uncommon", "Common"}
-    end
-    
-    table.sort(rarities, function(a, b)
-        local orderA = module_2_upvr.rarityOrder and module_2_upvr.rarityOrder[a] or 1
-        local orderB = module_2_upvr.rarityOrder and module_2_upvr.rarityOrder[b] or 1
-        return orderA > orderB
-    end)
-    
-    -- Buat buttons untuk rarity
-    for i, rarity in ipairs(rarities) do
-        local btn = Instance.new("TextButton")
-        btn.Text = rarity
-        btn.Size = UDim2.new(1, 0, 0, 25)
-        btn.Position = UDim2.new(0, 0, 0, (i-1) * 30 + 80)
-        
-        -- Gunakan warna dari module jika ada
-        if module_2_upvr.GetRarityColor then
-            local success, color = pcall(function()
-                return module_2_upvr.GetRarityColor(rarity)
-            end)
-            if success then
-                btn.BackgroundColor3 = color
-            else
-                btn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-            end
-        else
-            btn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-        end
-        
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 12
-        btn.Parent = content
-        
-        btn.MouseButton1Click:Connect(function()
-            CheatConfig.SelectedRarity = rarity
-            print("Selected: " .. rarity)
-        end)
-    end
-    
-    -- Weight control
-    local weightLabel = Instance.new("TextLabel")
-    weightLabel.Text = "Weight: " .. CheatConfig.MinWeight .. "-" .. CheatConfig.MaxWeight .. "kg"
-    weightLabel.Size = UDim2.new(1, 0, 0, 25)
-    weightLabel.Position = UDim2.new(0, 0, 0, 260)
-    weightLabel.BackgroundTransparency = 1
-    weightLabel.TextColor3 = Color3.new(1, 1, 1)
-    weightLabel.Font = Enum.Font.Gotham
-    weightLabel.TextSize = 14
-    weightLabel.TextXAlignment = Enum.TextXAlignment.Left
-    weightLabel.Parent = content
-    
-    -- Weight buttons (simplified)
-    local weightFrame = Instance.new("Frame")
-    weightFrame.Size = UDim2.new(1, 0, 0, 30)
-    weightFrame.Position = UDim2.new(0, 0, 0, 285)
-    weightFrame.BackgroundTransparency = 1
-    weightFrame.Parent = content
-    
-    local function UpdateWeight()
-        weightLabel.Text = "Weight: " .. CheatConfig.MinWeight .. "-" .. CheatConfig.MaxWeight .. "kg"
-    end
-    
-    local minusBtn = Instance.new("TextButton")
-    minusBtn.Text = "-100"
-    minusBtn.Size = UDim2.new(0.45, 0, 1, 0)
-    minusBtn.Position = UDim2.new(0, 0, 0, 0)
-    minusBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-    minusBtn.TextColor3 = Color3.new(1, 1, 1)
-    minusBtn.Font = Enum.Font.GothamBold
-    minusBtn.TextSize = 12
-    minusBtn.Parent = weightFrame
-    
-    minusBtn.MouseButton1Click:Connect(function()
-        if CheatConfig.MinWeight > 100 then
-            CheatConfig.MinWeight = CheatConfig.MinWeight - 100
-            CheatConfig.MaxWeight = CheatConfig.MaxWeight - 100
-            UpdateWeight()
+for spotName, position in pairs(fishingSpots) do
+    TeleSection:NewButton("TP to " .. spotName, "Teleport to fishing spot", function()
+        local char = Players.LocalPlayer.Character
+        if char then
+            char:SetPrimaryPartCFrame(CFrame.new(position))
         end
     end)
-    
-    local plusBtn = Instance.new("TextButton")
-    plusBtn.Text = "+100"
-    plusBtn.Size = UDim2.new(0.45, 0, 1, 0)
-    plusBtn.Position = UDim2.new(0.55, 0, 0, 0)
-    plusBtn.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
-    plusBtn.TextColor3 = Color3.new(1, 1, 1)
-    plusBtn.Font = Enum.Font.GothamBold
-    plusBtn.TextSize = 12
-    plusBtn.Parent = weightFrame
-    
-    plusBtn.MouseButton1Click:Connect(function()
-        CheatConfig.MinWeight = CheatConfig.MinWeight + 100
-        CheatConfig.MaxWeight = CheatConfig.MaxWeight + 100
-        UpdateWeight()
-    end)
-    
-    -- Manually trigger catch button
-    local catchBtn = Instance.new("TextButton")
-    catchBtn.Text = "CATCH NOW"
-    catchBtn.Size = UDim2.new(1, 0, 0, 40)
-    catchBtn.Position = UDim2.new(0, 0, 0, 320)
-    catchBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    catchBtn.TextColor3 = Color3.new(1, 1, 1)
-    catchBtn.Font = Enum.Font.GothamBold
-    catchBtn.TextSize = 16
-    catchBtn.Parent = content
-    
-    catchBtn.MouseButton1Click:Connect(function()
-        local FishingSystem = ReplicatedStorage:FindFirstChild("FishingSystem")
-        if FishingSystem then
-            local catchRemote = FishingSystem:FindFirstChild("CatchFish")
-            if catchRemote then
-                local fishData = {
-                    Name = "",
-                    Weight = math.random(CheatConfig.MinWeight * 10, CheatConfig.MaxWeight * 10) / 10,
-                    Rarity = CheatConfig.SelectedRarity,
-                    Price = 0
-                }
-                
-                -- Get fish name from module
-                if module_2_upvr.FishTable then
-                    for _, fish in pairs(module_2_upvr.FishTable) do
-                        if fish.rarity == CheatConfig.SelectedRarity then
-                            fishData.Name = fish.name
-                            break
-                        end
-                    end
-                end
-                
-                if fishData.Name == "" then
-                    fishData.Name = "Unknown Fish"
-                end
-                
-                catchRemote:FireServer(fishData)
-                print("🎣 Manual catch: " .. fishData.Name)
-            end
+end
+
+-- MISC SECTION
+local MiscSection = MiscTab:NewSection("Utility Hacks")
+
+MiscSection:NewButton("Unlock All Gamepasses", "Activate paid rods", function()
+    for rodName, config in pairs(FishingModule.RodConfig) do
+        if config.isGamepass then
+            config.isGamepass = false
         end
-    end)
-    
-    return screen
-end
+    end
+end)
 
--- ============================================
--- MINIMAL GUI VERSION
--- ============================================
+MiscSection:NewButton("Infinite Inventory", "Remove fish limit", function()
+    if FishingModule.InventoryLimitSettings then
+        FishingModule.InventoryLimitSettings.maxFishInventory = 999999
+        FishingModule.InventoryLimitSettings.enabled = false
+    end
+end)
 
-local function CreateMinimalGUI()
-    local screen = Instance.new("ScreenGui")
-    screen.Parent = game.CoreGui
-    screen.Name = "CatchCheatMini"
-    
-    -- Floating button
-    local fab = Instance.new("TextButton")
-    fab.Text = "🎣"
-    fab.Size = UDim2.new(0, 50, 0, 50)
-    fab.Position = UDim2.new(1, -60, 0.5, -25)
-    fab.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    fab.TextColor3 = Color3.new(1, 1, 1)
-    fab.Font = Enum.Font.GothamBold
-    fab.TextSize = 20
-    fab.ZIndex = 999
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = fab
-    
-    fab.Parent = screen
-    
-    -- Dropdown menu
-    local menu = Instance.new("Frame")
-    menu.Size = UDim2.new(0, 150, 0, 120)
-    menu.Position = UDim2.new(1, -160, fab.Position.Y.Scale, fab.Position.Y.Offset)
-    menu.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    menu.BackgroundTransparency = 0.1
-    menu.Visible = false
-    
-    local menuCorner = Instance.new("UICorner")
-    menuCorner.CornerRadius = UDim.new(0, 8)
-    menuCorner.Parent = menu
-    
-    menu.Parent = screen
-    
-    -- Top rarity options
-    local topRarities = {"Unknown", "Legendary", "Epic", "Rare"}
-    
-    for i, rarity in ipairs(topRarities) do
-        local btn = Instance.new("TextButton")
-        btn.Text = rarity
-        btn.Size = UDim2.new(0.9, 0, 0, 25)
-        btn.Position = UDim2.new(0.05, 0, 0, (i-1) * 28 + 5)
-        
-        -- Try to get color from module
-        local btnColor = Color3.fromRGB(100, 100, 100)
-        if module_2_upvr.GetRarityColor then
-            local success, color = pcall(function()
-                return module_2_upvr.GetRarityColor(rarity)
-            end)
-            if success then
-                btnColor = color
-            end
+MiscSection:NewSlider("Sell Price Multiplier", "Multiply fish value", 100, 1, function(value)
+    if FishingModule.SellingSettings then
+        for rarity, mult in pairs(FishingModule.SellingSettings.rarityMultiplier) do
+            FishingModule.SellingSettings.rarityMultiplier[rarity] = mult * value
         end
-        
-        btn.BackgroundColor3 = btnColor
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 11
-        btn.Parent = menu
-        
-        btn.MouseButton1Click:Connect(function()
-            CheatConfig.SelectedRarity = rarity
-            menu.Visible = false
-            print("Set: " .. rarity)
-        end)
     end
-    
-    -- Toggle menu
-    fab.MouseButton1Click:Connect(function()
-        menu.Visible = not menu.Visible
-    end)
-    
-    return screen
-end
+end)
 
--- ============================================
--- INITIALIZE
--- ============================================
+-- KEYBINDS
+local KeybindSection = MiscTab:NewSection("Keybinds")
 
-print("========================================")
-print("   INSTANT CATCH CHEAT")
-print("   Module Based")
-print("========================================")
+KeybindSection:NewKeybind("Toggle GUI", "Show/Hide interface", Enum.KeyCode.RightControl, function()
+    Library:ToggleUI()
+end)
 
--- Wait for game
-task.wait(2)
-
--- Setup instant catch
-local hookSuccess = SetupInstantCatch()
-
--- Create GUI
-if hookSuccess then
-    print("✅ Hook successful")
-    
-    -- Pilih GUI style
-    local useMinimal = false -- false untuk full GUI, true untuk minimal
-    
-    if useMinimal then
-        CreateMinimalGUI()
-        print("📱 Minimal GUI created")
-    else
-        CreateGUI()
-        print("💻 Full GUI created")
-    end
-else
-    print("❌ Hook failed")
-    CreateGUI() -- Buat GUI anyway untuk manual catch
-end
-
--- Export commands
-getgenv().setRarity = function(rarity)
-    CheatConfig.SelectedRarity = rarity
-    print("Rarity set to: " .. rarity)
-end
-
-getgenv().setWeight = function(min, max)
-    CheatConfig.MinWeight = min
-    CheatConfig.MaxWeight = max
-    print("Weight set to: " .. min .. "-" .. max .. "kg")
-end
-
-getgenv().toggleCatch = function()
-    CheatConfig.Enabled = not CheatConfig.Enabled
-    print("Instant Catch: " .. (CheatConfig.Enabled and "ON" or "OFF"))
-end
-
+-- ANTI-AFK
+local VirtualUser = game:GetService("VirtualUser")
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
