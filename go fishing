@@ -1,5 +1,5 @@
--- FISHING CHEAT GUI v1.0
--- Based on decompiled module
+-- FISHING CHEAT GUI V2.0
+-- Based on Yahiko Fishing Module
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Load the fishing module
 local FishingModule
 for _, module in pairs(getloadedmodules() or {}) do
-    if module.Name:find("FishingConfig") or module.Name:find("FishingYahiko") then
+    if module.Name:find("FishingConfig") or module.Name:find("Module") then
         local success, result = pcall(require, module)
         if success and type(result) == "table" and result.GetRodConfig then
             FishingModule = result
@@ -17,47 +17,14 @@ for _, module in pairs(getloadedmodules() or {}) do
 end
 
 if not FishingModule then
-    -- Try to find from ReplicatedStorage
-    local success, result = pcall(function()
-        return require(ReplicatedStorage:WaitForChild("FishingYahiko"):WaitForChild("FishingConfig"))
-    end)
-    if success then
-        FishingModule = result
-    end
-end
-
-if not FishingModule then
-    warn("Fishing module not found, using stub")
-    FishingModule = {
-        RodConfig = {},
-        FishTable = {},
-        GetRodConfig = function() return {} end,
-        RollFish = function() return {} end,
-        RarityWeights = {
-            Common = 70,
-            Uncommon = 20,
-            Rare = 7,
-            Epic = 2.5,
-            Legendary = 0.45,
-            Mitos = 0.35,
-            Secret = 0.1
-        },
-        rarityOrder = {
-            Common = 1,
-            Uncommon = 2,
-            Rare = 3,
-            Epic = 4,
-            Legendary = 5,
-            Mitos = 6,
-            Secret = 7
-        }
-    }
+    FishingModule = require(ReplicatedStorage:WaitForChild("FishingYahiko"):WaitForChild("FishingModules"))
 end
 
 -- Backup original functions
 local OriginalFunctions = {
-    RollFish = FishingModule.RollFish,
     GetRarityWithPity = FishingModule.GetRarityWithPity,
+    RollFish = FishingModule.RollFish,
+    RollFishWithZone = FishingModule.RollFishWithZone,
     GenerateFishWeight = FishingModule.GenerateFishWeight
 }
 
@@ -65,76 +32,17 @@ local OriginalFunctions = {
 local Config = {
     ForceRarity = nil, -- "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"
     InstantCast = false,
-    AutoFish = false,
+    AlwaysSecret = false,
+    NoMinigame = false,
     MaxWeight = 1000,
     MinWeight = 1,
-    AlwaysSecret = false,
-    NoMinigame = false
+    SuperLuck = false,
+    AutoComplete = false
 }
 
--- Hook fishing functions
+-- Apply hooks to module
 local function ApplyHooks()
-    -- Hook RollFish to force rarity
-    if FishingModule.RollFish then
-        FishingModule.RollFish = function(pityTracker, rodName, luckMultiplier)
-            if Config.ForceRarity then
-                -- Find a fish with forced rarity
-                local availableFish = {}
-                if FishingModule.FishTable then
-                    for _, fish in pairs(FishingModule.FishTable) do
-                        if fish.rarity == Config.ForceRarity then
-                            table.insert(availableFish, fish)
-                        end
-                    end
-                end
-                
-                if #availableFish > 0 then
-                    local selectedFish = availableFish[math.random(1, #availableFish)]
-                    local rodConfig = FishingModule.GetRodConfig and FishingModule.GetRodConfig(rodName) or {}
-                    
-                    -- Generate weight within config limits
-                    local minWeight = math.max(Config.MinWeight, selectedFish.minKg or 0.5)
-                    local maxWeight = math.min(Config.MaxWeight, selectedFish.maxKg or 100, rodConfig.maxWeight or 1000)
-                    
-                    if minWeight > maxWeight then
-                        minWeight = maxWeight * 0.1
-                    end
-                    
-                    local weight = minWeight + math.random() * (maxWeight - minWeight)
-                    weight = math.floor(weight * 10 + 0.5) / 10
-                    
-                    return {
-                        name = selectedFish.name,
-                        rarity = Config.ForceRarity,
-                        minKg = selectedFish.minKg,
-                        maxKg = selectedFish.maxKg,
-                        weight = weight,
-                        _weight = weight
-                    }
-                end
-            end
-            
-            -- If AlwaysSecret is enabled, modify rarity weights
-            if Config.AlwaysSecret and FishingModule.RarityWeights then
-                local originalWeights = table.clone(FishingModule.RarityWeights)
-                for rarity in pairs(FishingModule.RarityWeights) do
-                    if rarity ~= "Secret" then
-                        FishingModule.RarityWeights[rarity] = 0.01
-                    else
-                        FishingModule.RarityWeights[rarity] = 100
-                    end
-                end
-                
-                local result = OriginalFunctions.RollFish(pityTracker, rodName, luckMultiplier)
-                FishingModule.RarityWeights = originalWeights
-                return result
-            end
-            
-            return OriginalFunctions.RollFish(pityTracker, rodName, luckMultiplier)
-        end
-    end
-    
-    -- Hook GetRarityWithPity for rarity control
+    -- Hook GetRarityWithPity to force rarity
     if FishingModule.GetRarityWithPity then
         FishingModule.GetRarityWithPity = function(pityTable, rodName, luckMultiplier)
             if Config.ForceRarity then
@@ -145,21 +53,105 @@ local function ApplyHooks()
                 return "Secret"
             end
             
-            return OriginalFunctions.GetRarityWithPity(pityTracker, rodName, luckMultiplier)
+            if Config.SuperLuck then
+                -- Increase luck dramatically
+                luckMultiplier = (luckMultiplier or 1) * 1000
+            end
+            
+            return OriginalFunctions.GetRarityWithPity(pityTable, rodName, luckMultiplier)
+        end
+    end
+    
+    -- Hook RollFish to control fish generation
+    if FishingModule.RollFish then
+        FishingModule.RollFish = function(pityTracker, rodName, luckMultiplier)
+            local result = OriginalFunctions.RollFish(pityTracker, rodName, luckMultiplier)
+            
+            if Config.ForceRarity and result then
+                -- Force specific rarity fish
+                local secretFish = nil
+                for _, fish in pairs(FishingModule.FishTable) do
+                    if fish.rarity == Config.ForceRarity then
+                        secretFish = fish
+                        break
+                    end
+                end
+                
+                if secretFish then
+                    result.name = secretFish.name
+                    result.rarity = Config.ForceRarity
+                    result.minKg = secretFish.minKg
+                    result.maxKg = secretFish.maxKg
+                    
+                    -- Custom weight
+                    local minW = math.max(Config.MinWeight, secretFish.minKg or 0.5)
+                    local maxW = math.min(Config.MaxWeight, secretFish.maxKg or 800)
+                    local weight = minW + math.random() * (maxW - minW)
+                    result.weight = math.floor(weight * 10 + 0.5) / 10
+                end
+            end
+            
+            return result
+        end
+    end
+    
+    -- Hook GenerateFishWeight for weight control
+    if FishingModule.GenerateFishWeight then
+        FishingModule.GenerateFishWeight = function(fishData, rodLuck, maxWeight)
+            local weight = OriginalFunctions.GenerateFishWeight(fishData, rodLuck, maxWeight)
+            
+            -- Apply weight limits
+            if weight < Config.MinWeight then
+                weight = Config.MinWeight
+            end
+            if weight > Config.MaxWeight then
+                weight = Config.MaxWeight
+            end
+            
+            return weight
+        end
+    end
+    
+    -- Hook RollFishWithZone for zone-based fishing
+    if FishingModule.RollFishWithZone then
+        FishingModule.RollFishWithZone = function(pityTracker, rodName, luckMultiplier, zone)
+            if Config.ForceRarity then
+                -- Find fish with forced rarity
+                local targetFish = nil
+                for _, fish in pairs(FishingModule.FishTable) do
+                    if fish.rarity == Config.ForceRarity then
+                        targetFish = fish
+                        break
+                    end
+                end
+                
+                if targetFish then
+                    local weight = math.random(Config.MinWeight * 10, Config.MaxWeight * 10) / 10
+                    return {
+                        name = targetFish.name,
+                        rarity = Config.ForceRarity,
+                        weight = weight,
+                        minKg = targetFish.minKg,
+                        maxKg = targetFish.maxKg
+                    }
+                end
+            end
+            
+            return OriginalFunctions.RollFishWithZone(pityTracker, rodName, luckMultiplier, zone)
         end
     end
 end
 
--- Simple GUI
+-- Simple GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FishingCheatGUI"
+ScreenGui.Name = "FishingCheatV2"
 ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 250, 0, 320)
+MainFrame.Size = UDim2.new(0, 280, 0, 350)
 MainFrame.Position = UDim2.new(0, 10, 0, 10)
-MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
@@ -168,161 +160,185 @@ local Title = Instance.new("TextLabel")
 Title.Name = "Title"
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.Position = UDim2.new(0, 0, 0, 0)
-Title.Text = "FISHING CHEAT v1.0"
-Title.TextColor3 = Color3.fromRGB(0, 255, 0)
-Title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Title.Text = "YAHIKO FISHING CHEAT"
+Title.TextColor3 = Color3.fromRGB(83, 255, 255) -- Secret color
+Title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 14
+Title.TextSize = 16
 Title.Parent = MainFrame
 
--- Rarity Selection
+-- Rarity Selection Section
+local RaritySection = Instance.new("Frame")
+RaritySection.Name = "RaritySection"
+RaritySection.Size = UDim2.new(1, 0, 0, 140)
+RaritySection.Position = UDim2.new(0, 0, 0, 35)
+RaritySection.BackgroundTransparency = 1
+RaritySection.Parent = MainFrame
+
 local RarityLabel = Instance.new("TextLabel")
 RarityLabel.Name = "RarityLabel"
 RarityLabel.Size = UDim2.new(1, 0, 0, 20)
-RarityLabel.Position = UDim2.new(0, 0, 0, 35)
-RarityLabel.Text = "Force Rarity:"
+RarityLabel.Position = UDim2.new(0, 0, 0, 0)
+RarityLabel.Text = "FORCE RARITY:"
 RarityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 RarityLabel.BackgroundTransparency = 1
-RarityLabel.Font = Enum.Font.SourceSans
-RarityLabel.TextSize = 12
-RarityLabel.Parent = MainFrame
+RarityLabel.Font = Enum.Font.SourceSansBold
+RarityLabel.TextSize = 14
+RarityLabel.Parent = RaritySection
 
+-- Rarity buttons in grid
 local RarityButtons = {}
 local rarities = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}
+local rarityColors = {
+    Common = Color3.fromRGB(200, 200, 200),
+    Uncommon = Color3.fromRGB(30, 255, 30),
+    Rare = Color3.fromRGB(30, 100, 255),
+    Epic = Color3.fromRGB(160, 30, 255),
+    Legendary = Color3.fromRGB(255, 128, 0),
+    Mitos = Color3.fromRGB(216, 0, 4),
+    Secret = Color3.fromRGB(83, 255, 255)
+}
 
 for i, rarity in pairs(rarities) do
+    local col = (i-1) % 3
+    local row = math.floor((i-1) / 3)
+    
     local button = Instance.new("TextButton")
-    button.Name = rarity .. "Button"
-    button.Size = UDim2.new(0.45, 0, 0, 25)
-    button.Position = UDim2.new((i-1)%2 * 0.5, 5, 0, 60 + math.floor((i-1)/2) * 30)
+    button.Name = rarity .. "Btn"
+    button.Size = UDim2.new(0.3, -5, 0, 25)
+    button.Position = UDim2.new(col * 0.33, 5, 0, 25 + row * 30)
     button.Text = rarity
     button.Font = Enum.Font.SourceSans
     button.TextSize = 11
-    
-    -- Set color based on rarity
-    if FishingModule.RarityColors and FishingModule.RarityColors[rarity] then
-        button.BackgroundColor3 = FishingModule.RarityColors[rarity]
-    else
-        local colors = {
-            Common = Color3.fromRGB(200, 200, 200),
-            Uncommon = Color3.fromRGB(30, 255, 30),
-            Rare = Color3.fromRGB(30, 100, 255),
-            Epic = Color3.fromRGB(160, 30, 255),
-            Legendary = Color3.fromRGB(255, 128, 0),
-            Mitos = Color3.fromRGB(216, 0, 4),
-            Secret = Color3.fromRGB(83, 255, 255)
-        }
-        button.BackgroundColor3 = colors[rarity] or Color3.fromRGB(100, 100, 100)
-    end
-    
+    button.BackgroundColor3 = rarityColors[rarity]
     button.TextColor3 = Color3.fromRGB(0, 0, 0)
-    button.Parent = MainFrame
+    button.Parent = RaritySection
     
     button.MouseButton1Click:Connect(function()
         Config.ForceRarity = rarity
-        ApplyHooks()
+        Config.AlwaysSecret = false
         
-        -- Update all buttons
+        -- Update button states
         for _, btn in pairs(RarityButtons) do
             btn.BorderSizePixel = 0
         end
         button.BorderSizePixel = 2
         button.BorderColor3 = Color3.fromRGB(255, 255, 255)
+        
+        -- Update AlwaysSecret button
+        if SecretToggle then
+            SecretToggle.Text = "ALWAYS SECRET: OFF"
+            SecretToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        end
+        
+        ApplyHooks()
     end)
     
     RarityButtons[rarity] = button
 end
 
--- Disable Rarity Button
-local DisableRarityBtn = Instance.new("TextButton")
-DisableRarityBtn.Name = "DisableRarityBtn"
-DisableRarityBtn.Size = UDim2.new(0.9, 0, 0, 25)
-DisableRarityBtn.Position = UDim2.new(0.05, 0, 0, 200)
-DisableRarityBtn.Text = "DISABLE RARITY FORCE"
-DisableRarityBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-DisableRarityBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-DisableRarityBtn.Font = Enum.Font.SourceSansBold
-DisableRarityBtn.TextSize = 12
-DisableRarityBtn.Parent = MainFrame
-
-DisableRarityBtn.MouseButton1Click:Connect(function()
-    Config.ForceRarity = nil
-    Config.AlwaysSecret = false
-    
-    -- Restore original functions
-    if OriginalFunctions.RollFish then
-        FishingModule.RollFish = OriginalFunctions.RollFish
-    end
-    if OriginalFunctions.GetRarityWithPity then
-        FishingModule.GetRarityWithPity = OriginalFunctions.GetRarityWithPity
-    end
-    
-    -- Reset buttons
-    for _, btn in pairs(RarityButtons) do
-        btn.BorderSizePixel = 0
-    end
-end)
+-- Special Features Section
+local FeaturesSection = Instance.new("Frame")
+FeaturesSection.Name = "FeaturesSection"
+FeaturesSection.Size = UDim2.new(1, 0, 0, 100)
+FeaturesSection.Position = UDim2.new(0, 0, 0, 180)
+FeaturesSection.BackgroundTransparency = 1
+FeaturesSection.Parent = MainFrame
 
 -- Always Secret Toggle
-local SecretToggle = Instance.new("TextButton")
+SecretToggle = Instance.new("TextButton")
 SecretToggle.Name = "SecretToggle"
 SecretToggle.Size = UDim2.new(0.9, 0, 0, 25)
-SecretToggle.Position = UDim2.new(0.05, 0, 0, 230)
-SecretToggle.Text = "ALWAYS SECRET RARITY: OFF"
+SecretToggle.Position = UDim2.new(0.05, 0, 0, 0)
+SecretToggle.Text = "ALWAYS SECRET: OFF"
 SecretToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 SecretToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
 SecretToggle.Font = Enum.Font.SourceSans
 SecretToggle.TextSize = 12
-SecretToggle.Parent = MainFrame
+SecretToggle.Parent = FeaturesSection
 
 SecretToggle.MouseButton1Click:Connect(function()
     Config.AlwaysSecret = not Config.AlwaysSecret
     Config.ForceRarity = nil
     
     if Config.AlwaysSecret then
-        SecretToggle.Text = "ALWAYS SECRET RARITY: ON"
-        SecretToggle.BackgroundColor3 = Color3.fromRGB(83, 255, 255)
+        SecretToggle.Text = "ALWAYS SECRET: ON"
+        SecretToggle.BackgroundColor3 = rarityColors["Secret"]
         
-        -- Reset other buttons
+        -- Reset rarity buttons
         for _, btn in pairs(RarityButtons) do
             btn.BorderSizePixel = 0
         end
     else
-        SecretToggle.Text = "ALWAYS SECRET RARITY: OFF"
+        SecretToggle.Text = "ALWAYS SECRET: OFF"
         SecretToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     end
     
     ApplyHooks()
 end)
 
--- Weight Control
+-- Super Luck Toggle
+local SuperLuckToggle = Instance.new("TextButton")
+SuperLuckToggle.Name = "SuperLuckToggle"
+SuperLuckToggle.Size = UDim2.new(0.9, 0, 0, 25)
+SuperLuckToggle.Position = UDim2.new(0.05, 0, 0, 30)
+SuperLuckToggle.Text = "SUPER LUCK: OFF"
+SuperLuckToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+SuperLuckToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+SuperLuckToggle.Font = Enum.Font.SourceSans
+SuperLuckToggle.TextSize = 12
+SuperLuckToggle.Parent = FeaturesSection
+
+SuperLuckToggle.MouseButton1Click:Connect(function()
+    Config.SuperLuck = not Config.SuperLuck
+    
+    if Config.SuperLuck then
+        SuperLuckToggle.Text = "SUPER LUCK: ON"
+        SuperLuckToggle.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    else
+        SuperLuckToggle.Text = "SUPER LUCK: OFF"
+        SuperLuckToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    end
+    
+    ApplyHooks()
+end)
+
+-- Weight Control Section
+local WeightSection = Instance.new("Frame")
+WeightSection.Name = "WeightSection"
+WeightSection.Size = UDim2.new(1, 0, 0, 60)
+WeightSection.Position = UDim2.new(0, 0, 0, 285)
+WeightSection.BackgroundTransparency = 1
+WeightSection.Parent = MainFrame
+
 local WeightLabel = Instance.new("TextLabel")
 WeightLabel.Name = "WeightLabel"
 WeightLabel.Size = UDim2.new(1, 0, 0, 20)
-WeightLabel.Position = UDim2.new(0, 0, 0, 260)
-WeightLabel.Text = "Weight Range:"
+WeightLabel.Position = UDim2.new(0, 0, 0, 0)
+WeightLabel.Text = "WEIGHT RANGE (KG):"
 WeightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 WeightLabel.BackgroundTransparency = 1
-WeightLabel.Font = Enum.Font.SourceSans
+WeightLabel.Font = Enum.Font.SourceSansBold
 WeightLabel.TextSize = 12
-WeightLabel.Parent = MainFrame
+WeightLabel.Parent = WeightSection
 
 local MinWeightBox = Instance.new("TextBox")
 MinWeightBox.Name = "MinWeightBox"
 MinWeightBox.Size = UDim2.new(0.4, 0, 0, 25)
-MinWeightBox.Position = UDim2.new(0.05, 0, 0, 280)
+MinWeightBox.Position = UDim2.new(0.05, 0, 0, 25)
 MinWeightBox.Text = "1"
-MinWeightBox.PlaceholderText = "Min KG"
-MinWeightBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+MinWeightBox.PlaceholderText = "Min"
+MinWeightBox.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
 MinWeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinWeightBox.Font = Enum.Font.SourceSans
 MinWeightBox.TextSize = 12
-MinWeightBox.Parent = MainFrame
+MinWeightBox.Parent = WeightSection
 
 MinWeightBox.FocusLost:Connect(function()
     local value = tonumber(MinWeightBox.Text)
     if value and value > 0 then
         Config.MinWeight = value
+        ApplyHooks()
     else
         MinWeightBox.Text = tostring(Config.MinWeight)
     end
@@ -331,45 +347,91 @@ end)
 local MaxWeightBox = Instance.new("TextBox")
 MaxWeightBox.Name = "MaxWeightBox"
 MaxWeightBox.Size = UDim2.new(0.4, 0, 0, 25)
-MaxWeightBox.Position = UDim2.new(0.55, 0, 0, 280)
-MaxWeightBox.Text = "1000"
-MaxWeightBox.PlaceholderText = "Max KG"
-MaxWeightBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+MaxWeightBox.Position = UDim2.new(0.55, 0, 0, 25)
+MaxWeightBox.Text = "800"
+MaxWeightBox.PlaceholderText = "Max"
+MaxWeightBox.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
 MaxWeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 MaxWeightBox.Font = Enum.Font.SourceSans
 MaxWeightBox.TextSize = 12
-MaxWeightBox.Parent = MainFrame
+MaxWeightBox.Parent = WeightSection
 
 MaxWeightBox.FocusLost:Connect(function()
     local value = tonumber(MaxWeightBox.Text)
     if value and value > 0 then
         Config.MaxWeight = value
+        ApplyHooks()
     else
         MaxWeightBox.Text = tostring(Config.MaxWeight)
     end
 end)
 
--- Apply Hooks Button
-local ApplyHooksBtn = Instance.new("TextButton")
-ApplyHooksBtn.Name = "ApplyHooksBtn"
-ApplyHooksBtn.Size = UDim2.new(0.9, 0, 0, 25)
-ApplyHooksBtn.Position = UDim2.new(0.05, 0, 0, 310)
-ApplyHooksBtn.Text = "APPLY HOOKS"
-ApplyHooksBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-ApplyHooksBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ApplyHooksBtn.Font = Enum.Font.SourceSansBold
-ApplyHooksBtn.TextSize = 12
-ApplyHooksBtn.Parent = MainFrame
+-- Control Buttons
+local ControlSection = Instance.new("Frame")
+ControlSection.Name = "ControlSection"
+ControlSection.Size = UDim2.new(1, 0, 0, 60)
+ControlSection.Position = UDim2.new(0, 0, 0, 220)
+ControlSection.BackgroundTransparency = 1
+ControlSection.Parent = MainFrame
 
-ApplyHooksBtn.MouseButton1Click:Connect(function()
+local ApplyBtn = Instance.new("TextButton")
+ApplyBtn.Name = "ApplyBtn"
+ApplyBtn.Size = UDim2.new(0.9, 0, 0, 25)
+ApplyBtn.Position = UDim2.new(0.05, 0, 0, 0)
+ApplyBtn.Text = "APPLY HOOKS"
+ApplyBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+ApplyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyBtn.Font = Enum.Font.SourceSansBold
+ApplyBtn.TextSize = 12
+ApplyBtn.Parent = ControlSection
+
+ApplyBtn.MouseButton1Click:Connect(function()
     ApplyHooks()
-    warn("Fishing hooks applied!")
+    warn("Fishing hooks applied successfully!")
+end)
+
+local ResetBtn = Instance.new("TextButton")
+ResetBtn.Name = "ResetBtn"
+ResetBtn.Size = UDim2.new(0.9, 0, 0, 25)
+ResetBtn.Position = UDim2.new(0.05, 0, 0, 30)
+ResetBtn.Text = "RESET TO NORMAL"
+ResetBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+ResetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResetBtn.Font = Enum.Font.SourceSansBold
+ResetBtn.TextSize = 12
+ResetBtn.Parent = ControlSection
+
+ResetBtn.MouseButton1Click:Connect(function()
+    -- Restore original functions
+    for name, func in pairs(OriginalFunctions) do
+        if FishingModule[name] then
+            FishingModule[name] = func
+        end
+    end
+    
+    -- Reset config
+    Config.ForceRarity = nil
+    Config.AlwaysSecret = false
+    Config.SuperLuck = false
+    
+    -- Reset UI
+    for _, btn in pairs(RarityButtons) do
+        btn.BorderSizePixel = 0
+    end
+    
+    SecretToggle.Text = "ALWAYS SECRET: OFF"
+    SecretToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    
+    SuperLuckToggle.Text = "SUPER LUCK: OFF"
+    SuperLuckToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    
+    warn("All hooks reset to normal")
 end)
 
 -- Apply hooks on startup
 task.wait(1)
 ApplyHooks()
 
-print("Fishing Cheat GUI loaded!")
-print("Module detected: " .. (FishingModule and "YES" or "NO"))
+print("Yahiko Fishing Cheat loaded!")
+print("Module: " .. (FishingModule and "Loaded" or "Not found"))
 print("Available rarities: Common, Uncommon, Rare, Epic, Legendary, Mitos, Secret")
