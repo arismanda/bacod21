@@ -27,7 +27,7 @@ local function FindFishingModule()
     -- Method 2: Require from ReplicatedStorage
     local fishingSystem = ReplicatedStorage:FindFirstChild("FishingSystem")
     if fishingSystem then
-        local moduleScript = fishingSystem:FindFirstChild("FishingModule")
+        local moduleScript = fishingSystem:FindFirstChild("FishingConfig")
         if moduleScript and moduleScript:IsA("ModuleScript") then
             local success, result = pcall(require, moduleScript)
             if success then return result end
@@ -649,3 +649,4 @@ LocalPlayer.Idled:Connect(function()
     task.wait(1)
     VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
 end)
+
