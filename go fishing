@@ -17,7 +17,7 @@ for _, module in pairs(getloadedmodules() or {}) do
 end
 
 if not FishingModule then
-    FishingModule = require(ReplicatedStorage:WaitForChild("FishingYahiko"):WaitForChild("FishingModules"))
+    FishingModule = require(ReplicatedStorage:WaitForChild("FishingYahiko"):WaitForChild("FishingConfig"))
 end
 
 -- Backup original functions
