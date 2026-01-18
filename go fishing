@@ -2,49 +2,253 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
 local FishGiver = FishingSystem:WaitForChild("FishGiver")
 
+-- Daftar ikan yang akan diberikan
 local fishList = {
-    {name = "Seamander", rarity = "Secret", weight = 2952},
-    {name = "Hiu Banteng", rarity = "Secret", weight = 3520.6},
-    {name = "Ikan Naga Samudra", rarity = "Secret", weight = 1520.6}
+    {
+        name = "Seamander",
+        rarity = "Secret",
+        weight = 2952,
+        hookPosition = Vector3.new(-714.4581298828125, 8.149999618530273, -1113.882080078125)
+    },
+    {
+        name = "Hiu Banteng",
+        rarity = "Secret",
+        weight = 3520.6,
+        hookPosition = Vector3.new(-714.4581298828125, 8.149999618530273, -1113.882080078125)
+    },
+    {
+        name = "Ikan Naga Samudra",
+        rarity = "Secret",
+        weight = 1520.6,
+        hookPosition = Vector3.new(-714.4581298828125, 8.149999618530273, -1113.882080078125)
+    }
 }
 
-local hookPosition = Vector3.new(-714.4581298828125, 8.149999618530273, -1113.882080078125)
-
--- Fungsi loop sederhana
-local function giveFishLoop(iterations)
-    print("🎣 Memulai Fish Giver Loop (" .. iterations .. " iterations)")
+-- Fungsi untuk memberikan satu ikan
+local function giveFish(fishData)
+    local args = {{
+        hookPosition = fishData.hookPosition,
+        rarity = fishData.rarity,
+        name = fishData.name,
+        weight = fishData.weight
+    }}
     
-    for iteration = 1, iterations do
-        print("\n=== Iterasi ke-" .. iteration .. " ===")
+    local success, errorMsg = pcall(function()
+        FishGiver:FireServer(unpack(args))
+    end)
+    
+    if success then
+        print("✅ Berhasil memberikan:", fishData.name, "-", fishData.weight, "kg")
+    else
+        warn("❌ Gagal memberikan", fishData.name, ":", errorMsg)
+    end
+    
+    return success
+end
+
+-- Versi 1: Perulangan sederhana
+local function simpleLoop()
+    print("=== MULAI PERULANGAN SEDERHANA ===")
+    
+    for i, fishData in ipairs(fishList) do
+        print(string.format("[%d/%d] Memberikan %s...", i, #fishList, fishData.name))
+        giveFish(fishData)
+        wait(0.5) -- Delay antar ikan
+    end
+    
+    print("=== SELESAI ===")
+end
+
+-- Versi 2: Perulangan dengan jumlah tertentu
+local function loopNTimes(n)
+    print("=== MULAI PERULANGAN " .. n .. " KALI ===")
+    
+    for iteration = 1, n do
+        print("\n--- Iterasi ke-" .. iteration .. " ---")
         
-        for i, fish in ipairs(fishList) do
-            local args = {{
-                hookPosition = hookPosition,
-                rarity = fish.rarity,
-                name = fish.name,
-                weight = fish.weight
-            }}
-            
-            local success = pcall(function()
-                FishGiver:FireServer(unpack(args))
-            end)
-            
-            if success then
-                print("✅ " .. fish.name .. " (" .. fish.weight .. "kg)")
-            else
-                print("❌ Gagal: " .. fish.name)
-            end
-            
-            wait(0.1) -- Delay kecil antar ikan
+        for i, fishData in ipairs(fishList) do
+            print(string.format("[%d/%d] Memberikan %s...", i, #fishList, fishData.name))
+            giveFish(fishData)
+            wait(0.3)
         end
         
-        if iteration < iterations then
-            wait(0.5) -- Delay antar iterasi
+        if iteration < n then
+            print("Menunggu 1 detik sebelum iterasi berikutnya...")
+            wait(1)
         end
     end
     
-    print("\n🎣 Selesai! Total: " .. (iterations * #fishList) .. " ikan diberikan")
+    print("=== SELESAI " .. n .. " KALI PERULANGAN ===")
 end
 
--- Jalankan 5 kali
-giveFishLoop(5)
+-- Versi 3: Perulangan tak terbatas (dengan kontrol)
+local function infiniteLoop()
+    print("=== MULAI PERULANGAN TAK TERBATAS ===")
+    print("Tekan Ctrl+C di console untuk berhenti")
+    
+    local count = 0
+    while true do
+        count = count + 1
+        print("\n--- Loop ke-" .. count .. " ---")
+        
+        for i, fishData in ipairs(fishList) do
+            print(string.format("[%d/%d] Memberikan %s...", i, #fishList, fishData.name))
+            giveFish(fishData)
+            wait(0.2)
+        end
+        
+        print("Menunggu 2 detik...")
+        wait(2)
+    end
+end
+
+-- Versi 4: Perulangan dengan UI (untuk executor)
+local function createUI()
+    -- Load Library UI
+    local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+    local Window = Library.CreateLib("Fish Giver v1.0", "DarkTheme")
+    
+    -- Main Tab
+    local MainTab = Window:NewTab("Main")
+    local ControlSection = MainTab:NewSection("Fish Giver Control")
+    
+    -- Status
+    local isLooping = false
+    local loopThread = nil
+    
+    -- Function to stop loop
+    local function stopLoop()
+        if loopThread then
+            task.cancel(loopThread)
+            loopThread = nil
+        end
+        isLooping = false
+        Library:Notify("Loop dihentikan!", 3)
+    end
+    
+    -- Function to start loop
+    local function startLoop(iterations)
+        if isLooping then
+            stopLoop()
+        end
+        
+        isLooping = true
+        loopThread = task.spawn(function()
+            local count = 0
+            while isLooping and (iterations == nil or count < iterations) do
+                count = count + 1
+                
+                for i, fishData in ipairs(fishList) do
+                    if not isLooping then break end
+                    
+                    local args = {{
+                        hookPosition = fishData.hookPosition,
+                        rarity = fishData.rarity,
+                        name = fishData.name,
+                        weight = fishData.weight
+                    }}
+                    
+                    pcall(function()
+                        FishGiver:FireServer(unpack(args))
+                    end)
+                    
+                    task.wait(0.1)
+                end
+                
+                if iterations == nil or count < iterations then
+                    task.wait(0.5)
+                end
+            end
+            
+            isLooping = false
+            loopThread = nil
+        end)
+    end
+    
+    -- Buttons
+    ControlSection:NewButton("Give All Fish Once", "Berikan semua ikan sekali", function()
+        for i, fishData in ipairs(fishList) do
+            giveFish(fishData)
+            task.wait(0.1)
+        end
+        Library:Notify("Semua ikan diberikan!", 3)
+    end)
+    
+    ControlSection:NewButton("Loop 5 Times", "Ulangi 5 kali", function()
+        startLoop(5)
+        Library:Notify("Memulai loop 5 kali!", 3)
+    end)
+    
+    ControlSection:NewButton("Loop 10 Times", "Ulangi 10 kali", function()
+        startLoop(10)
+        Library:Notify("Memulai loop 10 kali!", 3)
+    end)
+    
+    ControlSection:NewButton("Start Infinite Loop", "Loop tak terbatas", function()
+        startLoop(nil) -- nil untuk infinite
+        Library:Notify("Memulai loop tak terbatas!", 3)
+    end)
+    
+    ControlSection:NewButton("Stop Loop", "Hentikan loop", stopLoop)
+    
+    -- Fish List Tab
+    local FishTab = Window:NewTab("Fish List")
+    local FishSection = FishTab:NewSection("Daftar Ikan")
+    
+    for i, fishData in ipairs(fishList) do
+        FishSection:NewButton(
+            string.format("%d. %s", i, fishData.name),
+            string.format("Rarity: %s | Weight: %.1f kg", fishData.rarity, fishData.weight),
+            function()
+                giveFish(fishData)
+                Library:Notify(string.format("Memberikan %s!", fishData.name), 3)
+            end
+        )
+    end
+    
+    -- Settings Tab
+    local SettingsTab = Window:NewTab("Settings")
+    local SettingsSection = SettingsTab:NewSection("Pengaturan")
+    
+    local delaySlider = SettingsSection:NewSlider("Delay", "Delay antar ikan (ms)", 1000, 10, function(value)
+        -- Ini untuk reference, implementasi lengkap butuh modifikasi
+        Library:Notify("Delay diubah: " .. value .. "ms", 3)
+    end)
+    delaySlider:SetValue(100)
+    
+    -- Status
+    local StatusTab = Window:NewTab("Status")
+    local StatusSection = StatusTab:NewSection("Status Loop")
+    
+    local loopStatus = StatusSection:NewLabel("Status: Tidak berjalan")
+    local fishCount = StatusSection:NewLabel("Total ikan: " .. #fishList)
+    
+    task.spawn(function()
+        while task.wait(0.5) do
+            loopStatus:UpdateLabel("Status: " .. (isLooping and "🟢 Berjalan" or "🔴 Berhenti"))
+        end
+    end)
+    
+    Library:Notify("Fish Giver UI Loaded!", 5)
+end
+
+-- Pilih versi yang ingin dijalankan:
+
+-- 1. Jalankan sekali semua ikan
+-- simpleLoop()
+
+-- 2. Jalankan 3 kali
+-- loopNTimes(3)
+
+-- 3. Jalankan infinite loop (hati-hati!)
+-- infiniteLoop()
+
+-- 4. Jalankan dengan UI (rekomendasi)
+createUI()
+
+-- Atau jalankan custom loop
+-- Contoh: Berikan ikan pertama saja 10 kali
+-- for i = 1, 10 do
+--     giveFish(fishList[1])
+--     wait(0.2)
+-- end
