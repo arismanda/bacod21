@@ -518,4 +518,5 @@ if Config.AntiAFK then
 end
 
 -- INITIALIZATION
-Library:Notify("Fishing Exploit v3.0 Loaded!", 5)
+Library:Notify("Fishing Exploit v3.5 Loaded!", 5)
+
