@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Load the fishing module
 local FishingModule
 for _, module in pairs(getloadedmodules() or {}) do
-    if module.Name:find("FishingModule") or module.Name:find("FishingSystem") then
+    if module.Name:find("FishingConfig") or module.Name:find("FishingYahiko") then
         local success, result = pcall(require, module)
         if success and type(result) == "table" and result.GetRodConfig then
             FishingModule = result
