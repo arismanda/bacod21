@@ -19,7 +19,7 @@ end
 if not FishingModule then
     -- Try to find from ReplicatedStorage
     local success, result = pcall(function()
-        return require(ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("FishingModule"))
+        return require(ReplicatedStorage:WaitForChild("FishingYahiko"):WaitForChild("FishingConfig"))
     end)
     if success then
         FishingModule = result
