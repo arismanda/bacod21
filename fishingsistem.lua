@@ -1,521 +1,540 @@
--- Fishing Simulator Ultimate Exploit v3.0
--- Advanced Features: Rarity/Weight Range, Silent Catch, FishGiver
--- Compatible: Synapse X, KRNL, Fluxus, Script-Ware
+-- Fishing Simulator Stealth Exploit v5.0
+-- Advanced anti-detection with behavioral mimicry
+-- Zero-trace execution system
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
 
-local LocalPlayer = Players.LocalPlayer
-local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
-
-if not FishingSystem then
-    warn("[EXPLOIT] Game tidak dikenali, mencari alternative...")
-    -- Cari modul fishing
-    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
-        if obj.Name:lower():find("fish") and obj:IsA("ModuleScript") then
-            FishingSystem = obj.Parent
-            break
-        end
-    end
-end
-
--- CONFIGURASI ADVANCED
-local Config = {
-    AutoFish = true,
-    InstantCatch = true,
-    SilentCatch = true,  -- No animation, langsung inventory
-    MinRarity = "Common",  -- Rarity minimum
-    MaxRarity = "Unknown", -- Rarity maksimum
-    MinWeight = 1,        -- KG minimum
-    MaxWeight = 999,      -- KG maksimum
-    WeightPrecision = 1,  -- Desimal weight (1 = 0.1, 2 = 0.01)
-    AutoSell = true,
-    SellBelowRarity = "Rare", -- Sell fish dibawah rarity ini
-    FishGiver = {
-        Enabled = false,
-        TargetPlayer = "",
-        FishName = "Megalodon",
-        Rarity = "Unknown",
-        Weight = 999
+-- === STEALTH CONFIGURATION ===
+local Stealth = {
+    -- Execution Methods
+    ExecutionMode = "DynamicHook",  -- "DirectCall", "EventProxy", "DynamicHook"
+    HookMethod = "Metatable",       -- "Metatable", "Environment", "DebugHook"
+    
+    -- Behavioral Mimicry
+    HumanDelay = {
+        Min = 0.8,      -- Minimum delay between actions
+        Max = 2.5,      -- Maximum delay
+        Variance = 0.3, -- Randomness factor
     },
-    WebhookNotify = false,
-    AntiAFK = true,
-    BypassCooldown = false
+    
+    -- Pattern Avoidance
+    AntiPattern = {
+        Enabled = true,
+        PatternBreakInterval = 30,  -- Break patterns every N actions
+        RandomActionInjection = true, -- Inject random legitimate actions
+    },
+    
+    -- Memory Safety
+    MemoryCleanup = {
+        AutoClean = true,
+        CleanInterval = 60, -- Clean traces every 60 seconds
+        RemoveStrings = true,
+    },
+    
+    -- Detection Evasion
+    Evasion = {
+        FakeFPS = true,          -- Mimic normal FPS
+        HideScriptInstances = true,
+        RandomIdentifierNames = true,
+        ObfuscateCalls = true,
+    },
+    
+    -- Network Stealth
+    Network = {
+        ThrottleCalls = true,
+        MaxCallsPerSecond = 3,
+        AddJitter = true,
+    }
 }
 
--- RARITY ORDER untuk perbandingan
-local RarityOrder = {
-    Common = 1,
-    Uncommon = 2,
-    Rare = 3,
-    Epic = 4,
-    Legendary = 5,
-    Unknown = 6
+-- === OBFUSCATED VARIABLE NAMES ===
+local _ = {
+    _1 = Players,
+    _2 = ReplicatedStorage,
+    _3 = LocalPlayer or Players.LocalPlayer,
+    _4 = "FishingSystem",
+    _5 = {},
+    _6 = {},
+    _7 = math.random,
+    _8 = task.wait,
+    _9 = task.spawn,
+    _10 = pcall,
+    _11 = {}
 }
 
--- OVERRIDE SYSTEM
-local originalModule
-local moduleHookActive = false
-
-local function HookGameFunctions()
-    if moduleHookActive then return end
-    
-    -- Cari dan hook module fishing
-    for _, module in pairs(getloadedmodules() or {}) do
-        if module.Name:lower():find("fish") or module.Name:find("Fishing") then
-            local success, moduleData = pcall(require, module)
-            if success and type(moduleData) == "table" then
-                originalModule = moduleData
-                
-                -- 1. OVERRIDE RARITY WITH RANGE
-                if moduleData.GetRarityWithPity then
-                    local originalGetRarity = moduleData.GetRarityWithPity
-                    moduleData.GetRarityWithPity = function(pityTable, rodName, luckMultiplier)
-                        if Config.InstantCatch then
-                            -- Convert rarity range ke weight
-                            local minOrder = RarityOrder[Config.MinRarity] or 1
-                            local maxOrder = RarityOrder[Config.MaxRarity] or 6
-                            
-                            -- Random rarity dalam range
-                            local targetOrder = math.random(minOrder, maxOrder)
-                            
-                            -- Convert back ke nama rarity
-                            for rarity, order in pairs(RarityOrder) do
-                                if order == targetOrder then
-                                    return rarity
-                                end
-                            end
-                            return Config.MaxRarity
-                        end
-                        return originalGetRarity(pityTable, rodName, luckMultiplier)
-                    end
-                end
-                
-                -- 2. OVERRIDE WEIGHT GENERATION WITH RANGE
-                if moduleData.GenerateFishWeight then
-                    local originalGenWeight = moduleData.GenerateFishWeight
-                    moduleData.GenerateFishWeight = function(fishData, rodLuck, maxWeight)
-                        if Config.InstantCatch then
-                            -- Generate weight dalam range
-                            local minWeight = math.max(Config.MinWeight, fishData.minKg or 0.5)
-                            local maxWeightAllowed = math.min(Config.MaxWeight, fishData.maxKg or 999, maxWeight or 999)
-                            
-                            if minWeight > maxWeightAllowed then
-                                return maxWeightAllowed
-                            end
-                            
-                            -- Random weight dengan precision
-                            local randomFactor = math.random()
-                            local weight = minWeight + (randomFactor * (maxWeightAllowed - minWeight))
-                            
-                            -- Apply precision
-                            local multiplier = 10 ^ Config.WeightPrecision
-                            weight = math.floor(weight * multiplier + 0.5) / multiplier
-                            
-                            return weight
-                        end
-                        return originalGenWeight(fishData, rodLuck, maxWeight)
-                    end
-                end
-                
-                -- 3. OVERRIDE FISH ROLL COMPLETELY
-                if moduleData.RollFish then
-                    local originalRollFish = moduleData.RollFish
-                    moduleData.RollFish = function(pityTable, rodName, luckMultiplier)
-                        if Config.SilentCatch then
-                            -- Direct fish creation tanpa minigame
-                            local fishTable = moduleData.FishTable or {}
-                            local rarity = Config.MaxRarity
-                            
-                            -- Filter fish by rarity range
-                            local eligibleFish = {}
-                            for _, fish in pairs(fishTable) do
-                                local fishOrder = RarityOrder[fish.rarity] or 1
-                                local minOrder = RarityOrder[Config.MinRarity] or 1
-                                local maxOrder = RarityOrder[Config.MaxRarity] or 6
-                                
-                                if fishOrder >= minOrder and fishOrder <= maxOrder then
-                                    table.insert(eligibleFish, fish)
-                                end
-                            end
-                            
-                            -- Pilih random fish
-                            if #eligibleFish > 0 then
-                                local selectedFish = eligibleFish[math.random(1, #eligibleFish)]
-                                
-                                -- Custom weight
-                                local weight = math.random(Config.MinWeight * 10, Config.MaxWeight * 10) / 10
-                                weight = math.floor(weight * (10 ^ Config.WeightPrecision) + 0.5) / (10 ^ Config.WeightPrecision)
-                                
-                                return {
-                                    name = selectedFish.name,
-                                    rarity = selectedFish.rarity,
-                                    weight = weight,
-                                    value = weight * 100  -- Estimated value
-                                }
-                            end
-                        end
-                        return originalRollFish(pityTable, rodName, luckMultiplier)
-                    end
-                end
-                
-                moduleHookActive = true
-                break
-            end
-        end
+-- === RANDOM IDENTIFIER GENERATOR ===
+local function GenerateRandomIdentifier()
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local id = ""
+    for i = 1, 12 do
+        id = id .. chars:sub(math.random(1, #chars), math.random(1, #chars))
     end
+    return id
 end
 
--- SILENT CATCH SYSTEM (No Animation)
-local function SilentCatchFish()
-    if not Config.SilentCatch then return end
-    
-    local catchRemote = FishingSystem:FindFirstChild("CatchFish") or 
-                       FishingSystem:FindFirstChild("ReelIn") or
-                       FishingSystem:FindFirstChild("CompleteFishing")
-    
-    if catchRemote then
-        -- Create fake fish data
-        local fakeFishData = {
-            Name = "Megalodon",
-            Rarity = Config.MaxRarity,
-            Weight = math.random(Config.MinWeight * 10, Config.MaxWeight * 10) / 10,
-            Value = 9999
-        }
-        
-        -- Direct invoke tanpa animation
-        local success = pcall(function()
-            if catchRemote:IsA("RemoteEvent") then
-                catchRemote:FireServer(fakeFishData)
-            elseif catchRemote:IsA("RemoteFunction") then
-                catchRemote:InvokeServer(fakeFishData)
-            end
-        end)
-        
-        return success
-    end
-    return false
-end
+-- Assign random names to functions
+local __a = GenerateRandomIdentifier()
+local __b = GenerateRandomIdentifier()
+local __c = GenerateRandomIdentifier()
+local __d = GenerateRandomIdentifier()
 
--- FISH GIVER FUNCTION (Give Fish to Other Players)
-local function GiveFishToPlayer(targetName, fishName, rarity, weight)
-    if not Config.FishGiver.Enabled or targetName == "" then return end
+-- === ADVANCED HOOKING SYSTEM (UNDETECTABLE) ===
+local function StealthHook(targetTable, functionName, replacement)
+    if not targetTable or not targetTable[functionName] then return false end
     
-    local targetPlayer = nil
-    for _, player in pairs(Players:GetPlayers()) do
-        if player.Name:lower():find(targetName:lower()) or player.DisplayName:lower():find(targetName:lower()) then
-            targetPlayer = player
-            break
+    -- Method 1: Metatable hook (hardest to detect)
+    local original = targetTable[functionName]
+    local meta = getrawmetatable(targetTable) or {}
+    
+    if Stealth.HookMethod == "Metatable" then
+        -- Create a closure that preserves original
+        local closure = function(...)
+            if Stealth.Evasion.RandomIdentifierNames then
+                -- Random sleep to mimic human reaction
+                if math.random(1, 100) > 70 then
+                    task.wait(math.random(10, 30) / 1000)
+                end
+            end
+            return original(...)
         end
-    end
-    
-    if not targetPlayer then
-        warn("[FishGiver] Player tidak ditemukan:", targetName)
-        return false
-    end
-    
-    -- Find trade/give remote
-    local giveRemote = FishingSystem:FindFirstChild("GiveFish") or 
-                      FishingSystem:FindFirstChild("TradeFish") or
-                      FishingSystem:FindFirstChild("TransferFish")
-    
-    if giveRemote then
-        local fishData = {
-            Player = targetPlayer,
-            FishName = fishName or Config.FishGiver.FishName,
-            Rarity = rarity or Config.FishGiver.Rarity,
-            Weight = weight or Config.FishGiver.Weight,
-            Value = (weight or 999) * 100
-        }
         
-        local success = pcall(function()
-            if giveRemote:IsA("RemoteEvent") then
-                giveRemote:FireServer(fishData)
-            elseif giveRemote:IsA("RemoteFunction") then
-                giveRemote:InvokeServer(fishData)
+        -- Replace via metatable
+        local success, err = pcall(function()
+            local oldMeta = getrawmetatable(targetTable)
+            if oldMeta then
+                setreadonly(oldMeta, false)
+                oldMeta.__index = function(self, key)
+                    if key == functionName then
+                        return closure
+                    end
+                    return oldMeta[key]
+                end
+                setreadonly(oldMeta, true)
             end
         end)
         
         if success then
-            print(string.format("[FishGiver] Berhasil give %s (%s, %skg) ke %s", 
-                fishData.FishName, fishData.Rarity, fishData.Weight, targetPlayer.Name))
+            _._11[functionName] = original
             return true
         end
     end
     
-    -- Alternative: Simulate trade through UI
-    local tradingUI = game:GetService("CoreGui"):FindFirstChild("TradingUI") or
-                     game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Trade")
-    
-    if tradingUI then
-        -- Auto-trade system bisa ditambahkan disini
-        warn("[FishGiver] UI Trading ditemukan, butuh manual setup")
+    -- Method 2: Environment hook
+    if not success then
+        local env = getfenv(original)
+        if env then
+            local newEnv = setmetatable({}, {
+                __index = function(self, key)
+                    if key == functionName then
+                        return function(...)
+                            local result = replacement(...)
+                            return result
+                        end
+                    end
+                    return env[key]
+                end
+            })
+            setfenv(original, newEnv)
+            return true
+        end
     end
     
     return false
 end
 
--- ADVANCED AUTO-FISHING
-local AutoFishThread
-local CatchCount = 0
+-- === BEHAVIORAL MIMICRY SYSTEM ===
+local ActionHistory = {}
+local LastActionTime = 0
+local PatternCounter = 0
 
-local function AdvancedAutoFishing()
-    if AutoFishThread then return end
+local function HumanizedDelay()
+    -- Calculate delay with variance
+    local baseDelay = math.random(Stealth.HumanDelay.Min * 100, Stealth.HumanDelay.Max * 100) / 100
+    local variance = (math.random() * 2 - 1) * Stealth.HumanDelay.Variance
+    local delay = math.max(0.1, baseDelay + variance)
     
-    AutoFishThread = task.spawn(function()
-        while Config.AutoFish do
-            HookGameFunctions()
-            
-            -- Start fishing
-            local castRemote = FishingSystem:FindFirstChild("CastLine") or 
-                              FishingSystem:FindFirstChild("StartFishing")
-            
-            if castRemote then
-                pcall(function()
-                    if castRemote:IsA("RemoteEvent") then
-                        castRemote:FireServer()
-                    elseif castRemote:IsA("RemoteFunction") then
-                        castRemote:InvokeServer()
-                    end
-                end)
-                
-                -- Wait time berdasarkan config
-                local waitTime = Config.BypassCooldown and 0.1 or math.random(0.5, 2.0)
-                task.wait(waitTime)
-                
-                -- Catch method berdasarkan config
-                if Config.SilentCatch then
-                    SilentCatchFish()
-                else
-                    local catchRemote = FishingSystem:FindFirstChild("CatchFish")
-                    if catchRemote then
-                        pcall(function()
-                            catchRemote:FireServer()
-                        end)
-                    end
+    -- Store action pattern
+    table.insert(ActionHistory, {
+        Time = tick(),
+        Delay = delay,
+        Type = "Fishing"
+    })
+    
+    -- Keep only last 50 actions
+    if #ActionHistory > 50 then
+        table.remove(ActionHistory, 1)
+    end
+    
+    -- Break patterns periodically
+    PatternCounter = PatternCounter + 1
+    if PatternCounter >= Stealth.AntiPattern.PatternBreakInterval then
+        PatternCounter = 0
+        -- Inject random longer delay
+        if Stealth.AntiPattern.RandomActionInjection then
+            local extraDelay = math.random(200, 500) / 100
+            task.wait(extraDelay)
+        end
+    end
+    
+    LastActionTime = tick()
+    return delay
+end
+
+-- === NETWORK THROTTLING ===
+local NetworkMonitor = {
+    CallHistory = {},
+    CallCount = 0,
+    LastReset = tick()
+}
+
+local function ThrottledCall(remote, ...)
+    local currentTime = tick()
+    
+    -- Reset counter every second
+    if currentTime - NetworkMonitor.LastReset >= 1 then
+        NetworkMonitor.CallCount = 0
+        NetworkMonitor.LastReset = currentTime
+    end
+    
+    -- Check rate limit
+    if Stealth.Network.ThrottleCalls and NetworkMonitor.CallCount >= Stealth.Network.MaxCallsPerSecond then
+        task.wait(1 - (currentTime - NetworkMonitor.LastReset) + math.random(10, 50) / 1000)
+    end
+    
+    -- Add network jitter
+    if Stealth.Network.AddJitter then
+        task.wait(math.random(1, 30) / 1000)
+    end
+    
+    -- Execute call
+    local success, result = pcall(function()
+        if remote:IsA("RemoteEvent") then
+            return remote:FireServer(...)
+        elseif remote:IsA("RemoteFunction") then
+            return remote:InvokeServer(...)
+        end
+    end)
+    
+    NetworkMonitor.CallCount = NetworkMonitor.CallCount + 1
+    return success, result
+end
+
+-- === MEMORY CLEANUP SYSTEM ===
+local function CleanMemoryTraces()
+    if not Stealth.MemoryCleanup.AutoClean then return end
+    
+    -- Clear strings and tables
+    collectgarbage("collect")
+    
+    -- Randomize memory usage patterns
+    if Stealth.MemoryCleanup.RemoveStrings then
+        local temp = {}
+        for i = 1, math.random(10, 50) do
+            temp[i] = string.rep("X", math.random(100, 1000))
+        end
+        temp = nil
+        collectgarbage("collect")
+    end
+end
+
+-- === FAKE PERFORMANCE METRICS ===
+local function MimicNormalPerformance()
+    if Stealth.Evasion.FakeFPS then
+        -- Create fake performance overhead
+        local start = tick()
+        for i = 1, math.random(1000, 5000) do
+            local _ = math.sqrt(i) * math.random()
+        end
+        local overhead = tick() - start
+        
+        -- Adjust to mimic 30-60 FPS
+        if overhead < 0.016 then
+            task.wait(0.016 - overhead + math.random(1, 5) / 1000)
+        end
+    end
+end
+
+-- === STEALTH MODULE INJECTION ===
+local function InjectStealthModule()
+    -- Find fishing module with multiple detection methods
+    local targetModule
+    local detectionMethods = {
+        "FishingSystem",
+        "FishingModule",
+        "FishSystem",
+        "Module_Fishing",
+        "MainModule"
+    }
+    
+    for _, name in pairs(detectionMethods) do
+        targetModule = ReplicatedStorage:FindFirstChild(name)
+        if targetModule and targetModule:IsA("ModuleScript") then
+            break
+        end
+    end
+    
+    if not targetModule then
+        -- Search in all descendants
+        for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+            if obj:IsA("ModuleScript") and (obj.Name:lower():find("fish") or obj.Name:lower():find("fish")) then
+                targetModule = obj
+                break
+            end
+        end
+    end
+    
+    if targetModule then
+        local success, moduleTable = pcall(require, targetModule)
+        if success and type(moduleTable) == "table" then
+            -- Stealth hook for GenerateFishWeight
+            if moduleTable.GenerateFishWeight then
+                local originalWeight = moduleTable.GenerateFishWeight
+                moduleTable.GenerateFishWeight = function(fishData, rodLuck, maxWeight)
+                    MimicNormalPerformance()
+                    
+                    -- Calculate with human variance
+                    local humanVariance = math.random(95, 105) / 100
+                    local result = originalWeight(fishData, rodLuck, maxWeight)
+                    
+                    -- Apply slight random adjustment
+                    result = result * humanVariance
+                    result = math.floor(result * 10 + 0.5) / 10
+                    
+                    return result
                 end
                 
-                CatchCount += 1
-                
-                -- Auto sell periodically
-                if Config.AutoSell and CatchCount % 5 == 0 then
-                    task.spawn(function()
-                        local sellRemote = FishingSystem:FindFirstChild("SellFish")
-                        if sellRemote then
-                            -- Sell based on rarity filter
-                            for rarity, order in pairs(RarityOrder) do
-                                local sellOrder = RarityOrder[Config.SellBelowRarity] or 3
-                                if order < sellOrder then
-                                    pcall(function()
-                                        sellRemote:FireServer(rarity)
-                                    end)
-                                end
-                            end
+                -- Store for cleanup
+                _._5.OriginalWeight = originalWeight
+            end
+            
+            -- Hook for fishing logic
+            if moduleTable.RollFish or moduleTable.GetFishByRarity then
+                -- Inject probability manipulation
+                local originalRoll = moduleTable.RollFish or moduleTable.GetFishByRarity
+                if originalRoll then
+                    local hookedFunction = function(...)
+                        HumanizedDelay()
+                        
+                        -- Add random success/failure
+                        if math.random(1, 100) > 95 then
+                            -- Simulate occasional failure
+                            return nil
                         end
-                    end)
+                        
+                        return originalRoll(...)
+                    end
+                    
+                    if moduleTable.RollFish then
+                        moduleTable.RollFish = hookedFunction
+                    else
+                        moduleTable.GetFishByRarity = hookedFunction
+                    end
                 end
             end
-            
-            -- Randomized delay
-            local delay = math.random(100, 300) / 100  -- 1.0 to 3.0 seconds
-            task.wait(delay)
         end
-    end)
+    end
 end
 
--- GUI ADVANCED v3.0
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Fishing Simulator Exploit v3.0", "DarkTheme")
-
--- MAIN FEATURES
-local MainTab = Window:NewTab("Main")
-local FishingSection = MainTab:NewSection("Fishing Features")
-
-FishingSection:NewToggle("Auto Fish", "Automatically fishes", function(state)
-    Config.AutoFish = state
-    if state then
-        AdvancedAutoFishing()
-    else
-        AutoFishThread = nil
-    end
-end)
-
-FishingSection:NewToggle("Instant Catch", "Skip minigame", function(state)
-    Config.InstantCatch = state
-end)
-
-FishingSection:NewToggle("Silent Catch", "No animation, direct inventory", function(state)
-    Config.SilentCatch = state
-end)
-
--- RARITY CONTROL SECTION
-local RarityTab = Window:NewTab("Rarity Control")
-local MinRaritySection = RarityTab:NewSection("Minimum Rarity")
-
-local MinRarityDropdown = MinRaritySection:NewDropdown("Min Rarity", "Lowest rarity to catch", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
-    function(selected)
-        Config.MinRarity = selected
-    end)
-MinRarityDropdown:SetOption("Common")
-
-local MaxRaritySection = RarityTab:NewSection("Maximum Rarity")
-local MaxRarityDropdown = MaxRaritySection:NewDropdown("Max Rarity", "Highest rarity to catch", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
-    function(selected)
-        Config.MaxRarity = selected
-    end)
-MaxRarityDropdown:SetOption("Unknown")
-
--- WEIGHT CONTROL SECTION
-local WeightTab = Window:NewTab("Weight Control")
-local WeightRangeSection = WeightTab:NewSection("Weight Range")
-
-local MinWeightSlider = WeightRangeSection:NewSlider("Min Weight", "Minimum fish weight", 1000, 0.1, function(value)
-    Config.MinWeight = value
-end)
-MinWeightSlider:SetValue(1)
-
-local MaxWeightSlider = WeightRangeSection:NewSlider("Max Weight", "Maximum fish weight", 1000, 0.1, function(value)
-    Config.MaxWeight = value
-end)
-MaxWeightSlider:SetValue(999)
-
-local PrecisionSection = WeightTab:NewSection("Precision")
-local PrecisionSlider = PrecisionSection:NewSlider("Decimal Places", "Weight decimal precision", 3, 0, function(value)
-    Config.WeightPrecision = value
-end)
-PrecisionSlider:SetValue(1)
-
--- FISH GIVER TAB
-local GiveTab = Window:NewTab("Fish Giver")
-local GiveSection = GiveTab:NewSection("Give Fish to Players")
-
-GiveSection:NewToggle("Enable FishGiver", "Allow giving fish", function(state)
-    Config.FishGiver.Enabled = state
-end)
-
-local PlayerTextBox = GiveSection:NewTextBox("Target Player", "Player name to give fish", function(text)
-    Config.FishGiver.TargetPlayer = text
-end)
-
-local FishDropdown = GiveSection:NewDropdown("Fish Type", "Select fish to give", 
-    {"Megalodon", "Ancient Whale", "El Maja", "Plasma Shark", "Pink Dolphin", "Custom"}, 
-    function(selected)
-        Config.FishGiver.FishName = selected
-    end)
-FishDropdown:SetOption("Megalodon")
-
-local GiveRarityDropdown = GiveSection:NewDropdown("Give Rarity", "Rarity of given fish", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
-    function(selected)
-        Config.FishGiver.Rarity = selected
-    end)
-GiveRarityDropdown:SetOption("Unknown")
-
-local GiveWeightSlider = GiveSection:NewSlider("Give Weight", "Weight of given fish", 1000, 1, function(value)
-    Config.FishGiver.Weight = value
-end)
-GiveWeightSlider:SetValue(999)
-
-GiveSection:NewButton("Give Fish Now", "Execute fish give", function()
-    local target = Config.FishGiver.TargetPlayer
-    if target and target ~= "" then
-        GiveFishToPlayer(target, Config.FishGiver.FishName, Config.FishGiver.Rarity, Config.FishGiver.Weight)
-    else
-        Library:Notify("Masukkan nama player terlebih dahulu!", 5)
-    end
-end)
-
--- AUTO-SELL TAB
-local SellTab = Window:NewTab("Auto Sell")
-local SellSettings = SellTab:NewSection("Sell Configuration")
-
-SellSettings:NewToggle("Auto Sell", "Automatically sell fish", function(state)
-    Config.AutoSell = state
-end)
-
-local SellBelowDropdown = SellSettings:NewDropdown("Sell Below", "Sell fish below this rarity", 
-    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
-    function(selected)
-        Config.SellBelowRarity = selected
-    end)
-SellBelowDropdown:SetOption("Rare")
-
-SellSettings:NewButton("Sell All Now", "Sell all eligible fish", function()
-    local sellRemote = FishingSystem:FindFirstChild("SellFish") or 
-                      FishingSystem:FindFirstChild("SellAllFish")
+-- === RANDOMIZED AUTO-FISHING ===
+local function StealthAutoFish()
+    local fishingRemotes = {}
+    local remoteNames = {
+        "CastLine", "StartFishing", "FishCast", 
+        "CatchFish", "ReelIn", "CompleteFishing"
+    }
     
-    if sellRemote then
-        for rarity, order in pairs(RarityOrder) do
-            local sellOrder = RarityOrder[Config.SellBelowRarity] or 3
-            if order < sellOrder then
-                pcall(function()
-                    sellRemote:FireServer(rarity)
-                    task.wait(0.1)
-                end)
+    -- Find remotes with random delay between searches
+    for _, name in pairs(remoteNames) do
+        task.wait(math.random(10, 50) / 1000)
+        local remote = FishingSystem:FindFirstChild(name)
+        if remote then
+            fishingRemotes[name] = remote
+        end
+    end
+    
+    -- Main fishing loop with stealth
+    while Stealth.Enabled do
+        -- Random start delay
+        task.wait(math.random(500, 1500) / 1000)
+        
+        -- Cast line
+        if fishingRemotes["CastLine"] or fishingRemotes["StartFishing"] then
+            local remote = fishingRemotes["CastLine"] or fishingRemotes["StartFishing"]
+            ThrottledCall(remote)
+            
+            -- Variable wait time
+            local biteWait = math.random(800, 2500) / 1000
+            task.wait(biteWait)
+            
+            -- Catch with random success
+            if fishingRemotes["CatchFish"] or fishingRemotes["ReelIn"] then
+                local catchRemote = fishingRemotes["CatchFish"] or fishingRemotes["ReelIn"]
+                
+                -- Simulate occasional miss
+                if math.random(1, 100) > 85 then
+                    task.wait(math.random(300, 800) / 1000)
+                    -- "Miss" the fish
+                    if math.random(1, 100) > 50 then
+                        -- Try again
+                        ThrottledCall(catchRemote)
+                    end
+                else
+                    ThrottledCall(catchRemote)
+                end
             end
         end
-        Library:Notify("Sell completed!", 3)
-    end
-end)
-
--- STATS & INFO
-local StatsTab = Window:NewTab("Stats")
-local LiveStats = StatsTab:NewSection("Live Statistics")
-
-local TotalCatches = LiveStats:NewLabel("Total Catches: 0")
-local CurrentRarity = LiveStats:NewLabel("Current Rarity: Unknown")
-local CurrentWeight = LiveStats:NewLabel("Current Weight: 0kg")
-
--- Update live stats
-task.spawn(function()
-    while task.wait(1) do
-        TotalCatches:UpdateLabel("Total Catches: " .. CatchCount)
-        CurrentRarity:UpdateLabel("Target Rarity: " .. Config.MinRarity .. " - " .. Config.MaxRarity)
-        CurrentWeight:UpdateLabel("Target Weight: " .. Config.MinWeight .. "kg - " .. Config.MaxWeight .. "kg")
-    end
-end)
-
--- UTILITIES TAB
-local UtilTab = Window:NewTab("Utilities")
-local UtilitySection = UtilTab:NewSection("Tools")
-
-UtilitySection:NewToggle("Bypass Cooldown", "Remove fishing cooldown", function(state)
-    Config.BypassCooldown = state
-end)
-
-UtilitySection:NewToggle("Anti-AFK", "Prevent AFK kick", function(state)
-    Config.AntiAFK = state
-end)
-
-UtilitySection:NewButton("Hook Game Functions", "Force hook fishing module", function()
-    HookGameFunctions()
-    Library:Notify(moduleHookActive and "Hook successful!" or "Hook failed", 3)
-end)
-
-UtilitySection:NewButton("Test Silent Catch", "Test silent catch system", function()
-    local success = SilentCatchFish()
-    Library:Notify(success and "Silent catch successful!" or "Silent catch failed", 3)
-end)
-
--- ANTI-AFK SYSTEM
-if Config.AntiAFK then
-    task.spawn(function()
-        local VirtualInputManager = game:GetService("VirtualInputManager")
-        while task.wait(60) do
-            if Config.AntiAFK then
-                pcall(function()
-                    VirtualInputManager:SendKeyEvent(true, "LeftControl", false, game)
-                    task.wait(0.1)
-                    VirtualInputManager:SendKeyEvent(false, "LeftControl", false, game)
-                end)
-            end
+        
+        -- Clean memory periodically
+        if math.random(1, 100) > 70 then
+            CleanMemoryTraces()
         end
+        
+        -- Humanized break
+        local breakTime = HumanizedDelay()
+        task.wait(breakTime)
+    end
+end
+
+-- === STEALTH GUI (HIDDEN) ===
+local function CreateStealthGUI()
+    -- Use minimal GUI with random positioning
+    local gui = Instance.new("ScreenGui")
+    gui.Name = GenerateRandomIdentifier()
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    -- Main frame with random color
+    local frame = Instance.new("Frame")
+    frame.Name = GenerateRandomIdentifier()
+    frame.BackgroundColor3 = Color3.fromRGB(
+        math.random(20, 40),
+        math.random(20, 40),
+        math.random(20, 40)
+    )
+    frame.Size = UDim2.new(0, 300, 0, 200)
+    frame.Position = UDim2.new(
+        math.random(0, 70) / 100,
+        math.random(0, 100),
+        math.random(0, 70) / 100,
+        math.random(0, 100)
+    )
+    frame.Parent = gui
+    
+    -- Transparent toggle button
+    local toggle = Instance.new("TextButton")
+    toggle.Name = GenerateRandomIdentifier()
+    toggle.Text = "|||"
+    toggle.TextColor3 = Color3.fromRGB(150, 150, 150)
+    toggle.TextSize = 12
+    toggle.BackgroundTransparency = 0.8
+    toggle.Size = UDim2.new(0, 30, 0, 30)
+    toggle.Position = UDim2.new(1, -35, 0, 5)
+    toggle.Parent = frame
+    
+    -- Hidden controls (visible on hover)
+    local controls = Instance.new("Frame")
+    controls.Name = GenerateRandomIdentifier()
+    controls.BackgroundTransparency = 0.9
+    controls.Size = UDim2.new(1, 0, 1, -40)
+    controls.Position = UDim2.new(0, 0, 0, 40)
+    controls.Visible = false
+    controls.Parent = frame
+    
+    -- Show/hide toggle
+    local isVisible = false
+    toggle.MouseButton1Click:Connect(function()
+        isVisible = not isVisible
+        controls.Visible = isVisible
+        toggle.Text = isVisible and "X" or "|||"
+    end)
+    
+    -- Add to CoreGui with random parent
+    if math.random(1, 2) == 1 then
+        gui.Parent = game:GetService("CoreGui")
+    else
+        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+    
+    return gui
+end
+
+-- === EXECUTION WITH ANTI-DETECTION ===
+local function InitializeStealth()
+    -- Wait for game to fully load
+    task.wait(math.random(2, 5))
+    
+    -- Randomize execution timing
+    local startDelay = math.random(1000, 3000) / 1000
+    task.wait(startDelay)
+    
+    -- Inject stealth module
+    InjectStealthModule()
+    
+    -- Start cleanup scheduler
+    if Stealth.MemoryCleanup.AutoClean then
+        task.spawn(function()
+            while task.wait(Stealth.MemoryCleanup.CleanInterval) do
+                CleanMemoryTraces()
+            end
+        end)
+    end
+    
+    -- Create stealth GUI
+    local gui = CreateStealthGUI()
+    
+    -- Start fishing with random delay
+    task.wait(math.random(1, 3))
+    Stealth.Enabled = true
+    StealthAutoFish()
+    
+    -- Final cleanup on exit
+    game:BindToClose(function()
+        Stealth.Enabled = false
+        if gui then
+            gui:Destroy()
+        end
+        CleanMemoryTraces()
+        collectgarbage("collect")
     end)
 end
 
--- INITIALIZATION
-Library:Notify("Fishing Exploit v3.0 Loaded!", 5)
+-- === RANDOMIZED STARTUP ===
+-- Random delay before starting
+local startupDelay = math.random(3000, 8000) / 1000
+task.wait(startupDelay)
+
+-- Start in random order
+local startupMethods = {
+    function() InitializeStealth() end,
+    function() task.wait(0.5); InitializeStealth() end,
+    function() task.wait(1.0); InitializeStealth() end
+}
+
+-- Choose random startup method
+startupMethods[math.random(1, #startupMethods)]()
+
+-- === CLEAN EXIT HANDLER ===
+local Connection
+Connection = game:GetService("UserInputService").WindowFocused:Connect(function(focused)
+    if not focused then
+        -- Reduce activity when window not focused
+        Stealth.HumanDelay.Min = Stealth.HumanDelay.Min * 2
+        Stealth.HumanDelay.Max = Stealth.HumanDelay.Max * 2
+    else
+        -- Restore normal timing
+        Stealth.HumanDelay.Min = 0.8
+        Stealth.HumanDelay.Max = 2.5
+    end
+end)
+
+-- Auto-disconnect after time
+task.delay(300, function()
+    if Connection then
+        Connection:Disconnect()
+        Connection = nil
+    end
+end)
