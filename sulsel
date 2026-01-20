@@ -1,0 +1,860 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local LocalPlayer = Players.LocalPlayer
+local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
+
+if not FishingSystem then
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj.Name:lower():find("fish") and obj:IsA("ModuleScript") then
+            FishingSystem = obj.Parent
+            break
+        end
+    end
+end
+
+-- Load the actual FishingConfig module
+local FishingConfig
+local success, configModule = pcall(function()
+    return require(FishingSystem:WaitForChild("FishingConfig"))
+end)
+if success then
+    FishingConfig = configModule
+else
+    warn("Failed to load FishingConfig module")
+    FishingConfig = {}
+end
+
+local Config = {
+    AutoFish = true,
+    InstantCatch = true,
+    SilentCatch = true,
+    MinRarity = "Common",
+    MaxRarity = "Unknown",
+    MinWeight = 1,
+    MaxWeight = 1000,
+    WeightPrecision = 1,
+    AutoSell = true,
+    SellBelowRarity = "Rare",
+    FishGiver = {
+        Enabled = false,
+        TargetPlayer = "",
+        FishName = "Megalodon",
+        Rarity = "Unknown",
+        Weight = 999
+    },
+    RandomWeight = {
+        Enabled = true,
+        Mode = "CustomRange",
+        MinRange = 1,
+        MaxRange = 1000,
+        Bias = 0.7,
+        Fluctuation = 0.3
+    },
+    WebhookNotify = false,
+    AntiAFK = true,
+    BypassCooldown = false,
+    AutoModeTaps = false,
+    SecretFishBypass = true
+}
+
+-- Updated rarity order based on game
+local RarityOrder = {
+    Common = 1,
+    Uncommon = 2,
+    Rare = 3,
+    Epic = 4,
+    Legendary = 5,
+    Unknown = 6
+}
+
+-- Fish rarity mapping
+local FishRarity = {
+    ["BlueFish"] = "Common",
+    ["Boar Fish"] = "Common",
+    ["Blackcap Basslet"] = "Common",
+    ["Pumpkin Carved Shark"] = "Common",
+    ["Hermit Crab"] = "Common",
+    ["Goliath Tiger"] = "Common",
+    ["Fangtooth"] = "Common",
+    ["StreakyFish"] = "Uncommon",
+    ["Dead Spooky Koi Fish"] = "Uncommon",
+    ["Dead Scary Clownfish"] = "Uncommon",
+    ["Jellyfish"] = "Uncommon",
+    ["Lion Fish"] = "Rare",
+    ["Luminous Fish"] = "Rare",
+    ["Zombie Shark"] = "Rare",
+    ["Wraithfin Abyssal"] = "Rare",
+    ["Loving Shark"] = "Epic",
+    ["Queen Crab"] = "Epic",
+    ["Pink Dolphin"] = "Epic",
+    ["Plasma Shark"] = "Legendary",
+    ["Ancient Relic Crocodile"] = "Unknown",
+    ["Colossal Squid"] = "Legendary",
+    ["Ancient Whale"] = "Unknown",
+    ["Monster Shark"] = "Unknown",
+    ["Lava Megalodon"] = "Unknown",
+    ["Megalodon"] = "Unknown",
+    ["Zombie Megalodon"] = "Unknown",
+    ["Kraken"] = "Unknown",
+    ["Naga Keramat"] = "Unknown",
+    ["RobotMegalodon"] = "Unknown"
+}
+
+local originalModule
+local moduleHookActive = false
+local originalWeightData = {}
+local weightHooks = {}
+
+-- Get fish rarity color from config
+local function GetRarityColor(rarity)
+    if FishingConfig and FishingConfig.RarityColors then
+        return FishingConfig.RarityColors[rarity] or Color3.fromRGB(255, 255, 255)
+    end
+    return Color3.fromRGB(255, 255, 255)
+end
+
+-- Get rod configuration
+local function GetRodConfig(rodName)
+    if FishingConfig and FishingConfig.RodConfig then
+        return FishingConfig.RodConfig[rodName] or FishingConfig.RodConfig.default or {baseLuck = 0.1, maxWeight = 3}
+    end
+    return { baseLuck = 0.1, maxWeight = 3 }
+end
+
+local function BackupOriginalWeights()
+    if originalModule and originalModule.FishTable then
+        originalWeightData = {}
+        for i, fish in pairs(originalModule.FishTable) do
+            if fish and type(fish) == "table" then
+                originalWeightData[i] = {
+                    minKg = fish.minKg,
+                    maxKg = fish.maxKg,
+                    name = fish.name
+                }
+            end
+        end
+    end
+end
+
+local function ApplyRandomWeightMode()
+    if not Config.RandomWeight.Enabled or not originalModule or not originalModule.FishTable then 
+        return 
+    end
+    
+    if Config.RandomWeight.Mode == "Original" then
+        for i, fish in pairs(originalModule.FishTable) do
+            if fish and type(fish) == "table" then
+                local original = originalWeightData[i]
+                if original then
+                    fish.minKg = original.minKg or fish.minKg
+                    fish.maxKg = original.maxKg or fish.maxKg
+                end
+            end
+        end
+    elseif Config.RandomWeight.Mode == "CustomRange" then
+        for _, fish in pairs(originalModule.FishTable) do
+            if fish and type(fish) == "table" then
+                fish.minKg = Config.RandomWeight.MinRange
+                fish.maxKg = Config.RandomWeight.MaxRange
+            end
+        end
+    elseif Config.RandomWeight.Mode == "Extreme" then
+        for _, fish in pairs(originalModule.FishTable) do
+            if fish and type(fish) == "table" then
+                local scale = RarityOrder[fish.rarity] or 1
+                fish.minKg = 100 * scale
+                fish.maxKg = 800 * scale
+            end
+        end
+    elseif Config.RandomWeight.Mode == "Chaos" then
+        for _, fish in pairs(originalModule.FishTable) do
+            if fish and type(fish) == "table" then
+                fish.minKg = math.random(1, 100)
+                fish.maxKg = math.random(200, 1000)
+            end
+        end
+    end
+    
+    for _, fish in pairs(originalModule.FishTable) do
+        if fish and type(fish) == "table" then
+            if fish.minKg >= fish.maxKg then
+                fish.maxKg = fish.minKg + 100
+            end
+            if fish.maxKg > 10000 then
+                fish.maxKg = 10000
+            end
+        end
+    end
+end
+
+local function GenerateRandomWeight(fishData, rodConfig)
+    if not Config.RandomWeight.Enabled then
+        return nil
+    end
+    
+    local mode = Config.RandomWeight.Mode
+    local minW, maxW
+    
+    if mode == "CustomRange" then
+        minW = Config.RandomWeight.MinRange
+        maxW = Config.RandomWeight.MaxRange
+    elseif mode == "Extreme" then
+        minW = 100
+        maxW = 800
+    elseif mode == "Chaos" then
+        minW = math.random(1, 100)
+        maxW = math.random(200, 1000)
+    else
+        minW = fishData.minKg or 0.5
+        maxW = math.min(fishData.maxKg or 100, rodConfig.maxWeight or 1000)
+    end
+    
+    local random = math.random()
+    local bias = Config.RandomWeight.Bias or 0.7
+    
+    local weight
+    if random < (1 - bias) then
+        weight = minW + (maxW - minW) * 0.3 * math.random()
+    else
+        weight = maxW * 0.7 + (maxW * 0.3) * math.random()
+    end
+    
+    local fluctuation = Config.RandomWeight.Fluctuation or 0.3
+    weight = weight * (1 + (math.random() * 2 - 1) * fluctuation)
+    
+    local precision = Config.WeightPrecision or 1
+    local multiplier = 10 ^ precision
+    weight = math.floor(weight * multiplier + 0.5) / multiplier
+    
+    weight = math.max(Config.MinWeight, math.min(Config.MaxWeight, weight))
+    weight = math.max(minW, math.min(maxW, weight))
+    
+    return weight
+end
+
+local function CalculateFishPrice(weight, rarity)
+    if not weight then return 0 end
+    
+    local rarityMultiplier = {
+        Common = 1,
+        Uncommon = 1.5,
+        Rare = 2.5,
+        Epic = 4,
+        Legendary = 7,
+        Unknown = 10
+    }
+    
+    local multiplier = rarityMultiplier[rarity] or 1
+    local basePrice = 50 -- basePricePerKg from config
+    
+    -- Apply size bonus if enabled
+    local sizeBonus = 1
+    if weight <= 5 then
+        sizeBonus = 0.8
+    elseif weight <= 30 then
+        sizeBonus = 1
+    elseif weight <= 60 then
+        sizeBonus = 1.5
+    else
+        sizeBonus = 2
+    end
+    
+    return math.floor(weight * basePrice * multiplier * sizeBonus + 0.5)
+end
+
+local function GetRandomFish()
+    if not FishingConfig or not FishingConfig.FishTable then
+        return nil
+    end
+    
+    local fishTable = FishingConfig.FishTable
+    local minOrder = RarityOrder[Config.MinRarity] or 1
+    local maxOrder = RarityOrder[Config.MaxRarity] or 6
+    
+    local eligibleFish = {}
+    for _, fish in pairs(fishTable) do
+        if fish and fish.rarity then
+            local fishOrder = RarityOrder[fish.rarity] or 1
+            if Config.SecretFishBypass or (fishOrder >= minOrder and fishOrder <= maxOrder) then
+                table.insert(eligibleFish, fish)
+            end
+        end
+    end
+    
+    if #eligibleFish > 0 then
+        return eligibleFish[math.random(1, #eligibleFish)]
+    end
+    
+    return nil
+end
+
+local function HookGameFunctions()
+    if moduleHookActive then return end
+    
+    local modules
+    if getloadedmodules then
+        modules = getloadedmodules()
+    else
+        modules = {}
+    end
+    
+    for _, module in pairs(modules) do
+        if module and (module.Name:lower():find("fish") or module.Name:find("Fishing") or module.Name:find("Rod")) then
+            local success, moduleData = pcall(require, module)
+            if success and type(moduleData) == "table" then
+                originalModule = moduleData
+                BackupOriginalWeights()
+                
+                -- Hook GenerateFishWeight function
+                if moduleData.GenerateFishWeight then
+                    local originalGenWeight = moduleData.GenerateFishWeight
+                    weightHooks.GenerateFishWeight = originalGenWeight
+                    
+                    moduleData.GenerateFishWeight = function(fishData, rodLuck, maxWeight)
+                        if Config.InstantCatch then
+                            local customWeight = GenerateRandomWeight(fishData, {maxWeight = maxWeight})
+                            if customWeight then
+                                return customWeight
+                            end
+                            
+                            local minWeight = math.max(Config.MinWeight, fishData.minKg or 0.5)
+                            local maxWeightAllowed = math.min(Config.MaxWeight, fishData.maxKg or 1000, maxWeight or 1000)
+                            
+                            if minWeight > maxWeightAllowed then
+                                return maxWeightAllowed
+                            end
+                            
+                            local randomFactor = math.random()
+                            local weight = minWeight + (randomFactor * (maxWeightAllowed - minWeight))
+                            local multiplier = 10 ^ Config.WeightPrecision
+                            weight = math.floor(weight * multiplier + 0.5) / multiplier
+                            return weight
+                        end
+                        return originalGenWeight(fishData, rodLuck, maxWeight)
+                    end
+                end
+                
+                -- Hook CalculateTotalLuck function
+                if moduleData.CalculateTotalLuck then
+                    local originalCalculateLuck = moduleData.CalculateTotalLuck
+                    moduleData.CalculateTotalLuck = function(baseLuck, rodLuck)
+                        if Config.InstantCatch then
+                            return 1000, 1000, 0
+                        end
+                        return originalCalculateLuck(baseLuck, rodLuck)
+                    end
+                end
+                
+                ApplyRandomWeightMode()
+                moduleHookActive = true
+                break
+            end
+        end
+    end
+end
+
+local function SilentCatchFish()
+    if not Config.SilentCatch then return false end
+    
+    local catchRemote = FishingSystem:FindFirstChild("CatchFish") or 
+                       FishingSystem:FindFirstChild("ReelIn") or
+                       FishingSystem:FindFirstChild("CompleteFishing") or
+                       FishingSystem:FindFirstChild("Catch")
+    
+    if catchRemote then
+        local fishData = GetRandomFish()
+        if not fishData then
+            fishData = {
+                name = "Megalodon",
+                rarity = "Unknown",
+                minKg = 900,
+                maxKg = 1000
+            }
+        end
+        
+        local weight
+        if Config.RandomWeight.Enabled then
+            weight = GenerateRandomWeight(fishData, {})
+        else
+            weight = math.random(Config.MinWeight * 10, Config.MaxWeight * 10) / 10
+        end
+        
+        local value = CalculateFishPrice(weight, fishData.rarity)
+        
+        local fakeFishData = {
+            Name = fishData.name,
+            Rarity = fishData.rarity,
+            Weight = weight,
+            Value = value
+        }
+        
+        local success = pcall(function()
+            if catchRemote:IsA("RemoteEvent") then
+                catchRemote:FireServer(fakeFishData)
+            elseif catchRemote:IsA("RemoteFunction") then
+                catchRemote:InvokeServer(fakeFishData)
+            else
+                catchRemote:Fire(fakeFishData)
+            end
+        end)
+        
+        return success
+    end
+    return false
+end
+
+local function GiveFishToPlayer(targetName, fishName, rarity, weight)
+    if not Config.FishGiver.Enabled or targetName == "" then return false end
+    
+    local targetPlayer = nil
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Name:lower():find(targetName:lower()) or (player.DisplayName and player.DisplayName:lower():find(targetName:lower())) then
+            targetPlayer = player
+            break
+        end
+    end
+    
+    if not targetPlayer then return false end
+    
+    local giveRemote = FishingSystem:FindFirstChild("GiveFish") or 
+                      FishingSystem:FindFirstChild("TradeFish") or
+                      FishingSystem:FindFirstChild("TransferFish") or
+                      FishingSystem:FindFirstChild("GiftFish")
+    
+    if giveRemote then
+        local fishData = {
+            Player = targetPlayer,
+            FishName = fishName or Config.FishGiver.FishName,
+            Rarity = rarity or Config.FishGiver.Rarity,
+            Weight = weight or Config.FishGiver.Weight,
+            Value = CalculateFishPrice(weight or 999, rarity or Config.FishGiver.Rarity)
+        }
+        
+        local success = pcall(function()
+            if giveRemote:IsA("RemoteEvent") then
+                giveRemote:FireServer(fishData)
+            elseif giveRemote:IsA("RemoteFunction") then
+                giveRemote:InvokeServer(fishData)
+            else
+                giveRemote:Fire(fishData)
+            end
+        end)
+        
+        return success
+    end
+    
+    return false
+end
+
+local AutoFishThread
+local CatchCount = 0
+
+local function AdvancedAutoFishing()
+    if AutoFishThread then 
+        task.cancel(AutoFishThread)
+        AutoFishThread = nil
+    end
+    
+    AutoFishThread = task.spawn(function()
+        while Config.AutoFish and task.wait() do
+            HookGameFunctions()
+            
+            local castRemote = FishingSystem:FindFirstChild("CastLine") or 
+                              FishingSystem:FindFirstChild("StartFishing") or
+                              FishingSystem:FindFirstChild("Cast")
+            
+            if castRemote then
+                pcall(function()
+                    if castRemote:IsA("RemoteEvent") then
+                        castRemote:FireServer()
+                    elseif castRemote:IsA("RemoteFunction") then
+                        castRemote:InvokeServer()
+                    else
+                        castRemote:Fire()
+                    end
+                end)
+                
+                local waitTime = Config.BypassCooldown and 0.1 or math.random(0.5, 2.0)
+                task.wait(waitTime)
+                
+                if Config.SilentCatch then
+                    SilentCatchFish()
+                else
+                    local catchRemote = FishingSystem:FindFirstChild("CatchFish")
+                    if catchRemote then
+                        pcall(function()
+                            if catchRemote:IsA("RemoteEvent") then
+                                catchRemote:FireServer()
+                            elseif catchRemote:IsA("RemoteFunction") then
+                                catchRemote:InvokeServer()
+                            else
+                                catchRemote:Fire()
+                            end
+                        end)
+                    end
+                end
+                
+                CatchCount = CatchCount + 1
+                
+                if Config.AutoSell and CatchCount % 5 == 0 then
+                    task.spawn(function()
+                        local sellRemote = FishingSystem:FindFirstChild("SellFish")
+                        if sellRemote then
+                            for rarity, order in pairs(RarityOrder) do
+                                local sellOrder = RarityOrder[Config.SellBelowRarity] or 3
+                                if order < sellOrder then
+                                    pcall(function()
+                                        if sellRemote:IsA("RemoteEvent") then
+                                            sellRemote:FireServer(rarity)
+                                        elseif sellRemote:IsA("RemoteFunction") then
+                                            sellRemote:InvokeServer(rarity)
+                                        else
+                                            sellRemote:Fire(rarity)
+                                        end
+                                        task.wait(0.1)
+                                    end)
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+            
+            local delay = math.random(100, 300) / 100
+            task.wait(delay)
+        end
+    end)
+end
+
+-- Load UI Library
+local Library
+local success, errorMsg = pcall(function()
+    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+end)
+
+if not success then
+    warn("Failed to load UI Library: " .. tostring(errorMsg))
+    -- Create basic interface
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Fishing Simulator v7.0",
+        Text = "UI Library failed to load. Using basic commands.",
+        Duration = 5
+    })
+    
+    -- Basic command interface
+    local function ToggleAutoFish()
+        Config.AutoFish = not Config.AutoFish
+        if Config.AutoFish then
+            AdvancedAutoFishing()
+        else
+            if AutoFishThread then
+                task.cancel(AutoFishThread)
+                AutoFishThread = nil
+            end
+        end
+        print("Auto Fish:", Config.AutoFish and "ENABLED" or "DISABLED")
+    end
+    
+    local function ToggleInstantCatch()
+        Config.InstantCatch = not Config.InstantCatch
+        print("Instant Catch:", Config.InstantCatch and "ENABLED" or "DISABLED")
+    end
+    
+    game:GetService("UserInputService").InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.F1 then
+            ToggleAutoFish()
+        elseif input.KeyCode == Enum.KeyCode.F2 then
+            ToggleInstantCatch()
+        elseif input.KeyCode == Enum.KeyCode.F3 then
+            HookGameFunctions()
+            print("Functions hooked!")
+        end
+    end)
+    
+    print("Fishing Simulator v7.0 Loaded!")
+    print("F1: Toggle Auto Fish")
+    print("F2: Toggle Instant Catch")
+    print("F3: Hook Functions")
+    
+    HookGameFunctions()
+    return
+end
+
+-- Create UI
+local Window = Library.CreateLib("Fishing Simulator v7.0", "DarkTheme")
+
+local MainTab = Window:NewTab("Main")
+local FishingSection = MainTab:NewSection("Fishing Features")
+
+FishingSection:NewToggle("Auto Fish", "Automatically fishes", function(state)
+    Config.AutoFish = state
+    if state then
+        AdvancedAutoFishing()
+    else
+        if AutoFishThread then
+            task.cancel(AutoFishThread)
+            AutoFishThread = nil
+        end
+    end
+end)
+
+FishingSection:NewToggle("Instant Catch", "Skip minigame", function(state)
+    Config.InstantCatch = state
+end)
+
+FishingSection:NewToggle("Silent Catch", "No animation", function(state)
+    Config.SilentCatch = state
+end)
+
+FishingSection:NewToggle("Secret Fish Bypass", "Catch unknown fish with any rod", function(state)
+    Config.SecretFishBypass = state
+end)
+
+local RarityTab = Window:NewTab("Rarity Control")
+local MinRaritySection = RarityTab:NewSection("Minimum Rarity")
+
+local MinRarityDropdown = MinRaritySection:NewDropdown("Min Rarity", "Lowest rarity", 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
+    function(selected)
+        Config.MinRarity = selected
+    end)
+MinRarityDropdown:SetOption("Common")
+
+local MaxRaritySection = RarityTab:NewSection("Maximum Rarity")
+local MaxRarityDropdown = MaxRaritySection:NewDropdown("Max Rarity", "Highest rarity", 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
+    function(selected)
+        Config.MaxRarity = selected
+    end)
+MaxRarityDropdown:SetOption("Unknown")
+
+local WeightTab = Window:NewTab("Weight Control")
+local WeightRangeSection = WeightTab:NewSection("Weight Range")
+
+local MinWeightSlider = WeightRangeSection:NewSlider("Min Weight", "Minimum weight", 1000, 0.5, 500, function(value)
+    Config.MinWeight = value
+end)
+MinWeightSlider:SetValue(1)
+
+local MaxWeightSlider = WeightRangeSection:NewSlider("Max Weight", "Maximum weight", 1000, 10, 1000, function(value)
+    Config.MaxWeight = value
+end)
+MaxWeightSlider:SetValue(1000)
+
+local RandomWeightSection = WeightTab:NewSection("Random Weight")
+
+RandomWeightSection:NewToggle("Enable Random Weight", "Randomize weights", function(state)
+    Config.RandomWeight.Enabled = state
+    if state and originalModule then
+        ApplyRandomWeightMode()
+    end
+end)
+
+local WeightModeDropdown = RandomWeightSection:NewDropdown("Weight Mode", "Weight generation mode", 
+    {"Original", "CustomRange", "Extreme", "Chaos"}, 
+    function(selected)
+        Config.RandomWeight.Mode = selected
+        if Config.RandomWeight.Enabled and originalModule then
+            ApplyRandomWeightMode()
+        end
+    end)
+WeightModeDropdown:SetOption("CustomRange")
+
+local CustomMinSlider = RandomWeightSection:NewSlider("Custom Min", "Minimum for custom mode", 
+    1000, 0.5, 500, function(value)
+    Config.RandomWeight.MinRange = value
+    if Config.RandomWeight.Enabled and Config.RandomWeight.Mode == "CustomRange" and originalModule then
+        ApplyRandomWeightMode()
+    end
+end)
+CustomMinSlider:SetValue(1)
+
+local CustomMaxSlider = RandomWeightSection:NewSlider("Custom Max", "Maximum for custom mode", 
+    1000, 10, 1000, function(value)
+    Config.RandomWeight.MaxRange = value
+    if Config.RandomWeight.Enabled and Config.RandomWeight.Mode == "CustomRange" and originalModule then
+        ApplyRandomWeightMode()
+    end
+end)
+CustomMaxSlider:SetValue(1000)
+
+local BiasSlider = RandomWeightSection:NewSlider("Weight Bias", "Bias to high weights", 
+    100, 0, 100, function(value)
+    Config.RandomWeight.Bias = value / 100
+end)
+BiasSlider:SetValue(70)
+
+local FluctuationSlider = RandomWeightSection:NewSlider("Fluctuation", "Random variation", 
+    100, 0, 100, function(value)
+    Config.RandomWeight.Fluctuation = value / 100
+end)
+FluctuationSlider:SetValue(30)
+
+local PrecisionSection = WeightTab:NewSection("Precision")
+local PrecisionSlider = PrecisionSection:NewSlider("Decimal Places", "Weight precision", 3, 0, 3, function(value)
+    Config.WeightPrecision = value
+end)
+PrecisionSlider:SetValue(1)
+
+RandomWeightSection:NewButton("Apply Weight Mode", "Apply current settings", function()
+    if originalModule then
+        ApplyRandomWeightMode()
+        Library:Notify("Weight mode applied", 3)
+    else
+        Library:Notify("No module found", 3)
+    end
+end)
+
+local GiveTab = Window:NewTab("Fish Giver")
+local GiveSection = GiveTab:NewSection("Give Fish")
+
+GiveSection:NewToggle("Enable FishGiver", "Allow giving", function(state)
+    Config.FishGiver.Enabled = state
+end)
+
+local PlayerTextBox = GiveSection:NewTextBox("Target Player", "Player name", function(text)
+    Config.FishGiver.TargetPlayer = text
+end)
+
+local FishDropdown = GiveSection:NewDropdown("Fish Type", "Select fish", 
+    {"Megalodon", "Lava Megalodon", "Zombie Megalodon", "RobotMegalodon", "Ancient Whale", "Kraken", "Monster Shark", "Naga Keramat"}, 
+    function(selected)
+        Config.FishGiver.FishName = selected
+    end)
+FishDropdown:SetOption("Megalodon")
+
+local GiveRarityDropdown = GiveSection:NewDropdown("Give Rarity", "Rarity", 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
+    function(selected)
+        Config.FishGiver.Rarity = selected
+    end)
+GiveRarityDropdown:SetOption("Unknown")
+
+local GiveWeightSlider = GiveSection:NewSlider("Give Weight", "Weight", 1000, 10, 1000, function(value)
+    Config.FishGiver.Weight = value
+end)
+GiveWeightSlider:SetValue(999)
+
+GiveSection:NewButton("Give Fish Now", "Execute give", function()
+    local target = Config.FishGiver.TargetPlayer
+    if target and target ~= "" then
+        local success = GiveFishToPlayer(target, Config.FishGiver.FishName, Config.FishGiver.Rarity, Config.FishGiver.Weight)
+        Library:Notify(success and "Fish give attempted" or "Failed to give fish", 3)
+    else
+        Library:Notify("Enter player name", 5)
+    end
+end)
+
+local SellTab = Window:NewTab("Auto Sell")
+local SellSettings = SellTab:NewSection("Sell Configuration")
+
+SellSettings:NewToggle("Auto Sell", "Automatically sell", function(state)
+    Config.AutoSell = state
+end)
+
+local SellBelowDropdown = SellSettings:NewDropdown("Sell Below", "Sell below rarity", 
+    {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Unknown"}, 
+    function(selected)
+        Config.SellBelowRarity = selected
+    end)
+SellBelowDropdown:SetOption("Rare")
+
+SellSettings:NewButton("Sell All Now", "Sell all", function()
+    local sellRemote = FishingSystem:FindFirstChild("SellFish") or 
+                      FishingSystem:FindFirstChild("SellAllFish")
+    
+    if sellRemote then
+        for rarity, order in pairs(RarityOrder) do
+            local sellOrder = RarityOrder[Config.SellBelowRarity] or 3
+            if order < sellOrder then
+                pcall(function()
+                    if sellRemote:IsA("RemoteEvent") then
+                        sellRemote:FireServer(rarity)
+                    elseif sellRemote:IsA("RemoteFunction") then
+                        sellRemote:InvokeServer(rarity)
+                    else
+                        sellRemote:Fire(rarity)
+                    end
+                    task.wait(0.1)
+                end)
+            end
+        end
+        Library:Notify("Sell completed", 3)
+    else
+        Library:Notify("No sell remote found", 3)
+    end
+end)
+
+local StatsTab = Window:NewTab("Stats")
+local LiveStats = StatsTab:NewSection("Statistics")
+
+local TotalCatches = LiveStats:NewLabel("Total Catches: 0")
+local CurrentRarity = LiveStats:NewLabel("Rarity Range: Common - Unknown")
+local CurrentWeight = LiveStats:NewLabel("Weight Range: 1kg - 1000kg")
+local WeightModeLabel = LiveStats:NewLabel("Weight Mode: CustomRange")
+
+task.spawn(function()
+    while task.wait(1) do
+        TotalCatches:UpdateLabel("Total Catches: " .. CatchCount)
+        CurrentRarity:UpdateLabel("Rarity Range: " .. Config.MinRarity .. " - " .. Config.MaxRarity)
+        CurrentWeight:UpdateLabel("Weight Range: " .. Config.MinWeight .. "kg - " .. Config.MaxWeight .. "kg")
+        WeightModeLabel:UpdateLabel("Weight Mode: " .. Config.RandomWeight.Mode .. 
+            (Config.RandomWeight.Enabled and " (Active)" or " (Inactive)"))
+    end
+end)
+
+local UtilTab = Window:NewTab("Utilities")
+local UtilitySection = UtilTab:NewSection("Tools")
+
+UtilitySection:NewToggle("Bypass Cooldown", "Remove cooldown", function(state)
+    Config.BypassCooldown = state
+end)
+
+UtilitySection:NewToggle("Anti-AFK", "Prevent AFK", function(state)
+    Config.AntiAFK = state
+end)
+
+UtilitySection:NewButton("Hook Functions", "Hook module", function()
+    HookGameFunctions()
+    Library:Notify(moduleHookActive and "Hooked" or "Failed", 3)
+end)
+
+UtilitySection:NewButton("Test Silent Catch", "Test catch", function()
+    local success = SilentCatchFish()
+    Library:Notify(success and "Success" or "Failed", 3)
+end)
+
+UtilitySection:NewButton("Activate Random Weight", "Enable random", function()
+    Config.RandomWeight.Enabled = true
+    if originalModule then
+        ApplyRandomWeightMode()
+    end
+    Library:Notify("Random weight activated", 3)
+end)
+
+Library:Notify("Fishing Simulator Exploit Loaded v7.0", 5)
+
+-- Anti-AFK system
+if Config.AntiAFK then
+    task.spawn(function()
+        while task.wait(60) do
+            if Config.AntiAFK then
+                pcall(function()
+                    VirtualInputManager:SendKeyEvent(true, "LeftControl", false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, "LeftControl", false, game)
+                end)
+            end
+        end
+    end)
+end
+
+-- Initialize
+task.wait(1)
+HookGameFunctions()
+if Config.RandomWeight.Enabled then
+    ApplyRandomWeightMode()
+end
