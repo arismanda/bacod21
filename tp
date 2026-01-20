@@ -1,0 +1,1025 @@
+-- ✅ FULL CFrame Manager LocalScript (With Delay + Save/Load List Preset) - iOS Style
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+
+if _G.CFrameGuiLoaded then return end
+_G.CFrameGuiLoaded = true
+
+_G.CFrameStorage = _G.CFrameStorage or {}      -- autosave session list
+_G.CFramePresets = _G.CFramePresets or {}      -- saved named presets
+
+-- Variables for teleport control
+_G.Teleporting = false
+_G.StopTeleport = false
+
+---------------------------------------
+-- GUI - iOS Style (DECLARE GUI FIRST)
+---------------------------------------
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "CFrameManager"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+---------------------------------------
+-- Helpers - FIXED NOTIFICATION SYSTEM
+---------------------------------------
+local function showNotification(text)
+	-- Pastikan gui sudah ada
+	if not gui or not gui.Parent then
+		return
+	end
+
+	local notif = Instance.new("Frame")
+	notif.Size = UDim2.new(0, 300, 0, 50)
+	notif.Position = UDim2.new(0.5, -150, 0.1, -60)
+	notif.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	notif.BorderSizePixel = 0
+	notif.ZIndex = 100
+	notif.Parent = gui
+
+	local corner = Instance.new("UICorner", notif)
+	corner.CornerRadius = UDim.new(0, 12)
+
+	local stroke = Instance.new("UIStroke", notif)
+	stroke.Color = Color3.fromRGB(100, 100, 100)
+	stroke.Thickness = 2
+
+	local label = Instance.new("TextLabel", notif)
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.Position = UDim2.new(0, 0, 0, 0)
+	label.Text = text
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextSize = 14
+	label.TextWrapped = true
+
+	local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local showTween = TweenService:Create(notif, tweenInfo, {Position = UDim2.new(0.5, -150, 0.1, 10)})
+	local hideTween = TweenService:Create(notif, tweenInfo, {Position = UDim2.new(0.5, -150, 0.1, -60)})
+
+	-- Show notification
+	showTween:Play()
+
+	-- Auto hide after 2 seconds
+	task.spawn(function()
+		task.wait(2)
+		if notif and notif.Parent then
+			hideTween:Play()
+			hideTween.Completed:Connect(function()
+				if notif and notif.Parent then
+					notif:Destroy()
+				end
+			end)
+		end
+	end)
+
+	return notif
+end
+
+local function parseCFrame(txt)
+	local n = {}
+	for v in txt:gmatch("[-%d%.]+") do table.insert(n, tonumber(v)) end
+	if #n == 3 then
+		return CFrame.new(n[1],n[2],n[3])
+	elseif #n == 12 then
+		return CFrame.new(n[1],n[2],n[3], n[4],n[5],n[6], n[7],n[8],n[9], n[10],n[11],n[12])
+	end
+end
+
+local function cfToString3(cf)
+	return string.format("%.3f, %.3f, %.3f", cf.X, cf.Y, cf.Z)
+end
+
+-- Lanjutkan dengan sisa kode GUI...
+-- Main Toggle Button
+local toggle = Instance.new("TextButton", gui)
+toggle.Size = UDim2.new(0,130,0,36)
+toggle.Position = UDim2.new(0.02,0,0.05,0)
+toggle.Text = "Show CFrame GUI"
+toggle.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.BorderSizePixel = 0
+local toggleCorner = Instance.new("UICorner", toggle)
+toggleCorner.CornerRadius = UDim.new(0, 8)
+
+-- Main Frame
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0,500,0,520)
+frame.Position = UDim2.new(0.05,0,0.12,0)
+frame.BackgroundColor3 = Color3.fromRGB(242, 242, 247)
+frame.Visible = false
+frame.BorderSizePixel = 0
+frame.ZIndex = 10
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 12)
+
+-- ... (sisa kode GUI dan logika lainnya tetap sama)
+-- Resize Handle
+local resizeHandle = Instance.new("TextButton", frame)
+resizeHandle.Size = UDim2.new(0, 20, 0, 20)
+resizeHandle.Position = UDim2.new(1, -20, 1, -20)
+resizeHandle.Text = "⟳"
+resizeHandle.TextColor3 = Color3.fromRGB(100, 100, 100)
+resizeHandle.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+resizeHandle.BorderSizePixel = 0
+resizeHandle.ZIndex = 11
+local resizeCorner = Instance.new("UICorner", resizeHandle)
+resizeCorner.CornerRadius = UDim.new(0, 4)
+
+-- Header with iOS style
+local header = Instance.new("TextLabel", frame)
+header.Size = UDim2.new(1,0,0,44)
+header.Text = "CFrame Manager"
+header.TextColor3 = Color3.new(0,0,0)
+header.BackgroundColor3 = Color3.fromRGB(242, 242, 247)
+header.BorderSizePixel = 0
+header.Font = Enum.Font.FredokaOne
+header.TextSize = 18
+header.ZIndex = 11
+
+-- Drag functionality
+local dragging, dragPos, resizing, resizeStart = false
+header.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then 
+		dragging = true 
+		dragPos = i.Position 
+	end
+end)
+header.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then 
+		dragging = false 
+	end
+end)
+
+resizeHandle.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then 
+		resizing = true
+		resizeStart = i.Position
+	end
+end)
+resizeHandle.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then 
+		resizing = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(i)
+	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local d = i.Position - dragPos
+		frame.Position = UDim2.new(frame.Position.X.Scale, frame.Position.X.Offset+d.X, frame.Position.Y.Scale, frame.Position.Y.Offset+d.Y)
+		dragPos = i.Position
+	elseif resizing and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = i.Position - resizeStart
+		local newSize = UDim2.new(
+			0, math.max(400, frame.AbsoluteSize.X + delta.X),
+			0, math.max(300, frame.AbsoluteSize.Y + delta.Y)
+		)
+		frame.Size = newSize
+		resizeStart = i.Position
+	end
+end)
+
+-- Left Side Controls
+local leftPanel = Instance.new("Frame", frame)
+leftPanel.Size = UDim2.new(0.48, 0, 0, 300)
+leftPanel.Position = UDim2.new(0.01, 0, 0.1, 0)
+leftPanel.BackgroundTransparency = 1
+leftPanel.ZIndex = 11
+
+-- Right Side Coordinates
+local rightPanel = Instance.new("Frame", frame)
+rightPanel.Size = UDim2.new(0.48, 0, 0, 300)
+rightPanel.Position = UDim2.new(0.51, 0, 0.1, 0)
+rightPanel.BackgroundTransparency = 1
+rightPanel.ZIndex = 11
+
+---------------------------------------
+-- Left Panel Controls
+---------------------------------------
+
+-- Delay Input
+local delayLabel = Instance.new("TextLabel", leftPanel)
+delayLabel.Size = UDim2.new(1,0,0,20)
+delayLabel.Position = UDim2.new(0,0,0,0)
+delayLabel.Text = "Delay (seconds):"
+delayLabel.TextColor3 = Color3.new(0,0,0)
+delayLabel.BackgroundTransparency = 1
+delayLabel.TextXAlignment = Enum.TextXAlignment.Left
+delayLabel.ZIndex = 11
+
+local delayBox = Instance.new("TextBox", leftPanel)
+delayBox.Size = UDim2.new(1,0,0,36)
+delayBox.Position = UDim2.new(0,0,0,25)
+delayBox.PlaceholderText = "0"
+delayBox.Text = "0"
+delayBox.BackgroundColor3 = Color3.new(1,1,1)
+delayBox.TextColor3 = Color3.new(0,0,0)
+delayBox.BorderSizePixel = 0
+delayBox.ZIndex = 11
+local delayCorner = Instance.new("UICorner", delayBox)
+delayCorner.CornerRadius = UDim.new(0, 8)
+
+-- Auto Teleport Toggle - FIXED POSITION
+local autoTpFrame = Instance.new("Frame", leftPanel)
+autoTpFrame.Size = UDim2.new(1,0,0,36)
+autoTpFrame.Position = UDim2.new(0,0,0,75)
+autoTpFrame.BackgroundTransparency = 1
+autoTpFrame.ZIndex = 11
+
+local autoTpLabel = Instance.new("TextLabel", autoTpFrame)
+autoTpLabel.Size = UDim2.new(0.7,0,1,0)
+autoTpLabel.Text = "Enable Auto Teleport"
+autoTpLabel.TextColor3 = Color3.new(0,0,0)
+autoTpLabel.BackgroundTransparency = 1
+autoTpLabel.TextXAlignment = Enum.TextXAlignment.Left
+autoTpLabel.ZIndex = 11
+
+local autoTpToggleBg = Instance.new("Frame", autoTpFrame)
+autoTpToggleBg.Size = UDim2.new(0, 50, 0, 28)
+autoTpToggleBg.Position = UDim2.new(0.8, 0, 0.1, 0)
+autoTpToggleBg.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+autoTpToggleBg.BorderSizePixel = 0
+autoTpToggleBg.ZIndex = 11
+local autoTpToggleBgCorner = Instance.new("UICorner", autoTpToggleBg)
+autoTpToggleBgCorner.CornerRadius = UDim.new(1, 0)
+
+local autoTpToggle = Instance.new("TextButton", autoTpToggleBg)
+autoTpToggle.Size = UDim2.new(0, 24, 0, 24)
+autoTpToggle.Position = UDim2.new(0, 2, 0, 2)
+autoTpToggle.Text = ""
+autoTpToggle.BackgroundColor3 = Color3.new(1,1,1)
+autoTpToggle.BorderSizePixel = 0
+autoTpToggle.ZIndex = 12
+local autoTpCorner = Instance.new("UICorner", autoTpToggle)
+autoTpCorner.CornerRadius = UDim.new(1, 0)
+_G.AutoTeleport = false
+
+autoTpToggle.MouseButton1Click:Connect(function()
+	_G.AutoTeleport = not _G.AutoTeleport
+	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	if _G.AutoTeleport then
+		TweenService:Create(autoTpToggle, tweenInfo, {Position = UDim2.new(0, 24, 0, 2)}):Play()
+		TweenService:Create(autoTpToggleBg, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 122, 255)}):Play()
+		showNotification("🔔 Auto Teleport Enabled")
+	else
+		TweenService:Create(autoTpToggle, tweenInfo, {Position = UDim2.new(0, 2, 0, 2)}):Play()
+		TweenService:Create(autoTpToggleBg, tweenInfo, {BackgroundColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+		showNotification("🔔 Auto Teleport Disabled")
+	end
+end)
+
+-- Loop Toggle - FIXED POSITION
+local loopFrame = Instance.new("Frame", leftPanel)
+loopFrame.Size = UDim2.new(1,0,0,36)
+loopFrame.Position = UDim2.new(0,0,0,125)
+loopFrame.BackgroundTransparency = 1
+loopFrame.ZIndex = 11
+
+local loopLabel = Instance.new("TextLabel", loopFrame)
+loopLabel.Size = UDim2.new(0.7,0,1,0)
+loopLabel.Text = "Enable Loop"
+loopLabel.TextColor3 = Color3.new(0,0,0)
+loopLabel.BackgroundTransparency = 1
+loopLabel.TextXAlignment = Enum.TextXAlignment.Left
+loopLabel.ZIndex = 11
+
+local loopToggleBg = Instance.new("Frame", loopFrame)
+loopToggleBg.Size = UDim2.new(0, 50, 0, 28)
+loopToggleBg.Position = UDim2.new(0.8, 0, 0.1, 0)
+loopToggleBg.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+loopToggleBg.BorderSizePixel = 0
+loopToggleBg.ZIndex = 11
+local loopToggleBgCorner = Instance.new("UICorner", loopToggleBg)
+loopToggleBgCorner.CornerRadius = UDim.new(1, 0)
+
+local loopToggle = Instance.new("TextButton", loopToggleBg)
+loopToggle.Size = UDim2.new(0, 24, 0, 24)
+loopToggle.Position = UDim2.new(0, 2, 0, 2)
+loopToggle.Text = ""
+loopToggle.BackgroundColor3 = Color3.new(1,1,1)
+loopToggle.BorderSizePixel = 0
+loopToggle.ZIndex = 12
+local loopCorner = Instance.new("UICorner", loopToggle)
+loopCorner.CornerRadius = UDim.new(1, 0)
+_G.LoopEnabled = false
+
+loopToggle.MouseButton1Click:Connect(function()
+	_G.LoopEnabled = not _G.LoopEnabled
+	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	if _G.LoopEnabled then
+		TweenService:Create(loopToggle, tweenInfo, {Position = UDim2.new(0, 24, 0, 2)}):Play()
+		TweenService:Create(loopToggleBg, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 122, 255)}):Play()
+		showNotification("🔔 Loop Enabled")
+	else
+		TweenService:Create(loopToggle, tweenInfo, {Position = UDim2.new(0, 2, 0, 2)}):Play()
+		TweenService:Create(loopToggleBg, tweenInfo, {BackgroundColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+		showNotification("🔔 Loop Disabled")
+	end
+end)
+
+-- Save/Load Config
+local configLabel = Instance.new("TextLabel", leftPanel)
+configLabel.Size = UDim2.new(1,0,0,20)
+configLabel.Position = UDim2.new(0,0,0,185)
+configLabel.Text = "Configuration:"
+configLabel.TextColor3 = Color3.new(0,0,0)
+configLabel.BackgroundTransparency = 1
+configLabel.TextXAlignment = Enum.TextXAlignment.Left
+configLabel.ZIndex = 11
+
+local presetName = Instance.new("TextBox", leftPanel)
+presetName.Size = UDim2.new(1,0,0,36)
+presetName.Position = UDim2.new(0,0,0,210)
+presetName.PlaceholderText = "Preset Name"
+presetName.Text = ""
+presetName.BackgroundColor3 = Color3.new(1,1,1)
+presetName.TextColor3 = Color3.new(0,0,0)
+presetName.BorderSizePixel = 0
+presetName.ZIndex = 11
+local nameCorner = Instance.new("UICorner", presetName)
+nameCorner.CornerRadius = UDim.new(0, 8)
+
+-- Dropdown for saved configs
+local dropdownButton = Instance.new("TextButton", leftPanel)
+dropdownButton.Size = UDim2.new(0.48,0,0,36)
+dropdownButton.Position = UDim2.new(0.52,0,0,260)
+dropdownButton.Text = "▼ Saved Configs"
+dropdownButton.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+dropdownButton.TextColor3 = Color3.new(1,1,1)
+dropdownButton.BorderSizePixel = 0
+dropdownButton.ZIndex = 11
+local dropdownCorner = Instance.new("UICorner", dropdownButton)
+dropdownCorner.CornerRadius = UDim.new(0, 8)
+
+local dropdownFrame = Instance.new("Frame", leftPanel)
+dropdownFrame.Size = UDim2.new(0.48,0,0,120)
+dropdownFrame.Position = UDim2.new(0.52,0,0,300)
+dropdownFrame.BackgroundColor3 = Color3.new(1,1,1)
+dropdownFrame.BorderSizePixel = 0
+dropdownFrame.Visible = false
+dropdownFrame.ZIndex = 15
+local dropdownFrameCorner = Instance.new("UICorner", dropdownFrame)
+dropdownFrameCorner.CornerRadius = UDim.new(0, 8)
+
+local dropdownScroll = Instance.new("ScrollingFrame", dropdownFrame)
+dropdownScroll.Size = UDim2.new(1,0,1,0)
+dropdownScroll.BackgroundTransparency = 1
+dropdownScroll.BorderSizePixel = 0
+dropdownScroll.ScrollBarThickness = 6
+dropdownScroll.ZIndex = 16
+
+local dropdownList = Instance.new("UIListLayout", dropdownScroll)
+dropdownList.Padding = UDim.new(0,2)
+
+local saveBtn = Instance.new("TextButton", leftPanel)
+saveBtn.Size = UDim2.new(0.48,0,0,36)
+saveBtn.Position = UDim2.new(0,0,0,260)
+saveBtn.Text = "💾 Save Config"
+saveBtn.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+saveBtn.TextColor3 = Color3.new(1,1,1)
+saveBtn.BorderSizePixel = 0
+saveBtn.ZIndex = 11
+local saveCorner = Instance.new("UICorner", saveBtn)
+saveCorner.CornerRadius = UDim.new(0, 8)
+
+local loadBtn = Instance.new("TextButton", leftPanel)
+loadBtn.Size = UDim2.new(0.48,0,0,36)
+loadBtn.Position = UDim2.new(0,0,0,305)
+loadBtn.Text = "📂 Load Config"
+loadBtn.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+loadBtn.TextColor3 = Color3.new(1,1,1)
+loadBtn.BorderSizePixel = 0
+loadBtn.ZIndex = 11
+local loadCorner = Instance.new("UICorner", loadBtn)
+loadCorner.CornerRadius = UDim.new(0, 8)
+
+-- Function to refresh dropdown
+local function refreshDropdown()
+	for _, child in ipairs(dropdownScroll:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	local yPos = 0
+	for name, data in pairs(_G.CFramePresets) do
+		local configBtn = Instance.new("TextButton", dropdownScroll)
+		configBtn.Size = UDim2.new(1, -10, 0, 30)
+		configBtn.Position = UDim2.new(0, 5, 0, yPos)
+		configBtn.Text = name .. " (" .. #data .. " coords)"
+		configBtn.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+		configBtn.TextColor3 = Color3.new(0,0,0)
+		configBtn.BorderSizePixel = 0
+		configBtn.TextXAlignment = Enum.TextXAlignment.Left
+		configBtn.ZIndex = 17
+
+		local btnCorner = Instance.new("UICorner", configBtn)
+		btnCorner.CornerRadius = UDim.new(0, 4)
+
+		configBtn.MouseButton1Click:Connect(function()
+			presetName.Text = name
+			dropdownFrame.Visible = false
+			dropdownButton.Text = "▼ Saved Configs"
+			showNotification("📝 Selected: " .. name)
+		end)
+
+		yPos = yPos + 32
+	end
+
+	dropdownScroll.CanvasSize = UDim2.new(0,0,0,yPos)
+end
+
+dropdownButton.MouseButton1Click:Connect(function()
+	dropdownFrame.Visible = not dropdownFrame.Visible
+	if dropdownFrame.Visible then
+		refreshDropdown()
+		dropdownButton.Text = "▲ Saved Configs"
+		showNotification("📂 Showing saved configs")
+	else
+		dropdownButton.Text = "▼ Saved Configs"
+	end
+end)
+
+---------------------------------------
+-- Right Panel - Coordinates List
+---------------------------------------
+local coordLabel = Instance.new("TextLabel", rightPanel)
+coordLabel.Size = UDim2.new(1,0,0,20)
+coordLabel.Text = "Coordinates List:"
+coordLabel.TextColor3 = Color3.new(0,0,0)
+coordLabel.BackgroundTransparency = 1
+coordLabel.TextXAlignment = Enum.TextXAlignment.Left
+coordLabel.ZIndex = 11
+
+local scroll = Instance.new("ScrollingFrame", rightPanel)
+scroll.Size = UDim2.new(1,0,1,-30)
+scroll.Position = UDim2.new(0,0,0,25)
+scroll.CanvasSize = UDim2.new(0,0,0,0)
+scroll.BackgroundColor3 = Color3.new(1,1,1)
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 6
+scroll.ZIndex = 11
+local scrollCorner = Instance.new("UICorner", scroll)
+scrollCorner.CornerRadius = UDim.new(0, 8)
+
+local list = Instance.new("UIListLayout", scroll)
+list.Padding = UDim.new(0,8)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+
+local boxes = {}
+local function resize()
+	scroll.CanvasSize = UDim2.new(0,0,0,#boxes * 44)
+end
+
+local function addBox(txt)
+	local boxFrame = Instance.new("Frame", scroll)
+	boxFrame.Size = UDim2.new(1,-10,0,40)
+	boxFrame.BackgroundColor3 = Color3.new(1,1,1)
+	boxFrame.BorderSizePixel = 0
+	boxFrame.ZIndex = 11
+
+	-- Add subtle border/shadow
+	local stroke = Instance.new("UIStroke", boxFrame)
+	stroke.Color = Color3.fromRGB(220, 220, 220)
+	stroke.Thickness = 1
+
+	local boxCorner = Instance.new("UICorner", boxFrame)
+	boxCorner.CornerRadius = UDim.new(0, 8)
+
+	-- Number label
+	local numberLabel = Instance.new("TextLabel", boxFrame)
+	numberLabel.Size = UDim2.new(0, 30, 1, 0)
+	numberLabel.Position = UDim2.new(0, 5, 0, 0)
+	numberLabel.Text = tostring(#boxes + 1)
+	numberLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+	numberLabel.BackgroundTransparency = 1
+	numberLabel.TextXAlignment = Enum.TextXAlignment.Left
+	numberLabel.ZIndex = 12
+
+	local box = Instance.new("TextBox", boxFrame)
+	box.Size = UDim2.new(1, -40, 1, -10)
+	box.Position = UDim2.new(0, 35, 0, 5)
+	box.Text = txt or ""
+	box.BackgroundTransparency = 1
+	box.TextColor3 = Color3.new(0,0,0)
+	box.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+	box.PlaceholderText = "X, Y, Z or full CFrame..."
+	box.ZIndex = 12
+
+	-- Delete button for each coordinate - FIXED ERROR
+	local deleteBtn = Instance.new("TextButton", boxFrame)
+	deleteBtn.Size = UDim2.new(0, 20, 0, 20)
+	deleteBtn.Position = UDim2.new(1, -25, 0.5, -10)
+	deleteBtn.Text = "×"
+	deleteBtn.TextColor3 = Color3.fromRGB(255, 59, 48)
+	deleteBtn.BackgroundTransparency = 1
+	deleteBtn.Font = Enum.Font.FredokaOne
+	deleteBtn.TextSize = 16
+	deleteBtn.ZIndex = 12
+
+	deleteBtn.MouseButton1Click:Connect(function()
+		-- Simpan nomor coordinate sebelum dihapus untuk notifikasi
+		local coordinateNumber = numberLabel.Text
+
+		boxFrame:Destroy()
+		for i, v in ipairs(boxes) do
+			if v == boxFrame then
+				table.remove(boxes, i)
+				break
+			end
+		end
+		-- Update numbers
+		for i, v in ipairs(boxes) do
+			local numLabel = v:FindFirstChildOfClass("TextLabel")
+			if numLabel then
+				numLabel.Text = tostring(i)
+			end
+		end
+		resize()
+		showNotification("🗑️ Coordinate #" .. coordinateNumber .. " removed")
+	end)
+
+	table.insert(boxes, boxFrame)
+	resize()
+	return boxFrame
+end
+
+-- Function to find first empty coordinate slot
+local function findFirstEmptyCoordinate()
+	for i, boxFrame in ipairs(boxes) do
+		local box = boxFrame:FindFirstChildOfClass("TextBox")
+		if box and (box.Text == "" or box.Text == box.PlaceholderText) then
+			return i
+		end
+	end
+	return #boxes + 1 -- Return next available slot
+end
+
+-- Load autosession
+for _,v in ipairs(_G.CFrameStorage) do addBox(v) end
+if #boxes==0 then addBox("") end
+
+---------------------------------------
+-- Bottom Action Buttons
+---------------------------------------
+local actionFrame = Instance.new("Frame", frame)
+actionFrame.Size = UDim2.new(1, -20, 0, 50)
+actionFrame.Position = UDim2.new(0, 10, 1, -60)
+actionFrame.BackgroundTransparency = 1
+actionFrame.ZIndex = 11
+
+-- First row of buttons
+local addBtn = Instance.new("TextButton", actionFrame)
+addBtn.Size = UDim2.new(0.23,0,0,40)
+addBtn.Position = UDim2.new(0,0,0,0)
+addBtn.Text = "➕ Add"
+addBtn.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+addBtn.TextColor3 = Color3.new(1,1,1)
+addBtn.BorderSizePixel = 0
+addBtn.ZIndex = 12
+local addCorner = Instance.new("UICorner", addBtn)
+addCorner.CornerRadius = UDim.new(0, 8)
+
+local copyBtn = Instance.new("TextButton", actionFrame)
+copyBtn.Size = UDim2.new(0.23,0,0,40)
+copyBtn.Position = UDim2.new(0.255,0,0,0)
+copyBtn.Text = "📋 Copy Pos"
+copyBtn.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+copyBtn.TextColor3 = Color3.new(1,1,1)
+copyBtn.BorderSizePixel = 0
+copyBtn.ZIndex = 12
+local copyCorner = Instance.new("UICorner", copyBtn)
+copyCorner.CornerRadius = UDim.new(0, 8)
+
+local tpBtn = Instance.new("TextButton", actionFrame)
+tpBtn.Size = UDim2.new(0.23,0,0,40)
+tpBtn.Position = UDim2.new(0.51,0,0,0)
+tpBtn.Text = "🚀 Teleport"
+tpBtn.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+tpBtn.TextColor3 = Color3.new(1,1,1)
+tpBtn.BorderSizePixel = 0
+tpBtn.ZIndex = 12
+local tpCorner = Instance.new("UICorner", tpBtn)
+tpCorner.CornerRadius = UDim.new(0, 8)
+
+local clearBtn = Instance.new("TextButton", actionFrame)
+clearBtn.Size = UDim2.new(0.23,0,0,40)
+clearBtn.Position = UDim2.new(0.765,0,0,0)
+clearBtn.Text = "🗑️ Clear All"
+clearBtn.BackgroundColor3 = Color3.fromRGB(255, 59, 48)
+clearBtn.TextColor3 = Color3.new(1,1,1)
+clearBtn.BorderSizePixel = 0
+clearBtn.ZIndex = 12
+local clearCorner = Instance.new("UICorner", clearBtn)
+clearCorner.CornerRadius = UDim.new(0, 8)
+
+-- Second row of buttons (Stop button)
+local stopBtn = Instance.new("TextButton", actionFrame)
+stopBtn.Size = UDim2.new(1,0,0,40)
+stopBtn.Position = UDim2.new(0,0,0,45)
+stopBtn.Text = "⏹️ Stop Teleport"
+stopBtn.BackgroundColor3 = Color3.fromRGB(255, 149, 0)
+stopBtn.TextColor3 = Color3.new(1,1,1)
+stopBtn.BorderSizePixel = 0
+stopBtn.Visible = false
+stopBtn.ZIndex = 12
+local stopCorner = Instance.new("UICorner", stopBtn)
+stopCorner.CornerRadius = UDim.new(0, 8)
+
+---------------------------------------
+-- Logic
+---------------------------------------
+toggle.MouseButton1Click:Connect(function()
+	frame.Visible = not frame.Visible
+	toggle.Text = frame.Visible and "Hide CFrame GUI" or "Show CFrame GUI"
+
+	local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	if frame.Visible then
+		TweenService:Create(frame, tweenInfo, {Position = UDim2.new(0.05,0,0.12,0)}):Play()
+		showNotification("📱 CFrame Manager Opened")
+	else
+		showNotification("📱 CFrame Manager Closed")
+	end
+end)
+
+UserInputService.InputBegan:Connect(function(i,gp)
+	if not gp and i.KeyCode==Enum.KeyCode.Y then
+		frame.Visible = not frame.Visible
+		toggle.Text = frame.Visible and "Hide CFrame GUI" or "Show CFrame GUI"
+		showNotification(frame.Visible and "📱 CFrame Manager Opened" or "📱 CFrame Manager Closed")
+	end
+end)
+
+addBtn.MouseButton1Click:Connect(function() 
+	addBox("") 
+	showNotification("➕ Coordinate slot added")
+end)
+
+copyBtn.MouseButton1Click:Connect(function()
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if hrp then 
+		local currentPos = cfToString3(hrp.CFrame)
+		local emptySlot = findFirstEmptyCoordinate()
+
+		if boxes[emptySlot] then
+			local box = boxes[emptySlot]:FindFirstChildOfClass("TextBox")
+			if box then
+				box.Text = currentPos
+			end
+		else
+			addBox(currentPos)
+		end
+
+		showNotification("📋 Position copied to coordinate #" .. emptySlot)
+	else
+		showNotification("❌ Error: Character not found")
+	end
+end)
+
+-- ✅ Clear All Function - FIXED TIMEOUT ISSUE & TELEPORT SAFETY
+clearBtn.MouseButton1Click:Connect(function()
+	-- Gunakan task.defer untuk menghindari timeout
+	task.defer(function()
+		local boxCount = #boxes
+
+		-- Jika sedang teleport, cukup clear koordinat tanpa menghapus box
+		if _G.Teleporting then
+			for i, boxFrame in ipairs(boxes) do
+				local box = boxFrame:FindFirstChildOfClass("TextBox")
+				if box then
+					box.Text = ""
+				end
+			end
+			showNotification("🗑️ Coordinates cleared during teleport (" .. boxCount .. " slots)")
+		else
+			-- Jika tidak sedang teleport, hapus semua box
+			for i = boxCount, 1, -1 do
+				if boxes[i] then
+					boxes[i]:Destroy()
+				end
+			end
+			boxes = {}
+			addBox("")
+			showNotification("🗑️ All coordinates cleared (" .. boxCount .. " removed)")
+		end
+	end)
+end)
+-- ✅ Stop Teleport Function
+stopBtn.MouseButton1Click:Connect(function()
+	if _G.Teleporting then
+		_G.StopTeleport = true
+		showNotification("🛑 Teleportation stopped")
+		stopBtn.Visible = false
+	end
+end)
+
+-- ✅ Save Preset - FIXED VERSION
+saveBtn.MouseButton1Click:Connect(function()
+	if presetName.Text == "" then 
+		showNotification("❌ Please enter preset name")
+		return 
+	end
+
+	_G.CFramePresets[presetName.Text] = {}
+	local savedCount = 0
+
+	for _, boxFrame in ipairs(boxes) do
+		local box = boxFrame:FindFirstChildOfClass("TextBox")
+		if box and box.Text ~= "" then 
+			table.insert(_G.CFramePresets[presetName.Text], box.Text)
+			savedCount = savedCount + 1
+		end
+	end
+
+	if savedCount > 0 then
+		showNotification("💾 Config saved: " .. presetName.Text .. " (" .. savedCount .. " coordinates)")
+		refreshDropdown()
+	else
+		showNotification("❌ No coordinates to save")
+	end
+end)
+
+loadBtn.MouseButton1Click:Connect(function()
+	local name = presetName.Text
+	if name == "" then
+		showNotification("❌ Please enter preset name")
+		return
+	end
+
+	if _G.CFramePresets[name] then
+		-- Stop teleport jika sedang berjalan
+		if _G.Teleporting then
+			_G.StopTeleport = true
+			_G.Teleporting = false
+			stopBtn.Visible = false
+		end
+
+		-- Reset teleport index
+		currentTeleportIndex = 1
+
+		-- Clear existing boxes
+		for _, b in ipairs(boxes) do b:Destroy() end
+		boxes = {}
+
+		-- Load new boxes
+		for _, v in ipairs(_G.CFramePresets[name]) do 
+			addBox(v) 
+		end
+
+		showNotification("📂 Config loaded: " .. name .. " (" .. #_G.CFramePresets[name] .. " coordinates)")
+		dropdownFrame.Visible = false
+		dropdownButton.Text = "▼ Saved Configs"
+		_G.StopTeleport = false
+	else
+		showNotification("❌ Preset not found: " .. name)
+	end
+end)
+
+-- ✅ Teleport Function - FIXED AUTO TELEPORT & SEQUENTIAL TELEPORT
+local currentTeleportIndex = 1
+
+local function teleportToCoordinates()
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not hrp then 
+		showNotification("❌ Error: Character not found")
+		return 
+	end
+
+	local delayTime = tonumber(delayBox.Text) or 0
+	local teleportedCount = 0
+
+	_G.Teleporting = true
+	_G.StopTeleport = false
+	stopBtn.Visible = true
+
+	repeat
+		for i = currentTeleportIndex, #boxes do
+			-- Check if stop was requested
+			if _G.StopTeleport then
+				break
+			end
+
+			local boxFrame = boxes[i]
+			local box = boxFrame and boxFrame:FindFirstChildOfClass("TextBox")
+			if box and box.Text ~= "" then
+				local cf = parseCFrame(box.Text)
+				if cf then
+					local yRot = hrp.Orientation.Y
+					local upright = CFrame.new(cf.Position) * CFrame.Angles(0, math.rad(yRot), 0)
+					hrp.CFrame = upright
+					teleportedCount = teleportedCount + 1
+					currentTeleportIndex = i + 1 -- Update index untuk next teleport
+
+					-- FIXED: Auto Teleport hanya untuk notifikasi, bukan kontrol teleport
+					if _G.AutoTeleport then
+						if delayTime == 0 then
+							showNotification("📍 Teleported to coordinate #" .. i .. " (Instant)")
+						else
+							showNotification("📍 Teleported to coordinate #" .. i .. " (Delay: " .. delayTime .. "s)")
+						end
+					end
+
+					-- INSTANT TELEPORT WHEN DELAY 0
+					if delayTime > 0 and not _G.StopTeleport then
+						local elapsed = 0
+						while elapsed < delayTime and not _G.StopTeleport do
+							task.wait(0.1)
+							elapsed = elapsed + 0.1
+						end
+					end
+
+					-- Jika Auto Teleport tidak aktif, berhenti setelah satu teleport
+					if not _G.AutoTeleport then
+						break
+					end
+				else
+					showNotification("❌ Invalid coordinate at #" .. i)
+				end
+			end
+
+			-- Check again after delay
+			if _G.StopTeleport then
+				break
+			end
+		end
+
+		-- Reset index jika mencapai akhir dan loop enabled
+		if _G.LoopEnabled and teleportedCount > 0 and not _G.StopTeleport then
+			currentTeleportIndex = 1
+			showNotification("🔁 Loop completed. Restarting...")
+		else
+			-- Jika tidak loop, berhenti setelah satu siklus
+			break
+		end
+	until not _G.LoopEnabled or _G.StopTeleport
+
+	_G.Teleporting = false
+	stopBtn.Visible = false
+
+	if _G.StopTeleport then
+		showNotification("🛑 Teleportation stopped by user")
+	elseif teleportedCount > 0 then
+		if _G.AutoTeleport then
+			if delayTime == 0 then
+				showNotification("⚡ Instant teleportation completed! (" .. teleportedCount .. " locations)")
+			else
+				showNotification("✅ Teleportation completed! (" .. teleportedCount .. " locations)")
+			end
+		else
+			showNotification("📍 Teleported to coordinate #" .. (currentTeleportIndex - 1))
+		end
+	else
+		showNotification("❌ No valid coordinates to teleport")
+		currentTeleportIndex = 1 -- Reset jika tidak ada koordinat valid
+	end
+end
+
+tpBtn.MouseButton1Click:Connect(function()
+	if _G.Teleporting then
+		showNotification("⚠️ Teleportation is already in progress")
+		return
+	end
+
+	-- Reset index jika sudah melebihi jumlah koordinat
+	if currentTeleportIndex > #boxes then
+		currentTeleportIndex = 1
+	end
+
+	local delayTime = tonumber(delayBox.Text) or 0
+
+	if _G.AutoTeleport then
+		if _G.LoopEnabled then
+			if delayTime == 0 then
+				showNotification("⚡ Starting instant loop teleportation...")
+			else
+				showNotification("🔁 Starting loop teleportation...")
+			end
+		else
+			if delayTime == 0 then
+				showNotification("⚡ Starting instant teleportation...")
+			else
+				showNotification("🚀 Starting teleportation...")
+			end
+		end
+	else
+		-- Sequential teleport (satu per satu)
+		local boxFrame = boxes[currentTeleportIndex]
+		local box = boxFrame and boxFrame:FindFirstChildOfClass("TextBox")
+		if box and box.Text ~= "" then
+			showNotification("🚀 Teleporting to coordinate #" .. currentTeleportIndex)
+		else
+			showNotification("⏭️ Skipping empty coordinate #" .. currentTeleportIndex)
+		end
+	end
+
+	teleportToCoordinates()
+end)
+
+-- Reset teleport index ketika Clear All
+clearBtn.MouseButton1Click:Connect(function()
+	task.defer(function()
+		local boxCount = #boxes
+		local wasTeleporting = _G.Teleporting
+
+		-- Stop teleport jika sedang berjalan
+		if wasTeleporting then
+			_G.StopTeleport = true
+			_G.Teleporting = false
+			stopBtn.Visible = false
+		end
+
+		-- Reset teleport index
+		currentTeleportIndex = 1
+
+		-- Clear semua koordinat
+		for i, boxFrame in ipairs(boxes) do
+			local box = boxFrame:FindFirstChildOfClass("TextBox")
+			if box then
+				box.Text = ""
+			end
+		end
+
+		if wasTeleporting then
+			showNotification("🛑 Teleport stopped & " .. boxCount .. " coordinates cleared")
+			_G.StopTeleport = false
+		else
+			showNotification("🗑️ All coordinates cleared (" .. boxCount .. " locations)")
+		end
+	end)
+end)
+
+
+
+
+tpBtn.MouseButton1Click:Connect(function()
+	if _G.Teleporting then
+		showNotification("⚠️ Teleportation is already in progress")
+		return
+	end
+
+	local delayTime = tonumber(delayBox.Text) or 0
+
+	if _G.LoopEnabled then
+		if delayTime == 0 then
+			showNotification("⚡ Starting instant loop teleportation...")
+		else
+			showNotification("🔁 Starting loop teleportation...")
+		end
+	else
+		if delayTime == 0 then
+			showNotification("⚡ Instant teleporting to coordinates...")
+		else
+			showNotification("🚀 Teleporting to coordinates...")
+		end
+	end
+	teleportToCoordinates()
+end)
+
+-- Close dropdown when clicking outside
+UserInputService.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if dropdownFrame.Visible then
+			local mousePos = input.Position
+			local dropdownAbsPos = dropdownFrame.AbsolutePosition
+			local dropdownSize = dropdownFrame.AbsoluteSize
+
+			if not (mousePos.X >= dropdownAbsPos.X and mousePos.X <= dropdownAbsPos.X + dropdownSize.X and
+				mousePos.Y >= dropdownAbsPos.Y and mousePos.Y <= dropdownAbsPos.Y + dropdownSize.Y) then
+				dropdownFrame.Visible = false
+				dropdownButton.Text = "▼ Saved Configs"
+			end
+		end
+	end
+end)
+
+-- ✅ Auto backup session
+task.spawn(function()
+	while true do
+		_G.CFrameStorage = {}
+		for _, boxFrame in ipairs(boxes) do
+			local box = boxFrame:FindFirstChildOfClass("TextBox")
+			if box and box.Text ~= "" then 
+				table.insert(_G.CFrameStorage, box.Text) 
+			end
+		end
+		task.wait(2) -- Backup every 2 seconds
+	end
+end)
+
+-- ✅ Test notification system
+task.spawn(function()
+	task.wait(2)
+	showNotification("🎮 CFrame Manager Loaded! Press Y to toggle")
+end)
+
+-- Debug: Test notification when script starts
+task.spawn(function()
+	task.wait(1)
+	showNotification("🔧 Notification system test - CFrame Manager Ready!")
+end)
