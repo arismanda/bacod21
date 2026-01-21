@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -110,7 +111,7 @@ clearButton.AutoButtonColor = true
 
 local partsFrame = Instance.new("ScrollingFrame")
 partsFrame.Name = "PartsFrame"
-partsFrame.Size = UDim2.new(1, -20, 0, 220)
+partsFrame.Size = UDim2.new(1, -20, 0, 179)
 partsFrame.Position = UDim2.new(0, 10, 0, 170)
 partsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 partsFrame.BorderSizePixel = 0
@@ -235,6 +236,106 @@ local BRING_OFFSET = 5
 local BRING_HEIGHT = 2
 
 local originalCollisionStates = {}
+local strokeAdornments = {}
+local autoUpdateConnection = nil
+local lastSearchText = ""
+
+-- DEKLARASI FUNGSI STARTAUTOUPDATE DI AWAL
+local function startAutoUpdate()
+	if autoUpdateConnection then
+		autoUpdateConnection:Disconnect()
+	end
+
+	local lastUpdateTime = 0
+	local UPDATE_INTERVAL = 1
+
+	autoUpdateConnection = RunService.Heartbeat:Connect(function(deltaTime)
+		lastUpdateTime = lastUpdateTime + deltaTime
+
+		if lastUpdateTime >= UPDATE_INTERVAL then
+			lastUpdateTime = 0
+
+			local hasNewObjects = false
+
+			local function checkForNewObjects(parent, checkedObjects)
+				for _, obj in pairs(parent:GetChildren()) do
+					if not checkedObjects[obj] then
+						local isRelevant = false
+						local objType = obj.ClassName
+
+						if obj:IsA("BasePart") and obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
+							isRelevant = true
+						elseif obj:IsA("Model") and obj ~= character then
+							isRelevant = true
+						elseif obj:IsA("Folder") then
+							checkForNewObjects(obj, checkedObjects)
+						elseif obj:IsA("MeshPart") or obj:IsA("Part") or obj:IsA("WedgePart") or obj:IsA("CornerWedgePart") 
+							or obj:IsA("CylinderMesh") or obj:IsA("SpecialMesh") then
+							if obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
+								isRelevant = true
+							end
+						end
+
+						if isRelevant then
+							local alreadyInList = false
+							for _, item in ipairs(objectList) do
+								if item.object == obj then
+									alreadyInList = true
+									break
+								end
+							end
+
+							if not alreadyInList then
+								hasNewObjects = true
+								local prefix = ""
+								local parentObj = obj.Parent
+								local depth = 0
+
+								while parentObj and parentObj ~= workspace and depth < 5 do
+									if parentObj:IsA("Model") or parentObj:IsA("Folder") then
+										prefix = parentObj.Name .. (parentObj:IsA("Folder") and "/" or ".") .. prefix
+									end
+									parentObj = parentObj.Parent
+									depth = depth + 1
+								end
+
+								local objType = obj.ClassName
+								local typeName = obj:IsA("Model") and "Model" or objType
+								local fullName = prefix .. obj.Name .. " [" .. typeName .. "]"
+
+								table.insert(objectList, {name = fullName, object = obj})
+								table.insert(filteredList, {name = fullName, object = obj})
+
+								if selectedObjects[obj] then
+									createStroke(obj)
+								end
+							end
+						end
+
+						checkedObjects[obj] = true
+
+						if obj:IsA("Model") or obj:IsA("Folder") then
+							checkForNewObjects(obj, checkedObjects)
+						end
+					end
+				end
+			end
+
+			local checkedObjects = {}
+			checkForNewObjects(workspace, checkedObjects)
+
+			if hasNewObjects then
+				if lastSearchText ~= "" then
+					filterParts(lastSearchText)
+				else
+					updatePartsList()
+				end
+			end
+
+			updateAllStrokes()
+		end
+	end)
+end
 
 local function getPositionBehindCharacter(distance, height)
 	if not humanoidRootPart then
@@ -248,6 +349,50 @@ local function getPositionBehindCharacter(distance, height)
 	targetPosition = Vector3.new(targetPosition.X, humanoidRootPart.Position.Y + height, targetPosition.Z)
 
 	return targetPosition
+end
+
+local function createStroke(object)
+	if not object or not object.Parent then return end
+
+	if strokeAdornments[object] then
+		strokeAdornments[object]:Destroy()
+		strokeAdornments[object] = nil
+	end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "AutoBringHighlight"
+	highlight.FillColor = Color3.fromRGB(255, 255, 255)
+	highlight.FillTransparency = 0.8
+	highlight.OutlineColor = Color3.fromRGB(0, 170, 255)
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.Parent = object
+
+	strokeAdornments[object] = highlight
+end
+
+local function removeStroke(object)
+	if strokeAdornments[object] then
+		strokeAdornments[object]:Destroy()
+		strokeAdornments[object] = nil
+	end
+end
+
+local function updateAllStrokes()
+	for obj in pairs(selectedObjects) do
+		if obj and obj.Parent then
+			createStroke(obj)
+		else
+			selectedObjects[obj] = nil
+			removeStroke(obj)
+		end
+	end
+
+	for obj, highlight in pairs(strokeAdornments) do
+		if not selectedObjects[obj] then
+			removeStroke(obj)
+		end
+	end
 end
 
 local function createPartItem(name, object)
@@ -314,6 +459,8 @@ local function createPartItem(name, object)
 			itemFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
 			itemText.TextColor3 = Color3.fromRGB(220, 220, 220)
 
+			removeStroke(object)
+
 			if bringingEnabled then
 				if bringConnection then
 					local objList = {}
@@ -361,6 +508,8 @@ local function createPartItem(name, object)
 			selectionIndicator.Visible = true
 			itemFrame.BackgroundColor3 = Color3.fromRGB(60, 80, 100)
 			itemText.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+			createStroke(object)
 
 			if bringingEnabled then
 				if bringIndicator then
@@ -427,6 +576,10 @@ local function updateBringIndicator()
 end
 
 local function clearSelection()
+	for obj in pairs(selectedObjects) do
+		removeStroke(obj)
+	end
+
 	selectedObjects = {}
 
 	for _, child in pairs(partsFrame:GetChildren()) do
@@ -450,57 +603,6 @@ local function clearSelection()
 	end
 
 	selectionInfo.Text = "Selected: 0 part(s)"
-end
-
-local function scanWorkspace()
-	objectList = {}
-	filteredList = {}
-	clearSelection()
-
-	for _, child in pairs(partsFrame:GetChildren()) do
-		if child:IsA("Frame") and child.Name == "ItemFrame" then
-			child:Destroy()
-		end
-	end
-
-	local function scanRecursive(parent, prefix, depth)
-		if depth > 10 then return end
-
-		for _, obj in pairs(parent:GetChildren()) do
-			local objType = obj.ClassName
-
-			if obj:IsA("BasePart") and obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
-				local fullName = prefix .. obj.Name .. " [" .. objType .. "]"
-				table.insert(objectList, {name = fullName, object = obj})
-				table.insert(filteredList, {name = fullName, object = obj})
-
-			elseif obj:IsA("Model") and obj ~= character then
-				local fullName = prefix .. obj.Name .. " [Model]"
-				table.insert(objectList, {name = fullName, object = obj})
-				table.insert(filteredList, {name = fullName, object = obj})
-
-				local newPrefix = prefix .. obj.Name .. "."
-				scanRecursive(obj, newPrefix, depth + 1)
-
-			elseif obj:IsA("Folder") then
-				local newPrefix = prefix .. obj.Name .. "/"
-				scanRecursive(obj, newPrefix, depth + 1)
-
-			elseif obj:IsA("MeshPart") or obj:IsA("Part") or obj:IsA("WedgePart") or obj:IsA("CornerWedgePart") 
-				or obj:IsA("CylinderMesh") or obj:IsA("SpecialMesh") then
-
-				if obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
-					local fullName = prefix .. obj.Name .. " [" .. objType .. "]"
-					table.insert(objectList, {name = fullName, object = obj})
-					table.insert(filteredList, {name = fullName, object = obj})
-				end
-			end
-		end
-	end
-
-	scanRecursive(workspace, "", 0)
-
-	updatePartsList()
 end
 
 local function updatePartsList()
@@ -543,6 +645,7 @@ end
 
 local function filterParts(searchText)
 	filteredList = {}
+	lastSearchText = searchText
 
 	if searchText == "" or searchText == nil then
 		filteredList = objectList
@@ -556,6 +659,83 @@ local function filterParts(searchText)
 	end
 
 	updatePartsList()
+end
+
+local function scanWorkspace()
+	-- Simpan selection yang sudah ada sebelumnya
+	local previousSelected = {}
+	for obj in pairs(selectedObjects) do
+		if obj and obj.Parent then
+			previousSelected[obj] = true
+		end
+	end
+
+	local newObjectList = {}
+	local newFilteredList = {}
+
+	local function scanRecursive(parent, prefix, depth)
+		if depth > 10 then return end
+
+		for _, obj in pairs(parent:GetChildren()) do
+			local objType = obj.ClassName
+
+			if obj:IsA("BasePart") and obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
+				local fullName = prefix .. obj.Name .. " [" .. objType .. "]"
+				table.insert(newObjectList, {name = fullName, object = obj})
+				table.insert(newFilteredList, {name = fullName, object = obj})
+
+			elseif obj:IsA("Model") and obj ~= character then
+				local fullName = prefix .. obj.Name .. " [Model]"
+				table.insert(newObjectList, {name = fullName, object = obj})
+				table.insert(newFilteredList, {name = fullName, object = obj})
+
+				local newPrefix = prefix .. obj.Name .. "."
+				scanRecursive(obj, newPrefix, depth + 1)
+
+			elseif obj:IsA("Folder") then
+				local newPrefix = prefix .. obj.Name .. "/"
+				scanRecursive(obj, newPrefix, depth + 1)
+
+			elseif obj:IsA("MeshPart") or obj:IsA("Part") or obj:IsA("WedgePart") or obj:IsA("CornerWedgePart") 
+				or obj:IsA("CylinderMesh") or obj:IsA("SpecialMesh") then
+
+				if obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
+					local fullName = prefix .. obj.Name .. " [" .. objType .. "]"
+					table.insert(newObjectList, {name = fullName, object = obj})
+					table.insert(newFilteredList, {name = fullName, object = obj})
+				end
+			end
+		end
+	end
+
+	scanRecursive(workspace, "", 0)
+
+	-- Update objectList dan filteredList
+	objectList = newObjectList
+	filteredList = newFilteredList
+
+	-- Restore selection yang masih ada
+	selectedObjects = {}
+	for obj in pairs(previousSelected) do
+		if obj and obj.Parent then
+			selectedObjects[obj] = true
+			createStroke(obj)
+		end
+	end
+
+	-- Apply filter pencarian yang terakhir digunakan
+	if lastSearchText ~= "" then
+		filterParts(lastSearchText)
+	else
+		updatePartsList()
+	end
+
+	selectionInfo.Text = "Selected: " .. getSelectedCount() .. " part(s)"
+
+	-- Start auto update jika belum dimulai
+	if not autoUpdateConnection then
+		startAutoUpdate()
+	end
 end
 
 local function disableSelectedObjectsCollision()
@@ -643,10 +823,16 @@ local function unweldSelectedObjects()
 
 		unweldRecursive(obj)
 		selectedObjects[obj] = nil
+		removeStroke(obj)
 	end
 
 	selectionInfo.Text = "Selected: " .. getSelectedCount() .. " part(s)"
-	updatePartsList()
+
+	if lastSearchText ~= "" then
+		filterParts(lastSearchText)
+	else
+		updatePartsList()
+	end
 
 	if bringingEnabled then
 		updateBringIndicator()
@@ -750,6 +936,18 @@ local function minimizeGUI()
 end
 
 local function destroyGUI()
+	for obj in pairs(strokeAdornments) do
+		removeStroke(obj)
+	end
+
+	if autoUpdateConnection then
+		autoUpdateConnection:Disconnect()
+	end
+
+	if bringConnection then
+		bringConnection:Disconnect()
+	end
+
 	screenGui:Destroy()
 end
 
