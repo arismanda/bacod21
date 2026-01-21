@@ -1,0 +1,766 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoBringGUI"
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 350, 0, 500)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -250)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Selectable = true
+mainFrame.Draggable = true
+
+local title = Instance.new("Frame")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 50)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+title.BorderSizePixel = 0
+
+local titleText = Instance.new("TextLabel")
+titleText.Name = "TitleText"
+titleText.Size = UDim2.new(1, 0, 1, 0)
+titleText.Position = UDim2.new(0, 0, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "🚀 AUTO BRING SYSTEM"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 20
+
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 40, 0, 40)
+closeButton.Position = UDim2.new(1, -45, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
+closeButton.Text = "─"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 18
+
+local controlFrame = Instance.new("Frame")
+controlFrame.Name = "ControlFrame"
+controlFrame.Size = UDim2.new(1, -20, 0, 100)
+controlFrame.Position = UDim2.new(0, 10, 0, 60)
+controlFrame.BackgroundTransparency = 1
+
+local searchBox = Instance.new("TextBox")
+searchBox.Name = "SearchBox"
+searchBox.Size = UDim2.new(1, 0, 0, 40)
+searchBox.Position = UDim2.new(0, 0, 0, 0)
+searchBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+searchBox.PlaceholderText = "🔍 Cari part/model..."
+searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 14
+searchBox.Text = ""
+searchBox.ClearTextOnFocus = false
+
+local actionButtonFrame = Instance.new("Frame")
+actionButtonFrame.Name = "ActionButtonFrame"
+actionButtonFrame.Size = UDim2.new(1, 0, 0, 40)
+actionButtonFrame.Position = UDim2.new(0, 0, 0, 50)
+actionButtonFrame.BackgroundTransparency = 1
+
+local scanButton = Instance.new("TextButton")
+scanButton.Name = "ScanButton"
+scanButton.Size = UDim2.new(0.48, 0, 1, 0)
+scanButton.Position = UDim2.new(0, 0, 0, 0)
+scanButton.BackgroundColor3 = Color3.fromRGB(65, 130, 210)
+scanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+scanButton.Font = Enum.Font.GothamBold
+scanButton.TextSize = 14
+scanButton.Text = "🔍 SCAN"
+scanButton.AutoButtonColor = true
+
+local clearButton = Instance.new("TextButton")
+clearButton.Name = "ClearButton"
+clearButton.Size = UDim2.new(0.48, 0, 1, 0)
+clearButton.Position = UDim2.new(0.52, 0, 0, 0)
+clearButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+clearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearButton.Font = Enum.Font.GothamBold
+clearButton.TextSize = 14
+clearButton.Text = "🗑️ CLEAR"
+clearButton.AutoButtonColor = true
+
+local partsFrame = Instance.new("ScrollingFrame")
+partsFrame.Name = "PartsFrame"
+partsFrame.Size = UDim2.new(1, -20, 0, 220)
+partsFrame.Position = UDim2.new(0, 10, 0, 170)
+partsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+partsFrame.BorderSizePixel = 0
+partsFrame.ScrollBarThickness = 6
+partsFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+partsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+partsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local selectionInfo = Instance.new("TextLabel")
+selectionInfo.Name = "SelectionInfo"
+selectionInfo.Size = UDim2.new(1, -20, 0, 30)
+selectionInfo.Position = UDim2.new(0, 10, 0, 140)
+selectionInfo.BackgroundTransparency = 1
+selectionInfo.Text = "Selected: 0 part(s)"
+selectionInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+selectionInfo.Font = Enum.Font.Gotham
+selectionInfo.TextSize = 14
+selectionInfo.TextXAlignment = Enum.TextXAlignment.Left
+
+local bottomPanel = Instance.new("Frame")
+bottomPanel.Name = "BottomPanel"
+bottomPanel.Size = UDim2.new(1, -20, 0, 140)
+bottomPanel.Position = UDim2.new(0, 10, 1, -150)
+bottomPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+bottomPanel.BorderSizePixel = 0
+
+local teleportButton = Instance.new("TextButton")
+teleportButton.Name = "TeleportButton"
+teleportButton.Size = UDim2.new(1, 0, 0, 35)
+teleportButton.Position = UDim2.new(0, 0, 0, 10)
+teleportButton.BackgroundColor3 = Color3.fromRGB(210, 130, 70)
+teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportButton.Font = Enum.Font.GothamBold
+teleportButton.TextSize = 14
+teleportButton.Text = "📍 TELEPORT TO SELECTED"
+teleportButton.AutoButtonColor = true
+
+local rowFrame = Instance.new("Frame")
+rowFrame.Name = "RowFrame"
+rowFrame.Size = UDim2.new(1, 0, 0, 35)
+rowFrame.Position = UDim2.new(0, 0, 0, 55)
+rowFrame.BackgroundTransparency = 1
+
+local toggleBringButton = Instance.new("TextButton")
+toggleBringButton.Name = "ToggleBringButton"
+toggleBringButton.Size = UDim2.new(0.48, 0, 1, 0)
+toggleBringButton.Position = UDim2.new(0, 0, 0, 0)
+toggleBringButton.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+toggleBringButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBringButton.Font = Enum.Font.GothamBold
+toggleBringButton.TextSize = 14
+toggleBringButton.Text = "▶️ START BRING"
+toggleBringButton.AutoButtonColor = true
+
+local unweldButton = Instance.new("TextButton")
+unweldButton.Name = "UnweldButton"
+unweldButton.Size = UDim2.new(0.48, 0, 1, 0)
+unweldButton.Position = UDim2.new(0.52, 0, 0, 0)
+unweldButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+unweldButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+unweldButton.Font = Enum.Font.GothamBold
+unweldButton.TextSize = 14
+unweldButton.Text = "🔗 UNWELD"
+unweldButton.AutoButtonColor = true
+
+local collisionFrame = Instance.new("Frame")
+collisionFrame.Name = "CollisionFrame"
+collisionFrame.Size = UDim2.new(1, 0, 0, 25)
+collisionFrame.Position = UDim2.new(0, 0, 0, 100)
+collisionFrame.BackgroundTransparency = 1
+
+local collisionCheckbox = Instance.new("TextButton")
+collisionCheckbox.Name = "CollisionCheckbox"
+collisionCheckbox.Size = UDim2.new(0, 25, 0, 25)
+collisionCheckbox.Position = UDim2.new(0, 0, 0, 0)
+collisionCheckbox.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+collisionCheckbox.Text = "☑️"
+collisionCheckbox.TextColor3 = Color3.fromRGB(255, 255, 255)
+collisionCheckbox.Font = Enum.Font.GothamBold
+collisionCheckbox.TextSize = 16
+
+local collisionLabel = Instance.new("TextLabel")
+collisionLabel.Name = "CollisionLabel"
+collisionLabel.Size = UDim2.new(1, -35, 1, 0)
+collisionLabel.Position = UDim2.new(0, 30, 0, 0)
+collisionLabel.BackgroundTransparency = 1
+collisionLabel.Text = "Matikan Collision saat Bring"
+collisionLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+collisionLabel.Font = Enum.Font.Gotham
+collisionLabel.TextSize = 14
+collisionLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+screenGui.Parent = player:WaitForChild("PlayerGui")
+mainFrame.Parent = screenGui
+title.Parent = mainFrame
+titleText.Parent = title
+closeButton.Parent = title
+controlFrame.Parent = mainFrame
+searchBox.Parent = controlFrame
+actionButtonFrame.Parent = controlFrame
+scanButton.Parent = actionButtonFrame
+clearButton.Parent = actionButtonFrame
+selectionInfo.Parent = mainFrame
+partsFrame.Parent = mainFrame
+bottomPanel.Parent = mainFrame
+teleportButton.Parent = bottomPanel
+rowFrame.Parent = bottomPanel
+toggleBringButton.Parent = rowFrame
+unweldButton.Parent = rowFrame
+collisionFrame.Parent = bottomPanel
+collisionCheckbox.Parent = collisionFrame
+collisionLabel.Parent = collisionFrame
+
+local selectedObjects = {}
+local bringingEnabled = false
+local bringConnection = nil
+local objectList = {}
+local filteredList = {}
+local disableCollision = true
+local BRING_OFFSET = 5
+local BRING_HEIGHT = 2
+
+local originalCollisionStates = {}
+
+local function getPositionBehindCharacter(distance, height)
+	if not humanoidRootPart then
+		return Vector3.new(0, height, 0)
+	end
+	
+	local behindVector = -humanoidRootPart.CFrame.LookVector
+	behindVector = behindVector * distance
+	
+	local targetPosition = humanoidRootPart.Position + behindVector
+	targetPosition = Vector3.new(targetPosition.X, humanoidRootPart.Position.Y + height, targetPosition.Z)
+	
+	return targetPosition
+end
+
+local function createPartItem(name, object)
+	local itemFrame = Instance.new("Frame")
+	itemFrame.Name = "ItemFrame"
+	itemFrame.Size = UDim2.new(1, 0, 0, 40)
+	itemFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+	itemFrame.BorderSizePixel = 0
+	
+	local selectionIndicator = Instance.new("Frame")
+	selectionIndicator.Name = "SelectionIndicator"
+	selectionIndicator.Size = UDim2.new(0, 5, 1, 0)
+	selectionIndicator.Position = UDim2.new(0, 0, 0, 0)
+	selectionIndicator.BackgroundColor3 = Color3.fromRGB(65, 130, 210)
+	selectionIndicator.Visible = false
+	
+	local itemText = Instance.new("TextLabel")
+	itemText.Name = "ItemText"
+	itemText.Size = UDim2.new(1, -10, 1, 0)
+	itemText.Position = UDim2.new(0, 15, 0, 0)
+	itemText.BackgroundTransparency = 1
+	itemText.Text = name
+	itemText.TextColor3 = Color3.fromRGB(220, 220, 220)
+	itemText.Font = Enum.Font.Gotham
+	itemText.TextSize = 13
+	itemText.TextXAlignment = Enum.TextXAlignment.Left
+	itemText.TextTruncate = Enum.TextTruncate.AtEnd
+	
+	local selectButton = Instance.new("TextButton")
+	selectButton.Name = "SelectButton"
+	selectButton.Size = UDim2.new(1, 0, 1, 0)
+	selectButton.Position = UDim2.new(0, 0, 0, 0)
+	selectButton.BackgroundTransparency = 1
+	selectButton.Text = ""
+	
+	local objectTypeIcon = Instance.new("TextLabel")
+	objectTypeIcon.Name = "ObjectTypeIcon"
+	objectTypeIcon.Size = UDim2.new(0, 20, 0, 20)
+	objectTypeIcon.Position = UDim2.new(1, -25, 0.5, -10)
+	objectTypeIcon.BackgroundTransparency = 1
+	objectTypeIcon.Text = object:IsA("Model") and "📦" or "🧱"
+	objectTypeIcon.TextColor3 = Color3.fromRGB(150, 150, 150)
+	objectTypeIcon.Font = Enum.Font.GothamBold
+	objectTypeIcon.TextSize = 14
+	
+	local bringIndicator = Instance.new("Frame")
+	bringIndicator.Name = "BringIndicator"
+	bringIndicator.Size = UDim2.new(0, 8, 0, 8)
+	bringIndicator.Position = UDim2.new(1, -40, 0.5, -4)
+	bringIndicator.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	bringIndicator.BorderSizePixel = 0
+	bringIndicator.Visible = false
+	
+	selectionIndicator.Parent = itemFrame
+	itemText.Parent = itemFrame
+	selectButton.Parent = itemFrame
+	objectTypeIcon.Parent = itemFrame
+	bringIndicator.Parent = itemFrame
+	
+	local function toggleSelection()
+		if selectedObjects[object] then
+			selectedObjects[object] = nil
+			selectionIndicator.Visible = false
+			itemFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+			itemText.TextColor3 = Color3.fromRGB(220, 220, 220)
+			
+			if bringingEnabled then
+				if bringConnection then
+					local objList = {}
+					for obj in pairs(selectedObjects) do
+						table.insert(objList, obj)
+					end
+					
+					local function updateBring()
+						if bringingEnabled then
+							local offsetIndex = 0
+							for _, obj in ipairs(objList) do
+								if obj and obj.Parent then
+									local distance = BRING_OFFSET + (offsetIndex * 2)
+									local targetPosition = getPositionBehindCharacter(distance, BRING_HEIGHT)
+									
+									if obj:IsA("BasePart") then
+										local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+										local tween = TweenService:Create(obj, tweenInfo, {CFrame = CFrame.new(targetPosition)})
+										tween:Play()
+									elseif obj:IsA("Model") then
+										local success, currentPivot = pcall(function() return obj:GetPivot() end)
+										if success then
+											local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+											local targetCFrame = CFrame.new(targetPosition)
+											local tween = TweenService:Create(obj, tweenInfo, {CFrame = targetCFrame})
+											tween:Play()
+										end
+									end
+									offsetIndex = offsetIndex + 1
+								end
+							end
+						end
+					end
+					
+					bringConnection:Disconnect()
+					bringConnection = RunService.RenderStepped:Connect(updateBring)
+				end
+			end
+			
+			if bringIndicator then
+				bringIndicator.Visible = false
+			end
+		else
+			selectedObjects[object] = true
+			selectionIndicator.Visible = true
+			itemFrame.BackgroundColor3 = Color3.fromRGB(60, 80, 100)
+			itemText.TextColor3 = Color3.fromRGB(255, 255, 255)
+			
+			if bringingEnabled then
+				if bringIndicator then
+					bringIndicator.Visible = true
+				end
+				
+				if disableCollision then
+					if object:IsA("BasePart") then
+						originalCollisionStates[object] = object.CanCollide
+						object.CanCollide = false
+					elseif object:IsA("Model") then
+						for _, part in pairs(object:GetDescendants()) do
+							if part:IsA("BasePart") then
+								originalCollisionStates[part] = part.CanCollide
+								part.CanCollide = false
+							end
+						end
+					end
+				end
+			end
+		end
+		
+		selectionInfo.Text = "Selected: " .. getSelectedCount() .. " part(s)"
+	end
+	
+	selectButton.MouseButton1Click:Connect(toggleSelection)
+	
+	return itemFrame
+end
+
+local function getSelectedCount()
+	local count = 0
+	for _ in pairs(selectedObjects) do
+		count = count + 1
+	end
+	return count
+end
+
+local function getSelectedObjectsList()
+	local list = {}
+	for obj in pairs(selectedObjects) do
+		table.insert(list, obj)
+	end
+	return list
+end
+
+local function updateBringIndicator()
+	for _, child in pairs(partsFrame:GetChildren()) do
+		if child:IsA("Frame") and child.Name == "ItemFrame" then
+			local bringIndicator = child:FindFirstChild("BringIndicator")
+			if bringIndicator then
+				local itemText = child:FindFirstChild("ItemText")
+				if itemText then
+					for _, item in ipairs(filteredList) do
+						if item.name == itemText.Text then
+							bringIndicator.Visible = bringingEnabled and selectedObjects[item.object] == true
+							break
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+local function clearSelection()
+	selectedObjects = {}
+	
+	for _, child in pairs(partsFrame:GetChildren()) do
+		if child:IsA("Frame") and child.Name == "ItemFrame" then
+			local selectionIndicator = child:FindFirstChild("SelectionIndicator")
+			if selectionIndicator then
+				selectionIndicator.Visible = false
+			end
+			
+			local bringIndicator = child:FindFirstChild("BringIndicator")
+			if bringIndicator then
+				bringIndicator.Visible = false
+			end
+			
+			child.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+			local itemText = child:FindFirstChild("ItemText")
+			if itemText then
+				itemText.TextColor3 = Color3.fromRGB(220, 220, 220)
+			end
+		end
+	end
+	
+	selectionInfo.Text = "Selected: 0 part(s)"
+end
+
+local function scanWorkspace()
+	objectList = {}
+	filteredList = {}
+	clearSelection()
+	
+	for _, child in pairs(partsFrame:GetChildren()) do
+		if child:IsA("Frame") and child.Name == "ItemFrame" then
+			child:Destroy()
+		end
+	end
+	
+	local function scanRecursive(parent, prefix)
+		for _, obj in pairs(parent:GetChildren()) do
+			if obj:IsA("BasePart") and obj ~= humanoidRootPart and not obj:IsDescendantOf(character) then
+				local fullName = prefix .. obj.Name
+				table.insert(objectList, {name = fullName, object = obj})
+				table.insert(filteredList, {name = fullName, object = obj})
+				
+			elseif obj:IsA("Model") and obj ~= character then
+				local newPrefix = prefix .. obj.Name .. "."
+				scanRecursive(obj, newPrefix)
+			end
+		end
+	end
+	
+	scanRecursive(workspace, "")
+	
+	updatePartsList()
+end
+
+local function updatePartsList()
+	for _, child in pairs(partsFrame:GetChildren()) do
+		if child:IsA("Frame") and child.Name == "ItemFrame" then
+			child:Destroy()
+		end
+	end
+	
+	local yOffset = 0
+	for i, item in ipairs(filteredList) do
+		local itemFrame = createPartItem(item.name, item.object)
+		itemFrame.Position = UDim2.new(0, 0, 0, yOffset)
+		itemFrame.Parent = partsFrame
+		
+		if selectedObjects[item.object] then
+			local selectionIndicator = itemFrame:FindFirstChild("SelectionIndicator")
+			if selectionIndicator then
+				selectionIndicator.Visible = true
+			end
+			itemFrame.BackgroundColor3 = Color3.fromRGB(60, 80, 100)
+			local itemText = itemFrame:FindFirstChild("ItemText")
+			if itemText then
+				itemText.TextColor3 = Color3.fromRGB(255, 255, 255)
+			end
+			
+			if bringingEnabled then
+				local bringIndicator = itemFrame:FindFirstChild("BringIndicator")
+				if bringIndicator then
+					bringIndicator.Visible = true
+				end
+			end
+		end
+		
+		yOffset = yOffset + 42
+	end
+	
+	partsFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+local function filterParts(searchText)
+	filteredList = {}
+	
+	if searchText == "" or searchText == nil then
+		filteredList = objectList
+	else
+		searchText = string.lower(searchText)
+		for _, item in ipairs(objectList) do
+			if string.find(string.lower(item.name), searchText) then
+				table.insert(filteredList, item)
+			end
+		end
+	end
+	
+	updatePartsList()
+end
+
+local function disableSelectedObjectsCollision()
+	for obj in pairs(selectedObjects) do
+		if obj:IsA("BasePart") then
+			originalCollisionStates[obj] = obj.CanCollide
+			obj.CanCollide = false
+		elseif obj:IsA("Model") then
+			for _, part in pairs(obj:GetDescendants()) do
+				if part:IsA("BasePart") then
+					originalCollisionStates[part] = part.CanCollide
+					part.CanCollide = false
+				end
+			end
+		end
+	end
+end
+
+local function restoreAllCollision()
+	for obj, canCollide in pairs(originalCollisionStates) do
+		if obj and obj.Parent then
+			obj.CanCollide = canCollide
+		end
+	end
+	
+	originalCollisionStates = {}
+end
+
+local function teleportToSelectedObjects()
+	local selectedList = getSelectedObjectsList()
+	
+	if #selectedList == 0 then
+		return
+	end
+	
+	local targetObject = selectedList[1]
+	local targetCFrame
+	
+	if targetObject:IsA("BasePart") then
+		targetCFrame = targetObject.CFrame
+	elseif targetObject:IsA("Model") then
+		if targetObject.PrimaryPart then
+			targetCFrame = targetObject.PrimaryPart.CFrame
+		else
+			local success, pivot = pcall(function() return targetObject:GetPivot() end)
+			if success then
+				targetCFrame = pivot
+			else
+				for _, child in pairs(targetObject:GetChildren()) do
+					if child:IsA("BasePart") then
+						targetCFrame = child.CFrame
+						break
+					end
+				end
+			end
+		end
+	end
+	
+	if targetCFrame then
+		character:SetPrimaryPartCFrame(targetCFrame + Vector3.new(0, 5, 0))
+	end
+end
+
+local function unweldSelectedObjects()
+	local selectedList = getSelectedObjectsList()
+	
+	if #selectedList == 0 then
+		return
+	end
+	
+	for _, obj in ipairs(selectedList) do
+		local function unweldRecursive(object)
+			if object:IsA("BasePart") then
+				for _, constraint in pairs(object:GetChildren()) do
+					if constraint:IsA("WeldConstraint") or constraint:IsA("Weld") then
+						constraint:Destroy()
+					end
+				end
+			elseif object:IsA("Model") then
+				for _, child in pairs(object:GetChildren()) do
+					unweldRecursive(child)
+				end
+			end
+		end
+		
+		unweldRecursive(obj)
+		selectedObjects[obj] = nil
+	end
+	
+	selectionInfo.Text = "Selected: " .. getSelectedCount() .. " part(s)"
+	updatePartsList()
+	
+	if bringingEnabled then
+		updateBringIndicator()
+	end
+end
+
+local function toggleBring()
+	local selectedList = getSelectedObjectsList()
+	
+	if #selectedList == 0 then
+		return
+	end
+	
+	bringingEnabled = not bringingEnabled
+	
+	if bringingEnabled then
+		toggleBringButton.Text = "⏸️ STOP BRING"
+		toggleBringButton.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
+		
+		if disableCollision then
+			disableSelectedObjectsCollision()
+		end
+		
+		updateBringIndicator()
+		
+		local function bringObjects()
+			if bringingEnabled then
+				local currentSelectedList = getSelectedObjectsList()
+				local offsetIndex = 0
+				
+				for _, obj in ipairs(currentSelectedList) do
+					if obj and obj.Parent then
+						local distance = BRING_OFFSET + (offsetIndex * 2)
+						local targetPosition = getPositionBehindCharacter(distance, BRING_HEIGHT)
+						
+						if obj:IsA("BasePart") then
+							local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+							local tween = TweenService:Create(obj, tweenInfo, {CFrame = CFrame.new(targetPosition)})
+							tween:Play()
+						elseif obj:IsA("Model") then
+							local success, currentPivot = pcall(function() return obj:GetPivot() end)
+							if success then
+								local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+								local targetCFrame = CFrame.new(targetPosition)
+								local tween = TweenService:Create(obj, tweenInfo, {CFrame = targetCFrame})
+								tween:Play()
+							end
+						end
+						
+						offsetIndex = offsetIndex + 1
+					end
+				end
+			end
+		end
+		
+		bringConnection = RunService.RenderStepped:Connect(bringObjects)
+		
+	else
+		if bringConnection then
+			bringConnection:Disconnect()
+			bringConnection = nil
+		end
+		
+		if disableCollision then
+			restoreAllCollision()
+		end
+		
+		toggleBringButton.Text = "▶️ START BRING"
+		toggleBringButton.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+		
+		updateBringIndicator()
+	end
+end
+
+local function toggleCollisionSetting()
+	disableCollision = not disableCollision
+	
+	if disableCollision then
+		collisionCheckbox.Text = "☑️"
+		collisionCheckbox.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+	else
+		collisionCheckbox.Text = "⬜"
+		collisionCheckbox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+	end
+	
+	if bringingEnabled then
+		if disableCollision then
+			disableSelectedObjectsCollision()
+		else
+			restoreAllCollision()
+		end
+	end
+end
+
+local function toggleGUI()
+	mainFrame.Visible = not mainFrame.Visible
+end
+
+local function minimizeGUI()
+	mainFrame.Visible = false
+end
+
+scanButton.MouseButton1Click:Connect(scanWorkspace)
+clearButton.MouseButton1Click:Connect(clearSelection)
+
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	filterParts(searchBox.Text)
+end)
+
+teleportButton.MouseButton1Click:Connect(teleportToSelectedObjects)
+unweldButton.MouseButton1Click:Connect(unweldSelectedObjects)
+toggleBringButton.MouseButton1Click:Connect(toggleBring)
+collisionCheckbox.MouseButton1Click:Connect(toggleCollisionSetting)
+
+closeButton.MouseButton1Click:Connect(minimizeGUI)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	
+	if input.KeyCode == Enum.KeyCode.B and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+		toggleGUI()
+	end
+	
+	if input.KeyCode == Enum.KeyCode.S and 
+		UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and 
+		UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+		scanWorkspace()
+	end
+	
+	if input.KeyCode == Enum.KeyCode.B and 
+		UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and 
+		UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+		toggleBring()
+	end
+end)
+
+local function onCharacterAdded(newCharacter)
+	character = newCharacter
+	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+	
+	if bringingEnabled then
+		toggleBring()
+	end
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+
+task.wait(1)
+mainFrame.Visible = true
+scanWorkspace()
