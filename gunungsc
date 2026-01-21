@@ -272,7 +272,7 @@ local bringConnection = nil
 local objectList = {}
 local filteredList = {}
 local disableCollision = true
-local autoScanEnabled = true
+local autoScanEnabled = false
 local BRING_OFFSET = 5
 local BRING_HEIGHT = 2
 
