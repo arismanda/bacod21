@@ -177,10 +177,46 @@ unweldButton.TextSize = 14
 unweldButton.Text = "🔗 UNWELD"
 unweldButton.AutoButtonColor = true
 
+-- Tambah row untuk auto-scan dan collision
+local settingsRowFrame = Instance.new("Frame")
+settingsRowFrame.Name = "SettingsRowFrame"
+settingsRowFrame.Size = UDim2.new(1, 0, 0, 25)
+settingsRowFrame.Position = UDim2.new(0, 0, 0, 100)
+settingsRowFrame.BackgroundTransparency = 1
+
+-- Frame untuk auto-scan
+local autoScanFrame = Instance.new("Frame")
+autoScanFrame.Name = "AutoScanFrame"
+autoScanFrame.Size = UDim2.new(0.48, 0, 1, 0)
+autoScanFrame.Position = UDim2.new(0, 0, 0, 0)
+autoScanFrame.BackgroundTransparency = 1
+
+local autoScanCheckbox = Instance.new("TextButton")
+autoScanCheckbox.Name = "AutoScanCheckbox"
+autoScanCheckbox.Size = UDim2.new(0, 25, 0, 25)
+autoScanCheckbox.Position = UDim2.new(0, 0, 0, 0)
+autoScanCheckbox.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+autoScanCheckbox.Text = "☑️"
+autoScanCheckbox.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoScanCheckbox.Font = Enum.Font.GothamBold
+autoScanCheckbox.TextSize = 16
+
+local autoScanLabel = Instance.new("TextLabel")
+autoScanLabel.Name = "AutoScanLabel"
+autoScanLabel.Size = UDim2.new(1, -35, 1, 0)
+autoScanLabel.Position = UDim2.new(0, 30, 0, 0)
+autoScanLabel.BackgroundTransparency = 1
+autoScanLabel.Text = "Auto-Scan"
+autoScanLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+autoScanLabel.Font = Enum.Font.Gotham
+autoScanLabel.TextSize = 14
+autoScanLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Frame untuk collision
 local collisionFrame = Instance.new("Frame")
 collisionFrame.Name = "CollisionFrame"
-collisionFrame.Size = UDim2.new(1, 0, 0, 25)
-collisionFrame.Position = UDim2.new(0, 0, 0, 100)
+collisionFrame.Size = UDim2.new(0.48, 0, 1, 0)
+collisionFrame.Position = UDim2.new(0.52, 0, 0, 0)
 collisionFrame.BackgroundTransparency = 1
 
 local collisionCheckbox = Instance.new("TextButton")
@@ -198,7 +234,7 @@ collisionLabel.Name = "CollisionLabel"
 collisionLabel.Size = UDim2.new(1, -35, 1, 0)
 collisionLabel.Position = UDim2.new(0, 30, 0, 0)
 collisionLabel.BackgroundTransparency = 1
-collisionLabel.Text = "Matikan Collision saat Bring"
+collisionLabel.Text = "No Collision"
 collisionLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 collisionLabel.Font = Enum.Font.Gotham
 collisionLabel.TextSize = 14
@@ -222,7 +258,11 @@ teleportButton.Parent = bottomPanel
 rowFrame.Parent = bottomPanel
 toggleBringButton.Parent = rowFrame
 unweldButton.Parent = rowFrame
-collisionFrame.Parent = bottomPanel
+settingsRowFrame.Parent = bottomPanel
+autoScanFrame.Parent = settingsRowFrame
+autoScanCheckbox.Parent = autoScanFrame
+autoScanLabel.Parent = autoScanFrame
+collisionFrame.Parent = settingsRowFrame
 collisionCheckbox.Parent = collisionFrame
 collisionLabel.Parent = collisionFrame
 
@@ -232,6 +272,7 @@ local bringConnection = nil
 local objectList = {}
 local filteredList = {}
 local disableCollision = true
+local autoScanEnabled = true
 local BRING_OFFSET = 5
 local BRING_HEIGHT = 2
 
@@ -246,6 +287,10 @@ local function startAutoUpdate()
 		autoUpdateConnection:Disconnect()
 	end
 
+	if not autoScanEnabled then
+		return
+	end
+
 	local lastUpdateTime = 0
 	local UPDATE_INTERVAL = 1
 
@@ -256,7 +301,7 @@ local function startAutoUpdate()
 			lastUpdateTime = 0
 
 			local hasNewObjects = false
-
+			
 			local function checkForNewObjects(parent, checkedObjects)
 				for _, obj in pairs(parent:GetChildren()) do
 					if not checkedObjects[obj] then
@@ -335,6 +380,29 @@ local function startAutoUpdate()
 			updateAllStrokes()
 		end
 	end)
+end
+
+local function toggleAutoScan()
+	autoScanEnabled = not autoScanEnabled
+	
+	if autoScanEnabled then
+		autoScanCheckbox.Text = "☑️"
+		autoScanCheckbox.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+		autoScanLabel.Text = "Auto-Scan ON"
+		
+		-- Mulai auto-scan
+		startAutoUpdate()
+	else
+		autoScanCheckbox.Text = "⬜"
+		autoScanCheckbox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+		autoScanLabel.Text = "Auto-Scan OFF"
+		
+		-- Hentikan auto-scan
+		if autoUpdateConnection then
+			autoUpdateConnection:Disconnect()
+			autoUpdateConnection = nil
+		end
+	end
 end
 
 local function getPositionBehindCharacter(distance, height)
@@ -732,8 +800,8 @@ local function scanWorkspace()
 
 	selectionInfo.Text = "Selected: " .. getSelectedCount() .. " part(s)"
 
-	-- Start auto update jika belum dimulai
-	if not autoUpdateConnection then
+	-- Start auto update jika auto-scan enabled
+	if autoScanEnabled and not autoUpdateConnection then
 		startAutoUpdate()
 	end
 end
@@ -827,7 +895,7 @@ local function unweldSelectedObjects()
 	end
 
 	selectionInfo.Text = "Selected: " .. getSelectedCount() .. " part(s)"
-
+	
 	if lastSearchText ~= "" then
 		filterParts(lastSearchText)
 	else
@@ -913,9 +981,11 @@ local function toggleCollisionSetting()
 	if disableCollision then
 		collisionCheckbox.Text = "☑️"
 		collisionCheckbox.BackgroundColor3 = Color3.fromRGB(70, 160, 110)
+		collisionLabel.Text = "No Collision"
 	else
 		collisionCheckbox.Text = "⬜"
 		collisionCheckbox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+		collisionLabel.Text = "Collision ON"
 	end
 
 	if bringingEnabled then
@@ -962,6 +1032,7 @@ teleportButton.MouseButton1Click:Connect(teleportToSelectedObjects)
 unweldButton.MouseButton1Click:Connect(unweldSelectedObjects)
 toggleBringButton.MouseButton1Click:Connect(toggleBring)
 collisionCheckbox.MouseButton1Click:Connect(toggleCollisionSetting)
+autoScanCheckbox.MouseButton1Click:Connect(toggleAutoScan)
 
 minimizeButton.MouseButton1Click:Connect(minimizeGUI)
 closeButton.MouseButton1Click:Connect(destroyGUI)
