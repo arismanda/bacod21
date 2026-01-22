@@ -23,158 +23,158 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- ======================
 
 local DevProductScanner = {
-    detectedProducts = {},
-    purchaseHandlers = {},
-    scanComplete = false
+	detectedProducts = {},
+	purchaseHandlers = {},
+	scanComplete = false
 }
 
 function DevProductScanner:scanDevProducts()
-    print("[SCANNER] Scanning for Developer Products...")
-    
-    -- Method 1: Scan for product purchase remotes
-    local productRemotes = {}
-    
-    local function deepScanForProducts(parent)
-        for _, child in pairs(parent:GetChildren()) do
-            -- Look for product-related remote names
-            local nameLower = child.Name:lower()
-            local productKeywords = {
-                "product", "purchase", "buy", "devproduct",
-                "item", "shop", "store", "currency", "coins",
-                "gems", "cash", "money", "transaction", "payment",
-                "premium", "upgrade", "unlock", "reward"
-            }
-            
-            if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-                for _, keyword in pairs(productKeywords) do
-                    if nameLower:find(keyword) then
-                        table.insert(productRemotes, {
-                            object = child,
-                            type = child.ClassName,
-                            path = parent:GetFullName(),
-                            confidence = 90,
-                            keyword = keyword
-                        })
-                        break
-                    end
-                end
-            end
-            
-            -- Recursive scan
-            deepScanForProducts(child)
-        end
-    end
-    
-    -- Scan all relevant services
-    deepScanForProducts(ReplicatedStorage)
-    deepScanForProducts(game:GetService("ServerScriptService"))
-    deepScanForProducts(game:GetService("Workspace"))
-    deepScanForProducts(game:GetService("Lighting"))
-    
-    -- Method 2: Look for product configuration modules
-    local productConfigs = {}
-    
-    local configFolders = {
-        "Products", "Shop", "Store", "DevProducts",
-        "Purchases", "Items", "GameItems", "Microtransactions"
-    }
-    
-    for _, service in pairs({
-        ReplicatedStorage,
-        game:GetService("ServerStorage"),
-        game:GetService("ServerScriptService")
-    }) do
-        for _, folderName in pairs(configFolders) do
-            local folder = service:FindFirstChild(folderName)
-            if folder then
-                for _, item in pairs(folder:GetChildren()) do
-                    if item:IsA("ModuleScript") or item:IsA("Folder") then
-                        -- Extract product info from attributes or name
-                        local productId = item:GetAttribute("ProductId") or 
-                                         item:GetAttribute("DevProductId") or
-                                         item:GetAttribute("ItemId")
-                        
-                        if productId then
-                            table.insert(productConfigs, {
-                                name = item.Name,
-                                id = productId,
-                                price = item:GetAttribute("Price") or "Unknown",
-                                type = "DevProduct",
-                                config = item
-                            })
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Method 3: Hook into existing purchase handlers
-    local hookedRemotes = {}
-    
-    for _, remoteData in pairs(productRemotes) do
-        local remote = remoteData.object
-        
-        if remote:IsA("RemoteEvent") then
-            -- Store original fire function
-            local originalFire = remote.FireServer
-            local remoteName = remote.Name
-            
-            -- Hook the remote to intercept purchases
-            remote.FireServer = function(self, ...)
-                local args = {...}
-                
-                -- Check if this looks like a product purchase
-                local firstArg = args[1]
-                local isProductPurchase = false
-                
-                if type(firstArg) == "table" then
-                    -- Check for product ID or purchase indicators
-                    if firstArg.productId or firstArg.ProductId or 
-                       firstArg.devProductId or firstArg.itemId then
-                        isProductPurchase = true
-                        
-                        -- Log the purchase attempt
-                        print(string.format("[PRODUCT HOOK] Purchase detected on %s:", remoteName))
-                        print("  Product ID:", firstArg.productId or firstArg.ProductId or firstArg.devProductId)
-                        print("  Player:", player.Name)
-                        print("  Arguments:", args)
-                        
-                        -- Store for fake donation simulation
-                        self.purchaseHandlers[remoteName] = {
-                            remote = remote,
-                            argsPattern = args,
-                            lastUsed = tick()
-                        }
-                    end
-                elseif type(firstArg) == "number" then
-                    -- Might be a product ID directly
-                    isProductPurchase = true
-                    print(string.format("[PRODUCT HOOK] Numeric purchase on %s: %d", remoteName, firstArg))
-                end
-                
-                -- Call original function
-                return originalFire(self, ...)
-            end
-            
-            table.insert(hookedRemotes, remoteName)
-        end
-    end
-    
-    -- Compile results
-    self.detectedProducts = {
-        remotes = productRemotes,
-        configs = productConfigs,
-        hooked = hookedRemotes,
-        totalFound = #productRemotes + #productConfigs
-    }
-    
-    self.scanComplete = true
-    
-    print(string.format("[SCANNER] Complete! Found %d remotes, %d configs, %d hooked",
-        #productRemotes, #productConfigs, #hookedRemotes))
-    
-    return self.detectedProducts
+	print("[SCANNER] Scanning for Developer Products...")
+
+	-- Method 1: Scan for product purchase remotes
+	local productRemotes = {}
+
+	local function deepScanForProducts(parent)
+		for _, child in pairs(parent:GetChildren()) do
+			-- Look for product-related remote names
+			local nameLower = child.Name:lower()
+			local productKeywords = {
+				"product", "purchase", "buy", "devproduct",
+				"item", "shop", "store", "currency", "coins",
+				"gems", "cash", "money", "transaction", "payment",
+				"premium", "upgrade", "unlock", "reward"
+			}
+
+			if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+				for _, keyword in pairs(productKeywords) do
+					if nameLower:find(keyword) then
+						table.insert(productRemotes, {
+							object = child,
+							type = child.ClassName,
+							path = parent:GetFullName(),
+							confidence = 90,
+							keyword = keyword
+						})
+						break
+					end
+				end
+			end
+
+			-- Recursive scan
+			deepScanForProducts(child)
+		end
+	end
+
+	-- Scan all relevant services
+	deepScanForProducts(ReplicatedStorage)
+	deepScanForProducts(game:GetService("ServerScriptService"))
+	deepScanForProducts(game:GetService("Workspace"))
+	deepScanForProducts(game:GetService("Lighting"))
+
+	-- Method 2: Look for product configuration modules
+	local productConfigs = {}
+
+	local configFolders = {
+		"Products", "Shop", "Store", "DevProducts",
+		"Purchases", "Items", "GameItems", "Microtransactions"
+	}
+
+	for _, service in pairs({
+		ReplicatedStorage,
+		game:GetService("ServerStorage"),
+		game:GetService("ServerScriptService")
+		}) do
+		for _, folderName in pairs(configFolders) do
+			local folder = service:FindFirstChild(folderName)
+			if folder then
+				for _, item in pairs(folder:GetChildren()) do
+					if item:IsA("ModuleScript") or item:IsA("Folder") then
+						-- Extract product info from attributes or name
+						local productId = item:GetAttribute("ProductId") or 
+							item:GetAttribute("DevProductId") or
+							item:GetAttribute("ItemId")
+
+						if productId then
+							table.insert(productConfigs, {
+								name = item.Name,
+								id = productId,
+								price = item:GetAttribute("Price") or "Unknown",
+								type = "DevProduct",
+								config = item
+							})
+						end
+					end
+				end
+			end
+		end
+	end
+
+	-- Method 3: Hook into existing purchase handlers
+	local hookedRemotes = {}
+
+	for _, remoteData in pairs(productRemotes) do
+		local remote = remoteData.object
+
+		if remote:IsA("RemoteEvent") then
+			-- Store original fire function
+			local originalFire = remote.FireServer
+			local remoteName = remote.Name
+
+			-- Hook the remote to intercept purchases
+			remote.FireServer = function(self, ...)
+				local args = {...}
+
+				-- Check if this looks like a product purchase
+				local firstArg = args[1]
+				local isProductPurchase = false
+
+				if type(firstArg) == "table" then
+					-- Check for product ID or purchase indicators
+					if firstArg.productId or firstArg.ProductId or 
+						firstArg.devProductId or firstArg.itemId then
+						isProductPurchase = true
+
+						-- Log the purchase attempt
+						print(string.format("[PRODUCT HOOK] Purchase detected on %s:", remoteName))
+						print("  Product ID:", firstArg.productId or firstArg.ProductId or firstArg.devProductId)
+						print("  Player:", player.Name)
+						print("  Arguments:", args)
+
+						-- Store for fake donation simulation
+						self.purchaseHandlers[remoteName] = {
+							remote = remote,
+							argsPattern = args,
+							lastUsed = tick()
+						}
+					end
+				elseif type(firstArg) == "number" then
+					-- Might be a product ID directly
+					isProductPurchase = true
+					print(string.format("[PRODUCT HOOK] Numeric purchase on %s: %d", remoteName, firstArg))
+				end
+
+				-- Call original function
+				return originalFire(self, ...)
+			end
+
+			table.insert(hookedRemotes, remoteName)
+		end
+	end
+
+	-- Compile results
+	self.detectedProducts = {
+		remotes = productRemotes,
+		configs = productConfigs,
+		hooked = hookedRemotes,
+		totalFound = #productRemotes + #productConfigs
+	}
+
+	self.scanComplete = true
+
+	print(string.format("[SCANNER] Complete! Found %d remotes, %d configs, %d hooked",
+		#productRemotes, #productConfigs, #hookedRemotes))
+
+	return self.detectedProducts
 end
 
 -- ======================
@@ -182,215 +182,215 @@ end
 -- ======================
 
 local ProductPurchaseSimulator = {
-    active = false,
-    threads = {},
-    announcementQueue = {},
-    totalFakePurchases = 0,
-    totalFakeRevenue = 0
+	active = false,
+	threads = {},
+	announcementQueue = {},
+	totalFakePurchases = 0,
+	totalFakeRevenue = 0
 }
 
 function ProductPurchaseSimulator:generateFakePurchase()
-    -- Fake player names
-    local fakePlayers = {
-        "RichPlayer", "MoneyBags", "WhaleGamer", "PremiumUser",
-        "DonatorX", "CashKing", "RobuxLord", "WealthyGamer",
-        "VIPBuyer", "ShopAddict", "TransactionPro", "Microspender"
-    }
-    
-    -- Common product names for different games
-    local productCategories = {
-        currency = {
-            names = {"Robux Pack", "Gold Bundle", "Gem Package", "Coin Stack", "Cash Bundle"},
-            amounts = {100, 250, 500, 1000, 2500, 5000},
-            messages = {
-                "purchased {amount} {currency}!",
-                "bought the {product}!",
-                "loaded up on {currency}!",
-                "got the {product}!"
-            }
-        },
-        items = {
-            names = {"VIP Pass", "Premium Kit", "Legendary Weapon", "Rare Skin", "Special Bundle"},
-            amounts = {50, 100, 200, 350, 500},
-            messages = {
-                "unlocked {product}!",
-                "purchased the {product}!",
-                "got the exclusive {product}!",
-                "bought {product} from the shop!"
-            }
-        },
-        upgrades = {
-            names = {"Double XP", "Speed Boost", "Damage Upgrade", "Storage Expansion", "Auto Farmer"},
-            amounts = {25, 50, 75, 100, 150},
-            messages = {
-                "upgraded with {product}!",
-                "purchased {product}!",
-                "activated {product}!",
-                "bought the {product} upgrade!"
-            }
-        }
-    }
-    
-    -- Select random category
-    local categories = {"currency", "items", "upgrades"}
-    local category = categories[math.random(#categories)]
-    local categoryData = productCategories[category]
-    
-    -- Generate purchase data
-    local productName = categoryData.names[math.random(#categoryData.names)]
-    local amount = categoryData.amounts[math.random(#categoryData.amounts)]
-    local messageTemplate = categoryData.messages[math.random(#categoryData.messages)]
-    local fakePlayer = fakePlayers[math.random(#fakePlayers)]
-    
-    -- Format message
-    local message = messageTemplate
-        :gsub("{amount}", tostring(amount))
-        :gsub("{product}", productName)
-        :gsub("{currency}", "coins")
-    
-    -- Generate fake product ID (mimics real DevProduct IDs)
-    local fakeProductId = math.random(1000000, 9999999)
-    
-    return {
-        player = fakePlayer,
-        productName = productName,
-        productId = fakeProductId,
-        amount = amount,
-        message = message,
-        category = category,
-        color = Color3.fromRGB(
-            math.random(50, 255),
-            math.random(50, 255),
-            math.random(50, 255)
-        ),
-        timestamp = tick()
-    }
+	-- Fake player names
+	local fakePlayers = {
+		"RichPlayer", "MoneyBags", "WhaleGamer", "PremiumUser",
+		"DonatorX", "CashKing", "RobuxLord", "WealthyGamer",
+		"VIPBuyer", "ShopAddict", "TransactionPro", "Microspender"
+	}
+
+	-- Common product names for different games
+	local productCategories = {
+		currency = {
+			names = {"Robux Pack", "Gold Bundle", "Gem Package", "Coin Stack", "Cash Bundle"},
+			amounts = {100, 250, 500, 1000, 2500, 5000},
+			messages = {
+				"purchased {amount} {currency}!",
+				"bought the {product}!",
+				"loaded up on {currency}!",
+				"got the {product}!"
+			}
+		},
+		items = {
+			names = {"VIP Pass", "Premium Kit", "Legendary Weapon", "Rare Skin", "Special Bundle"},
+			amounts = {50, 100, 200, 350, 500},
+			messages = {
+				"unlocked {product}!",
+				"purchased the {product}!",
+				"got the exclusive {product}!",
+				"bought {product} from the shop!"
+			}
+		},
+		upgrades = {
+			names = {"Double XP", "Speed Boost", "Damage Upgrade", "Storage Expansion", "Auto Farmer"},
+			amounts = {25, 50, 75, 100, 150},
+			messages = {
+				"upgraded with {product}!",
+				"purchased {product}!",
+				"activated {product}!",
+				"bought the {product} upgrade!"
+			}
+		}
+	}
+
+	-- Select random category
+	local categories = {"currency", "items", "upgrades"}
+	local category = categories[math.random(#categories)]
+	local categoryData = productCategories[category]
+
+	-- Generate purchase data
+	local productName = categoryData.names[math.random(#categoryData.names)]
+	local amount = categoryData.amounts[math.random(#categoryData.amounts)]
+	local messageTemplate = categoryData.messages[math.random(#categoryData.messages)]
+	local fakePlayer = fakePlayers[math.random(#fakePlayers)]
+
+	-- Format message
+	local message = messageTemplate
+		:gsub("{amount}", tostring(amount))
+		:gsub("{product}", productName)
+		:gsub("{currency}", "coins")
+
+	-- Generate fake product ID (mimics real DevProduct IDs)
+	local fakeProductId = math.random(1000000, 9999999)
+
+	return {
+		player = fakePlayer,
+		productName = productName,
+		productId = fakeProductId,
+		amount = amount,
+		message = message,
+		category = category,
+		color = Color3.fromRGB(
+			math.random(50, 255),
+			math.random(50, 255),
+			math.random(50, 255)
+		),
+		timestamp = tick()
+	}
 end
 
 function ProductPurchaseSimulator:spoofPurchase()
-    local purchase = self:generateFakePurchase()
-    
-    -- Add to announcement queue
-    table.insert(self.announcementQueue, purchase)
-    
-    -- Fire to detected product remotes
-    local firedCount = 0
-    
-    for _, remoteData in pairs(DevProductScanner.detectedProducts.remotes or {}) do
-        local remote = remoteData.object
-        
-        pcall(function()
-            if remote:IsA("RemoteEvent") then
-                -- Simulate different purchase patterns
-                local purchasePatterns = {
-                    -- Pattern 1: Direct product ID
-                    {productId = purchase.productId, player = purchase.player},
-                    
-                    -- Pattern 2: Table with product info
-                    {
-                        product = purchase.productName,
-                        id = purchase.productId,
-                        amount = purchase.amount,
-                        buyer = purchase.player,
-                        timestamp = purchase.timestamp
-                    },
-                    
-                    -- Pattern 3: Simple purchase
-                    {
-                        purchase = true,
-                        item = purchase.productName,
-                        price = purchase.amount,
-                        user = purchase.player
-                    }
-                }
-                
-                local pattern = purchasePatterns[math.random(#purchasePatterns)]
-                remote:FireServer(pattern)
-                firedCount = firedCount + 1
-                
-            elseif remote:IsA("RemoteFunction") then
-                remote:InvokeServer({
-                    type = "purchase",
-                    productId = purchase.productId,
-                    player = purchase.player
-                })
-                firedCount = firedCount + 1
-            end
-        end)
-    end
-    
-    -- Update stats
-    self.totalFakePurchases = self.totalFakePurchases + 1
-    self.totalFakeRevenue = self.totalFakeRevenue + purchase.amount
-    
-    print(string.format("[PURCHASE] %s %s (R$%d) - Fired to %d remotes",
-        purchase.player, purchase.message, purchase.amount, firedCount))
-    
-    return purchase
+	local purchase = self:generateFakePurchase()
+
+	-- Add to announcement queue
+	table.insert(self.announcementQueue, purchase)
+
+	-- Fire to detected product remotes
+	local firedCount = 0
+
+	for _, remoteData in pairs(DevProductScanner.detectedProducts.remotes or {}) do
+		local remote = remoteData.object
+
+		pcall(function()
+			if remote:IsA("RemoteEvent") then
+				-- Simulate different purchase patterns
+				local purchasePatterns = {
+					-- Pattern 1: Direct product ID
+					{productId = purchase.productId, player = purchase.player},
+
+					-- Pattern 2: Table with product info
+					{
+						product = purchase.productName,
+						id = purchase.productId,
+						amount = purchase.amount,
+						buyer = purchase.player,
+						timestamp = purchase.timestamp
+					},
+
+					-- Pattern 3: Simple purchase
+					{
+						purchase = true,
+						item = purchase.productName,
+						price = purchase.amount,
+						user = purchase.player
+					}
+				}
+
+				local pattern = purchasePatterns[math.random(#purchasePatterns)]
+				remote:FireServer(pattern)
+				firedCount = firedCount + 1
+
+			elseif remote:IsA("RemoteFunction") then
+				remote:InvokeServer({
+					type = "purchase",
+					productId = purchase.productId,
+					player = purchase.player
+				})
+				firedCount = firedCount + 1
+			end
+		end)
+	end
+
+	-- Update stats
+	self.totalFakePurchases = self.totalFakePurchases + 1
+	self.totalFakeRevenue = self.totalFakeRevenue + purchase.amount
+
+	print(string.format("[PURCHASE] %s %s (R$%d) - Fired to %d remotes",
+		purchase.player, purchase.message, purchase.amount, firedCount))
+
+	return purchase
 end
 
 function ProductPurchaseSimulator:massPurchase(count)
-    print(string.format("[MASS PURCHASE] Starting %d fake purchases...", count))
-    
-    local purchases = {}
-    for i = 1, count do
-        local purchase = self:spoofPurchase()
-        table.insert(purchases, purchase)
-        
-        -- Small delay between purchases
-        if i % 5 == 0 then
-            task.wait(0.1)
-        end
-    end
-    
-    return purchases
+	print(string.format("[MASS PURCHASE] Starting %d fake purchases...", count))
+
+	local purchases = {}
+	for i = 1, count do
+		local purchase = self:spoofPurchase()
+		table.insert(purchases, purchase)
+
+		-- Small delay between purchases
+		if i % 5 == 0 then
+			task.wait(0.1)
+		end
+	end
+
+	return purchases
 end
 
 function ProductPurchaseSimulator:start(interval, duration)
-    interval = interval or 3 -- seconds between purchases
-    duration = duration or 180 -- total duration in seconds
-    
-    self.active = true
-    local startTime = tick()
-    local purchaseCount = 0
-    
-    print(string.format("[PURCHASE ENGINE] Starting fake purchases every %ds for %ds", interval, duration))
-    
-    local thread = coroutine.create(function()
-        while self.active and (tick() - startTime) < duration do
-            purchaseCount = purchaseCount + 1
-            
-            -- Spoof a purchase
-            self:spoofPurchase()
-            
-            -- Variable interval for realism
-            local actualInterval = interval * (0.7 + math.random() * 0.6)
-            
-            -- Occasionally do rapid purchases
-            if math.random(1, 10) == 1 then
-                for i = 1, math.random(2, 5) do
-                    task.wait(0.3)
-                    self:spoofPurchase()
-                    purchaseCount = purchaseCount + 1
-                end
-            end
-            
-            task.wait(actualInterval)
-        end
-        
-        self.active = false
-        print(string.format("[PURCHASE ENGINE] Stopped. Generated %d fake purchases totaling R$%d",
-            purchaseCount, self.totalFakeRevenue))
-    end)
-    
-    table.insert(self.threads, thread)
-    coroutine.resume(thread)
+	interval = interval or 3 -- seconds between purchases
+	duration = duration or 180 -- total duration in seconds
+
+	self.active = true
+	local startTime = tick()
+	local purchaseCount = 0
+
+	print(string.format("[PURCHASE ENGINE] Starting fake purchases every %ds for %ds", interval, duration))
+
+	local thread = coroutine.create(function()
+		while self.active and (tick() - startTime) < duration do
+			purchaseCount = purchaseCount + 1
+
+			-- Spoof a purchase
+			self:spoofPurchase()
+
+			-- Variable interval for realism
+			local actualInterval = interval * (0.7 + math.random() * 0.6)
+
+			-- Occasionally do rapid purchases
+			if math.random(1, 10) == 1 then
+				for i = 1, math.random(2, 5) do
+					task.wait(0.3)
+					self:spoofPurchase()
+					purchaseCount = purchaseCount + 1
+				end
+			end
+
+			task.wait(actualInterval)
+		end
+
+		self.active = false
+		print(string.format("[PURCHASE ENGINE] Stopped. Generated %d fake purchases totaling R$%d",
+			purchaseCount, self.totalFakeRevenue))
+	end)
+
+	table.insert(self.threads, thread)
+	coroutine.resume(thread)
 end
 
 function ProductPurchaseSimulator:stop()
-    self.active = false
-    self.threads = {}
-    print("[PURCHASE ENGINE] Stopped manually")
+	self.active = false
+	self.threads = {}
+	print("[PURCHASE ENGINE] Stopped manually")
 end
 
 -- ======================
@@ -398,645 +398,645 @@ end
 -- ======================
 
 local ProductGUI = {
-    screenGui = nil,
-    mainFrame = nil,
-    productList = {},
-    notificationFrame = nil
+	screenGui = nil,
+	mainFrame = nil,
+	productList = {},
+	notificationFrame = nil
 }
 
 function ProductGUI:createMainGUI()
-    -- Remove existing GUI
-    if playerGui:FindFirstChild("DevProductGUI") then
-        playerGui.DevProductGUI:Destroy()
-    end
-    
-    -- Main ScreenGui
-    self.screenGui = Instance.new("ScreenGui")
-    self.screenGui.Name = "DevProductGUI"
-    self.screenGui.ResetOnSpawn = false
-    self.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    self.screenGui.Parent = playerGui
-    
-    -- Main Container
-    self.mainFrame = Instance.new("Frame")
-    self.mainFrame.Name = "MainFrame"
-    self.mainFrame.Size = UDim2.new(0, 400, 0, 500)
-    self.mainFrame.Position = UDim2.new(0, 20, 0.5, -250)
-    self.mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    self.mainFrame.BackgroundTransparency = 0.05
-    self.mainFrame.BorderSizePixel = 0
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = self.mainFrame
-    
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 20, 1, 20)
-    shadow.Position = UDim2.new(0, -10, 0, -10)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://5554236805"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.7
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(23, 23, 277, 277)
-    shadow.Parent = self.mainFrame
-    shadow.ZIndex = -1
-    
-    -- Title Bar
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 45)
-    titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-    titleBar.BorderSizePixel = 0
-    
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 12, 0, 0)
-    titleCorner.Parent = titleBar
-    
-    local titleText = Instance.new("TextLabel")
-    titleText.Name = "Title"
-    titleText.Size = UDim2.new(1, -50, 1, 0)
-    titleText.Position = UDim2.new(0, 15, 0, 0)
-    titleText.BackgroundTransparency = 1
-    titleText.Text = "🛒 DEV PRODUCT FAKER v4.0"
-    titleText.TextColor3 = Color3.fromRGB(255, 220, 100)
-    titleText.TextSize = 18
-    titleText.Font = Enum.Font.GothamBold
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-    
-    -- Close Button
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0.5, -15)
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-    closeButton.Text = "✕"
-    closeButton.TextColor3 = Color3.white
-    closeButton.TextSize = 16
-    closeButton.Font = Enum.Font.GothamBold
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 15)
-    closeCorner.Parent = closeButton
-    
-    closeButton.MouseButton1Click:Connect(function()
-        self.screenGui.Enabled = not self.screenGui.Enabled
-    end)
-    closeButton.Parent = titleBar
-    
-    titleBar.Parent = self.mainFrame
-    
-    -- Tabs Container
-    local tabsContainer = Instance.new("Frame")
-    tabsContainer.Name = "Tabs"
-    tabsContainer.Size = UDim2.new(1, -20, 0, 35)
-    tabsContainer.Position = UDim2.new(0, 10, 0, 50)
-    tabsContainer.BackgroundTransparency = 1
-    
-    -- Tab Buttons
-    local tabs = {"Products", "Purchases", "Settings"}
-    local tabButtons = {}
-    
-    for i, tabName in ipairs(tabs) do
-        local tabButton = Instance.new("TextButton")
-        tabButton.Name = tabName .. "Tab"
-        tabButton.Size = UDim2.new(1 / #tabs, -5, 1, 0)
-        tabButton.Position = UDim2.new((i-1) / #tabs, 0, 0, 0)
-        tabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 75)
-        tabButton.Text = tabName
-        tabButton.TextColor3 = Color3.fromRGB(200, 200, 255)
-        tabButton.TextSize = 13
-        tabButton.Font = Enum.Font.GothamSemibold
-        
-        local tabCorner = Instance.new("UICorner")
-        tabCorner.CornerRadius = UDim.new(0, 6)
-        tabCorner.Parent = tabButton
-        
-        tabButton.MouseButton1Click:Connect(function()
-            -- Switch tab logic would go here
-            print("Switching to tab:", tabName)
-        end)
-        
-        tabButton.Parent = tabsContainer
-        tabButtons[tabName] = tabButton
-    end
-    
-    tabsContainer.Parent = self.mainFrame
-    
-    -- Content Area
-    local contentFrame = Instance.new("ScrollingFrame")
-    contentFrame.Name = "Content"
-    contentFrame.Size = UDim2.new(1, -20, 1, -130)
-    contentFrame.Position = UDim2.new(0, 10, 0, 90)
-    contentFrame.BackgroundTransparency = 1
-    contentFrame.BorderSizePixel = 0
-    contentFrame.ScrollBarThickness = 6
-    contentFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 150)
-    contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
-    local contentLayout = Instance.new("UIListLayout")
-    contentLayout.Padding = UDim.new(0, 10)
-    contentLayout.Parent = contentFrame
-    
-    -- Section: Detected Products
-    local productsSection = self:createSection("📦 DETECTED PRODUCTS", contentFrame)
-    
-    self.productListFrame = Instance.new("Frame")
-    self.productListFrame.Name = "ProductList"
-    self.productListFrame.Size = UDim2.new(1, 0, 0, 0)
-    self.productListFrame.BackgroundTransparency = 1
-    self.productListFrame.Parent = productsSection
-    
-    local productListLayout = Instance.new("UIListLayout")
-    productListLayout.Padding = UDim.new(0, 8)
-    productListLayout.Parent = self.productListFrame
-    
-    -- Rescan Button
-    local rescanButton = Instance.new("TextButton")
-    rescanButton.Name = "RescanButton"
-    rescanButton.Size = UDim2.new(1, 0, 0, 35)
-    rescanButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
-    rescanButton.Text = "🔍 RESCAN PRODUCTS"
-    rescanButton.TextColor3 = Color3.white
-    rescanButton.TextSize = 14
-    rescanButton.Font = Enum.Font.GothamSemibold
-    
-    local rescanCorner = Instance.new("UICorner")
-    rescanCorner.CornerRadius = UDim.new(0, 6)
-    rescanCorner.Parent = rescanButton
-    
-    rescanButton.MouseButton1Click:Connect(function()
-        DevProductScanner:scanDevProducts()
-        self:updateProductList()
-    end)
-    rescanButton.Parent = productsSection
-    
-    -- Section: Purchase Controls
-    local purchaseSection = self:createSection("🎮 PURCHASE CONTROLS", contentFrame)
-    
-    -- Interval Control
-    local intervalFrame = self:createControl("Interval (seconds):", "3", function(value)
-        ProductPurchaseSimulator.settings.interval = tonumber(value) or 3
-    end)
-    intervalFrame.Parent = purchaseSection
-    
-    -- Purchase Count Control
-    local countFrame = self:createControl("Mass Purchase Count:", "10", function(value)
-        ProductPurchaseSimulator.settings.massCount = tonumber(value) or 10
-    end)
-    countFrame.Parent = purchaseSection
-    
-    -- Control Buttons
-    local buttonContainer = Instance.new("Frame")
-    buttonContainer.Name = "Buttons"
-    buttonContainer.Size = UDim2.new(1, 0, 0, 120)
-    buttonContainer.BackgroundTransparency = 1
-    buttonContainer.Parent = purchaseSection
-    
-    local buttonLayout = Instance.new("UIListLayout")
-    buttonLayout.Padding = UDim.new(0, 8)
-    buttonLayout.Parent = buttonContainer
-    
-    -- Single Purchase Button
-    local singleButton = Instance.new("TextButton")
-    singleButton.Name = "SinglePurchase"
-    singleButton.Size = UDim2.new(1, 0, 0, 35)
-    singleButton.BackgroundColor3 = Color3.fromRGB(80, 180, 100)
-    singleButton.Text = "💰 SINGLE FAKE PURCHASE"
-    singleButton.TextColor3 = Color3.white
-    singleButton.TextSize = 14
-    
-    singleButton.MouseButton1Click:Connect(function()
-        ProductPurchaseSimulator:spoofPurchase()
-    end)
-    
-    local singleCorner = Instance.new("UICorner")
-    singleCorner.CornerRadius = UDim.new(0, 6)
-    singleCorner.Parent = singleButton
-    singleButton.Parent = buttonContainer
-    
-    -- Mass Purchase Button
-    local massButton = Instance.new("TextButton")
-    massButton.Name = "MassPurchase"
-    massButton.Size = UDim2.new(1, 0, 0, 35)
-    massButton.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
-    massButton.Text = "🎪 MASS PURCHASE"
-    massButton.TextColor3 = Color3.white
-    massButton.TextSize = 14
-    
-    massButton.MouseButton1Click:Connect(function()
-        local count = ProductPurchaseSimulator.settings.massCount or 10
-        ProductPurchaseSimulator:massPurchase(count)
-    end)
-    
-    local massCorner = Instance.new("UICorner")
-    massCorner.CornerRadius = UDim.new(0, 6)
-    massCorner.Parent = massButton
-    massButton.Parent = buttonContainer
-    
-    -- Auto Purchase Button
-    local autoButton = Instance.new("TextButton")
-    autoButton.Name = "AutoPurchase"
-    autoButton.Size = UDim2.new(1, 0, 0, 35)
-    autoButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
-    autoButton.Text = "⚡ AUTO PURCHASE MODE"
-    autoButton.TextColor3 = Color3.white
-    autoButton.TextSize = 14
-    
-    local autoRunning = false
-    autoButton.MouseButton1Click:Connect(function()
-        if not autoRunning then
-            autoRunning = true
-            autoButton.Text = "⏹️ STOP AUTO MODE"
-            autoButton.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
-            ProductPurchaseSimulator:start(
-                ProductPurchaseSimulator.settings.interval,
-                300 -- 5 minutes
-            )
-        else
-            autoRunning = false
-            autoButton.Text = "⚡ AUTO PURCHASE MODE"
-            autoButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
-            ProductPurchaseSimulator:stop()
-        end
-    end)
-    
-    local autoCorner = Instance.new("UICorner")
-    autoCorner.CornerRadius = UDim.new(0, 6)
-    autoCorner.Parent = autoButton
-    autoButton.Parent = buttonContainer
-    
-    -- Section: Statistics
-    local statsSection = self:createSection("📊 STATISTICS", contentFrame)
-    
-    self.statsFrame = Instance.new("Frame")
-    self.statsFrame.Name = "Stats"
-    self.statsFrame.Size = UDim2.new(1, 0, 0, 80)
-    self.statsFrame.BackgroundTransparency = 1
-    self.statsFrame.Parent = statsSection
-    
-    self.purchaseCountLabel = self:createStatLabel("Fake Purchases:", "0")
-    self.purchaseCountLabel.Parent = self.statsFrame
-    
-    self.revenueLabel = self:createStatLabel("Fake Revenue:", "R$0")
-    self.revenueLabel.Position = UDim2.new(0, 0, 0, 25)
-    self.revenueLabel.Parent = self.statsFrame
-    
-    self.activeLabel = self:createStatLabel("Status:", "Idle")
-    self.activeLabel.Position = UDim2.new(0, 0, 0, 50)
-    self.activeLabel.Parent = self.statsFrame
-    
-    contentFrame.Parent = self.mainFrame
-    self.mainFrame.Parent = self.screenGui
-    
-    return self.screenGui
+	-- Remove existing GUI
+	if playerGui:FindFirstChild("DevProductGUI") then
+		playerGui.DevProductGUI:Destroy()
+	end
+
+	-- Main ScreenGui
+	self.screenGui = Instance.new("ScreenGui")
+	self.screenGui.Name = "DevProductGUI"
+	self.screenGui.ResetOnSpawn = false
+	self.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	self.screenGui.Parent = playerGui
+
+	-- Main Container
+	self.mainFrame = Instance.new("Frame")
+	self.mainFrame.Name = "MainFrame"
+	self.mainFrame.Size = UDim2.new(0, 400, 0, 500)
+	self.mainFrame.Position = UDim2.new(0, 20, 0.5, -250)
+	self.mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+	self.mainFrame.BackgroundTransparency = 0.05
+	self.mainFrame.BorderSizePixel = 0
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = self.mainFrame
+
+	local shadow = Instance.new("ImageLabel")
+	shadow.Name = "Shadow"
+	shadow.Size = UDim2.new(1, 20, 1, 20)
+	shadow.Position = UDim2.new(0, -10, 0, -10)
+	shadow.BackgroundTransparency = 1
+	shadow.Image = "rbxassetid://5554236805"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.7
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+	shadow.Parent = self.mainFrame
+	shadow.ZIndex = -1
+
+	-- Title Bar
+	local titleBar = Instance.new("Frame")
+	titleBar.Name = "TitleBar"
+	titleBar.Size = UDim2.new(1, 0, 0, 45)
+	titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+	titleBar.BorderSizePixel = 0
+
+	local titleCorner = Instance.new("UICorner")
+	titleCorner.CornerRadius = UDim.new(0, 12, 0, 0)
+	titleCorner.Parent = titleBar
+
+	local titleText = Instance.new("TextLabel")
+	titleText.Name = "Title"
+	titleText.Size = UDim2.new(1, -50, 1, 0)
+	titleText.Position = UDim2.new(0, 15, 0, 0)
+	titleText.BackgroundTransparency = 1
+	titleText.Text = "🛒 DEV PRODUCT FAKER v4.0"
+	titleText.TextColor3 = Color3.fromRGB(255, 220, 100)
+	titleText.TextSize = 18
+	titleText.Font = Enum.Font.GothamBold
+	titleText.TextXAlignment = Enum.TextXAlignment.Left
+	titleText.Parent = titleBar
+
+	-- Close Button
+	local closeButton = Instance.new("TextButton")
+	closeButton.Name = "CloseButton"
+	closeButton.Size = UDim2.new(0, 30, 0, 30)
+	closeButton.Position = UDim2.new(1, -35, 0.5, -15)
+	closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+	closeButton.Text = "✕"
+	closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeButton.TextSize = 16
+	closeButton.Font = Enum.Font.GothamBold
+
+	local closeCorner = Instance.new("UICorner")
+	closeCorner.CornerRadius = UDim.new(0, 15)
+	closeCorner.Parent = closeButton
+
+	closeButton.MouseButton1Click:Connect(function()
+		self.screenGui.Enabled = not self.screenGui.Enabled
+	end)
+	closeButton.Parent = titleBar
+
+	titleBar.Parent = self.mainFrame
+
+	-- Tabs Container
+	local tabsContainer = Instance.new("Frame")
+	tabsContainer.Name = "Tabs"
+	tabsContainer.Size = UDim2.new(1, -20, 0, 35)
+	tabsContainer.Position = UDim2.new(0, 10, 0, 50)
+	tabsContainer.BackgroundTransparency = 1
+
+	-- Tab Buttons
+	local tabs = {"Products", "Purchases", "Settings"}
+	local tabButtons = {}
+
+	for i, tabName in ipairs(tabs) do
+		local tabButton = Instance.new("TextButton")
+		tabButton.Name = tabName .. "Tab"
+		tabButton.Size = UDim2.new(1 / #tabs, -5, 1, 0)
+		tabButton.Position = UDim2.new((i-1) / #tabs, 0, 0, 0)
+		tabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 75)
+		tabButton.Text = tabName
+		tabButton.TextColor3 = Color3.fromRGB(200, 200, 255)
+		tabButton.TextSize = 13
+		tabButton.Font = Enum.Font.GothamSemibold
+
+		local tabCorner = Instance.new("UICorner")
+		tabCorner.CornerRadius = UDim.new(0, 6)
+		tabCorner.Parent = tabButton
+
+		tabButton.MouseButton1Click:Connect(function()
+			-- Switch tab logic would go here
+			print("Switching to tab:", tabName)
+		end)
+
+		tabButton.Parent = tabsContainer
+		tabButtons[tabName] = tabButton
+	end
+
+	tabsContainer.Parent = self.mainFrame
+
+	-- Content Area
+	local contentFrame = Instance.new("ScrollingFrame")
+	contentFrame.Name = "Content"
+	contentFrame.Size = UDim2.new(1, -20, 1, -130)
+	contentFrame.Position = UDim2.new(0, 10, 0, 90)
+	contentFrame.BackgroundTransparency = 1
+	contentFrame.BorderSizePixel = 0
+	contentFrame.ScrollBarThickness = 6
+	contentFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 150)
+	contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+	local contentLayout = Instance.new("UIListLayout")
+	contentLayout.Padding = UDim.new(0, 10)
+	contentLayout.Parent = contentFrame
+
+	-- Section: Detected Products
+	local productsSection = self:createSection("📦 DETECTED PRODUCTS", contentFrame)
+
+	self.productListFrame = Instance.new("Frame")
+	self.productListFrame.Name = "ProductList"
+	self.productListFrame.Size = UDim2.new(1, 0, 0, 0)
+	self.productListFrame.BackgroundTransparency = 1
+	self.productListFrame.Parent = productsSection
+
+	local productListLayout = Instance.new("UIListLayout")
+	productListLayout.Padding = UDim.new(0, 8)
+	productListLayout.Parent = self.productListFrame
+
+	-- Rescan Button
+	local rescanButton = Instance.new("TextButton")
+	rescanButton.Name = "RescanButton"
+	rescanButton.Size = UDim2.new(1, 0, 0, 35)
+	rescanButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
+	rescanButton.Text = "🔍 RESCAN PRODUCTS"
+	rescanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	rescanButton.TextSize = 14
+	rescanButton.Font = Enum.Font.GothamSemibold
+
+	local rescanCorner = Instance.new("UICorner")
+	rescanCorner.CornerRadius = UDim.new(0, 6)
+	rescanCorner.Parent = rescanButton
+
+	rescanButton.MouseButton1Click:Connect(function()
+		DevProductScanner:scanDevProducts()
+		self:updateProductList()
+	end)
+	rescanButton.Parent = productsSection
+
+	-- Section: Purchase Controls
+	local purchaseSection = self:createSection("🎮 PURCHASE CONTROLS", contentFrame)
+
+	-- Interval Control
+	local intervalFrame = self:createControl("Interval (seconds):", "3", function(value)
+		ProductPurchaseSimulator.settings.interval = tonumber(value) or 3
+	end)
+	intervalFrame.Parent = purchaseSection
+
+	-- Purchase Count Control
+	local countFrame = self:createControl("Mass Purchase Count:", "10", function(value)
+		ProductPurchaseSimulator.settings.massCount = tonumber(value) or 10
+	end)
+	countFrame.Parent = purchaseSection
+
+	-- Control Buttons
+	local buttonContainer = Instance.new("Frame")
+	buttonContainer.Name = "Buttons"
+	buttonContainer.Size = UDim2.new(1, 0, 0, 120)
+	buttonContainer.BackgroundTransparency = 1
+	buttonContainer.Parent = purchaseSection
+
+	local buttonLayout = Instance.new("UIListLayout")
+	buttonLayout.Padding = UDim.new(0, 8)
+	buttonLayout.Parent = buttonContainer
+
+	-- Single Purchase Button
+	local singleButton = Instance.new("TextButton")
+	singleButton.Name = "SinglePurchase"
+	singleButton.Size = UDim2.new(1, 0, 0, 35)
+	singleButton.BackgroundColor3 = Color3.fromRGB(80, 180, 100)
+	singleButton.Text = "💰 SINGLE FAKE PURCHASE"
+	singleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	singleButton.TextSize = 14
+
+	singleButton.MouseButton1Click:Connect(function()
+		ProductPurchaseSimulator:spoofPurchase()
+	end)
+
+	local singleCorner = Instance.new("UICorner")
+	singleCorner.CornerRadius = UDim.new(0, 6)
+	singleCorner.Parent = singleButton
+	singleButton.Parent = buttonContainer
+
+	-- Mass Purchase Button
+	local massButton = Instance.new("TextButton")
+	massButton.Name = "MassPurchase"
+	massButton.Size = UDim2.new(1, 0, 0, 35)
+	massButton.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
+	massButton.Text = "🎪 MASS PURCHASE"
+	massButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	massButton.TextSize = 14
+
+	massButton.MouseButton1Click:Connect(function()
+		local count = ProductPurchaseSimulator.settings.massCount or 10
+		ProductPurchaseSimulator:massPurchase(count)
+	end)
+
+	local massCorner = Instance.new("UICorner")
+	massCorner.CornerRadius = UDim.new(0, 6)
+	massCorner.Parent = massButton
+	massButton.Parent = buttonContainer
+
+	-- Auto Purchase Button
+	local autoButton = Instance.new("TextButton")
+	autoButton.Name = "AutoPurchase"
+	autoButton.Size = UDim2.new(1, 0, 0, 35)
+	autoButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+	autoButton.Text = "⚡ AUTO PURCHASE MODE"
+	autoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	autoButton.TextSize = 14
+
+	local autoRunning = false
+	autoButton.MouseButton1Click:Connect(function()
+		if not autoRunning then
+			autoRunning = true
+			autoButton.Text = "⏹️ STOP AUTO MODE"
+			autoButton.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+			ProductPurchaseSimulator:start(
+				ProductPurchaseSimulator.settings.interval,
+				300 -- 5 minutes
+			)
+		else
+			autoRunning = false
+			autoButton.Text = "⚡ AUTO PURCHASE MODE"
+			autoButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+			ProductPurchaseSimulator:stop()
+		end
+	end)
+
+	local autoCorner = Instance.new("UICorner")
+	autoCorner.CornerRadius = UDim.new(0, 6)
+	autoCorner.Parent = autoButton
+	autoButton.Parent = buttonContainer
+
+	-- Section: Statistics
+	local statsSection = self:createSection("📊 STATISTICS", contentFrame)
+
+	self.statsFrame = Instance.new("Frame")
+	self.statsFrame.Name = "Stats"
+	self.statsFrame.Size = UDim2.new(1, 0, 0, 80)
+	self.statsFrame.BackgroundTransparency = 1
+	self.statsFrame.Parent = statsSection
+
+	self.purchaseCountLabel = self:createStatLabel("Fake Purchases:", "0")
+	self.purchaseCountLabel.Parent = self.statsFrame
+
+	self.revenueLabel = self:createStatLabel("Fake Revenue:", "R$0")
+	self.revenueLabel.Position = UDim2.new(0, 0, 0, 25)
+	self.revenueLabel.Parent = self.statsFrame
+
+	self.activeLabel = self:createStatLabel("Status:", "Idle")
+	self.activeLabel.Position = UDim2.new(0, 0, 0, 50)
+	self.activeLabel.Parent = self.statsFrame
+
+	contentFrame.Parent = self.mainFrame
+	self.mainFrame.Parent = self.screenGui
+
+	return self.screenGui
 end
 
 function ProductGUI:createSection(title, parent)
-    local section = Instance.new("Frame")
-    section.Name = title:gsub("%W", "")
-    section.Size = UDim2.new(1, 0, 0, 0)
-    section.BackgroundTransparency = 1
-    section.AutomaticSize = Enum.AutomaticSize.Y
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "SectionTitle"
-    titleLabel.Size = UDim2.new(1, 0, 0, 25)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
-    titleLabel.TextSize = 14
-    titleLabel.Font = Enum.Font.GothamSemibold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = section
-    
-    local content = Instance.new("Frame")
-    content.Name = "Content"
-    content.Size = UDim2.new(1, 0, 0, 0)
-    content.Position = UDim2.new(0, 0, 0, 25)
-    content.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    content.BackgroundTransparency = 0.1
-    content.AutomaticSize = Enum.AutomaticSize.Y
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = content
-    
-    local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 12)
-    padding.PaddingRight = UDim.new(0, 12)
-    padding.PaddingTop = UDim.new(0, 12)
-    padding.PaddingBottom = UDim.new(0, 12)
-    padding.Parent = content
-    
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 10)
-    layout.Parent = content
-    
-    content.Parent = section
-    section.Parent = parent
-    
-    return content
+	local section = Instance.new("Frame")
+	section.Name = title:gsub("%W", "")
+	section.Size = UDim2.new(1, 0, 0, 0)
+	section.BackgroundTransparency = 1
+	section.AutomaticSize = Enum.AutomaticSize.Y
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "SectionTitle"
+	titleLabel.Size = UDim2.new(1, 0, 0, 25)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = title
+	titleLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+	titleLabel.TextSize = 14
+	titleLabel.Font = Enum.Font.GothamSemibold
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = section
+
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.Size = UDim2.new(1, 0, 0, 0)
+	content.Position = UDim2.new(0, 0, 0, 25)
+	content.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+	content.BackgroundTransparency = 0.1
+	content.AutomaticSize = Enum.AutomaticSize.Y
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = content
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 12)
+	padding.PaddingRight = UDim.new(0, 12)
+	padding.PaddingTop = UDim.new(0, 12)
+	padding.PaddingBottom = UDim.new(0, 12)
+	padding.Parent = content
+
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 10)
+	layout.Parent = content
+
+	content.Parent = section
+	section.Parent = parent
+
+	return content
 end
 
 function ProductGUI:createControl(label, defaultValue, callback)
-    local frame = Instance.new("Frame")
-    frame.Name = label:gsub("%W", "")
-    frame.Size = UDim2.new(1, 0, 0, 30)
-    frame.BackgroundTransparency = 1
-    
-    local labelText = Instance.new("TextLabel")
-    labelText.Name = "Label"
-    labelText.Size = UDim2.new(0.6, 0, 1, 0)
-    labelText.BackgroundTransparency = 1
-    labelText.Text = label
-    labelText.TextColor3 = Color3.fromRGB(180, 180, 220)
-    labelText.TextSize = 13
-    labelText.Font = Enum.Font.Gotham
-    labelText.TextXAlignment = Enum.TextXAlignment.Left
-    labelText.Parent = frame
-    
-    local textBox = Instance.new("TextBox")
-    textBox.Name = "Input"
-    textBox.Size = UDim2.new(0.4, 0, 1, 0)
-    textBox.Position = UDim2.new(0.6, 0, 0, 0)
-    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-    textBox.TextColor3 = Color3.white
-    textBox.Text = defaultValue
-    textBox.PlaceholderText = "Enter..."
-    textBox.TextSize = 13
-    textBox.ClearTextOnFocus = false
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = textBox
-    
-    textBox.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            callback(textBox.Text)
-        end
-    end)
-    textBox.Parent = frame
-    
-    return frame
+	local frame = Instance.new("Frame")
+	frame.Name = label:gsub("%W", "")
+	frame.Size = UDim2.new(1, 0, 0, 30)
+	frame.BackgroundTransparency = 1
+
+	local labelText = Instance.new("TextLabel")
+	labelText.Name = "Label"
+	labelText.Size = UDim2.new(0.6, 0, 1, 0)
+	labelText.BackgroundTransparency = 1
+	labelText.Text = label
+	labelText.TextColor3 = Color3.fromRGB(180, 180, 220)
+	labelText.TextSize = 13
+	labelText.Font = Enum.Font.Gotham
+	labelText.TextXAlignment = Enum.TextXAlignment.Left
+	labelText.Parent = frame
+
+	local textBox = Instance.new("TextBox")
+	textBox.Name = "Input"
+	textBox.Size = UDim2.new(0.4, 0, 1, 0)
+	textBox.Position = UDim2.new(0.6, 0, 0, 0)
+	textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+	textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textBox.Text = defaultValue
+	textBox.PlaceholderText = "Enter..."
+	textBox.TextSize = 13
+	textBox.ClearTextOnFocus = false
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 4)
+	corner.Parent = textBox
+
+	textBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed then
+			callback(textBox.Text)
+		end
+	end)
+	textBox.Parent = frame
+
+	return frame
 end
 
 function ProductGUI:createStatLabel(label, value)
-    local frame = Instance.new("Frame")
-    frame.Name = label:gsub("%W", "")
-    frame.Size = UDim2.new(1, 0, 0, 20)
-    frame.BackgroundTransparency = 1
-    
-    local labelText = Instance.new("TextLabel")
-    labelText.Name = "Label"
-    labelText.Size = UDim2.new(0.6, 0, 1, 0)
-    labelText.BackgroundTransparency = 1
-    labelText.Text = label
-    labelText.TextColor3 = Color3.fromRGB(180, 180, 220)
-    labelText.TextSize = 13
-    labelText.Font = Enum.Font.Gotham
-    labelText.TextXAlignment = Enum.TextXAlignment.Left
-    labelText.Parent = frame
-    
-    local valueText = Instance.new("TextLabel")
-    valueText.Name = "Value"
-    valueText.Size = UDim2.new(0.4, 0, 1, 0)
-    valueText.Position = UDim2.new(0.6, 0, 0, 0)
-    valueText.BackgroundTransparency = 1
-    valueText.Text = value
-    valueText.TextColor3 = Color3.fromRGB(255, 220, 100)
-    valueText.TextSize = 13
-    valueText.Font = Enum.Font.GothamBold
-    valueText.TextXAlignment = Enum.TextXAlignment.Right
-    valueText.Parent = frame
-    
-    return frame
+	local frame = Instance.new("Frame")
+	frame.Name = label:gsub("%W", "")
+	frame.Size = UDim2.new(1, 0, 0, 20)
+	frame.BackgroundTransparency = 1
+
+	local labelText = Instance.new("TextLabel")
+	labelText.Name = "Label"
+	labelText.Size = UDim2.new(0.6, 0, 1, 0)
+	labelText.BackgroundTransparency = 1
+	labelText.Text = label
+	labelText.TextColor3 = Color3.fromRGB(180, 180, 220)
+	labelText.TextSize = 13
+	labelText.Font = Enum.Font.Gotham
+	labelText.TextXAlignment = Enum.TextXAlignment.Left
+	labelText.Parent = frame
+
+	local valueText = Instance.new("TextLabel")
+	valueText.Name = "Value"
+	valueText.Size = UDim2.new(0.4, 0, 1, 0)
+	valueText.Position = UDim2.new(0.6, 0, 0, 0)
+	valueText.BackgroundTransparency = 1
+	valueText.Text = value
+	valueText.TextColor3 = Color3.fromRGB(255, 220, 100)
+	valueText.TextSize = 13
+	valueText.Font = Enum.Font.GothamBold
+	valueText.TextXAlignment = Enum.TextXAlignment.Right
+	valueText.Parent = frame
+
+	return frame
 end
 
 function ProductGUI:addProductToList(productData)
-    local productFrame = Instance.new("Frame")
-    productFrame.Name = "Product_" .. productData.id
-    productFrame.Size = UDim2.new(1, 0, 0, 70)
-    productFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-    productFrame.BackgroundTransparency = 0.1
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = productFrame
-    
-    -- Product Icon
-    local icon = Instance.new("TextLabel")
-    icon.Name = "Icon"
-    icon.Size = UDim2.new(0, 40, 0, 40)
-    icon.Position = UDim2.new(0, 10, 0.5, -20)
-    icon.BackgroundTransparency = 1
-    icon.Text = "📦"
-    icon.TextColor3 = Color3.fromRGB(255, 220, 100)
-    icon.TextSize = 24
-    icon.Font = Enum.Font.GothamBold
-    icon.Parent = productFrame
-    
-    -- Product Info
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "Name"
-    nameLabel.Size = UDim2.new(1, -60, 0, 20)
-    nameLabel.Position = UDim2.new(0, 60, 0, 10)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = productData.name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 200)
-    nameLabel.TextSize = 14
-    nameLabel.Font = Enum.Font.GothamSemibold
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Parent = productFrame
-    
-    local infoLabel = Instance.new("TextLabel")
-    infoLabel.Name = "Info"
-    infoLabel.Size = UDim2.new(1, -60, 0, 35)
-    infoLabel.Position = UDim2.new(0, 60, 0, 30)
-    infoLabel.BackgroundTransparency = 1
-    infoLabel.Text = string.format("ID: %s | Type: %s", 
-        tostring(productData.id or "Unknown"), 
-        productData.type or "Unknown")
-    infoLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
-    infoLabel.TextSize = 11
-    infoLabel.Font = Enum.Font.Gotham
-    infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-    infoLabel.TextYAlignment = Enum.TextYAlignment.Top
-    infoLabel.Parent = productFrame
-    
-    -- Purchase Button
-    local buyButton = Instance.new("TextButton")
-    buyButton.Name = "BuyButton"
-    buyButton.Size = UDim2.new(0, 70, 0, 25)
-    buyButton.Position = UDim2.new(1, -80, 0.5, -12)
-    buyButton.BackgroundColor3 = Color3.fromRGB(80, 180, 100)
-    buyButton.Text = "FAKE BUY"
-    buyButton.TextColor3 = Color3.white
-    buyButton.TextSize = 11
-    buyButton.Font = Enum.Font.GothamBold
-    
-    local buyCorner = Instance.new("UICorner")
-    buyCorner.CornerRadius = UDim.new(0, 4)
-    buyCorner.Parent = buyButton
-    
-    buyButton.MouseButton1Click:Connect(function()
-        ProductPurchaseSimulator:spoofPurchase()
-    end)
-    buyButton.Parent = productFrame
-    
-    productFrame.Parent = self.productListFrame
-    
-    -- Update layout
-    task.wait(0.1)
-    self.productListFrame.Size = UDim2.new(1, 0, 0, 
-        self.productListFrame.UIListLayout.AbsoluteContentSize.Y)
+	local productFrame = Instance.new("Frame")
+	productFrame.Name = "Product_" .. productData.id
+	productFrame.Size = UDim2.new(1, 0, 0, 70)
+	productFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+	productFrame.BackgroundTransparency = 0.1
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = productFrame
+
+	-- Product Icon
+	local icon = Instance.new("TextLabel")
+	icon.Name = "Icon"
+	icon.Size = UDim2.new(0, 40, 0, 40)
+	icon.Position = UDim2.new(0, 10, 0.5, -20)
+	icon.BackgroundTransparency = 1
+	icon.Text = "📦"
+	icon.TextColor3 = Color3.fromRGB(255, 220, 100)
+	icon.TextSize = 24
+	icon.Font = Enum.Font.GothamBold
+	icon.Parent = productFrame
+
+	-- Product Info
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Name"
+	nameLabel.Size = UDim2.new(1, -60, 0, 20)
+	nameLabel.Position = UDim2.new(0, 60, 0, 10)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = productData.name
+	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 200)
+	nameLabel.TextSize = 14
+	nameLabel.Font = Enum.Font.GothamSemibold
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Parent = productFrame
+
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Name = "Info"
+	infoLabel.Size = UDim2.new(1, -60, 0, 35)
+	infoLabel.Position = UDim2.new(0, 60, 0, 30)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.Text = string.format("ID: %s | Type: %s", 
+		tostring(productData.id or "Unknown"), 
+		productData.type or "Unknown")
+	infoLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
+	infoLabel.TextSize = 11
+	infoLabel.Font = Enum.Font.Gotham
+	infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+	infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+	infoLabel.Parent = productFrame
+
+	-- Purchase Button
+	local buyButton = Instance.new("TextButton")
+	buyButton.Name = "BuyButton"
+	buyButton.Size = UDim2.new(0, 70, 0, 25)
+	buyButton.Position = UDim2.new(1, -80, 0.5, -12)
+	buyButton.BackgroundColor3 = Color3.fromRGB(80, 180, 100)
+	buyButton.Text = "FAKE BUY"
+	buyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	buyButton.TextSize = 11
+	buyButton.Font = Enum.Font.GothamBold
+
+	local buyCorner = Instance.new("UICorner")
+	buyCorner.CornerRadius = UDim.new(0, 4)
+	buyCorner.Parent = buyButton
+
+	buyButton.MouseButton1Click:Connect(function()
+		ProductPurchaseSimulator:spoofPurchase()
+	end)
+	buyButton.Parent = productFrame
+
+	productFrame.Parent = self.productListFrame
+
+	-- Update layout
+	task.wait(0.1)
+	self.productListFrame.Size = UDim2.new(1, 0, 0, 
+		self.productListFrame.UIListLayout.AbsoluteContentSize.Y)
 end
 
 function ProductGUI:updateProductList()
-    if not self.productListFrame then return end
-    
-    -- Clear existing
-    for _, child in pairs(self.productListFrame:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    
-    -- Add detected products
-    if DevProductScanner.detectedProducts.remotes then
-        for _, remoteData in pairs(DevProductScanner.detectedProducts.remotes) do
-            self:addProductToList({
-                name = remoteData.object.Name,
-                id = remoteData.object.Name,
-                type = remoteData.type,
-                path = remoteData.path,
-                confidence = remoteData.confidence
-            })
-        end
-    end
-    
-    if DevProductScanner.detectedProducts.configs then
-        for _, config in pairs(DevProductScanner.detectedProducts.configs) do
-            self:addProductToList(config)
-        end
-    end
-    
-    -- Update stats
-    if self.purchaseCountLabel and self.revenueLabel then
-        self.purchaseCountLabel.Value.Text = tostring(ProductPurchaseSimulator.totalFakePurchases)
-        self.revenueLabel.Value.Text = "R$" .. tostring(ProductPurchaseSimulator.totalFakeRevenue)
-    end
+	if not self.productListFrame then return end
+
+	-- Clear existing
+	for _, child in pairs(self.productListFrame:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	-- Add detected products
+	if DevProductScanner.detectedProducts.remotes then
+		for _, remoteData in pairs(DevProductScanner.detectedProducts.remotes) do
+			self:addProductToList({
+				name = remoteData.object.Name,
+				id = remoteData.object.Name,
+				type = remoteData.type,
+				path = remoteData.path,
+				confidence = remoteData.confidence
+			})
+		end
+	end
+
+	if DevProductScanner.detectedProducts.configs then
+		for _, config in pairs(DevProductScanner.detectedProducts.configs) do
+			self:addProductToList(config)
+		end
+	end
+
+	-- Update stats
+	if self.purchaseCountLabel and self.revenueLabel then
+		self.purchaseCountLabel.Value.Text = tostring(ProductPurchaseSimulator.totalFakePurchases)
+		self.revenueLabel.Value.Text = "R$" .. tostring(ProductPurchaseSimulator.totalFakeRevenue)
+	end
 end
 
 function ProductGUI:showPurchaseNotification(purchase)
-    -- Create notification frame
-    local notif = Instance.new("Frame")
-    notif.Name = "PurchaseNotif_" .. HttpService:GenerateGUID(false)
-    notif.Size = UDim2.new(0, 300, 0, 80)
-    notif.Position = UDim2.new(1, 10, 0, 10)
-    notif.BackgroundColor3 = purchase.color or Color3.fromRGB(60, 180, 100)
-    notif.BackgroundTransparency = 0.1
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = notif
-    
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 10, 1, 10)
-    shadow.Position = UDim2.new(0, -5, 0, -5)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://5554236805"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.8
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(23, 23, 277, 277)
-    shadow.Parent = notif
-    shadow.ZIndex = -1
-    
-    -- Icon
-    local icon = Instance.new("TextLabel")
-    icon.Name = "Icon"
-    icon.Size = UDim2.new(0, 50, 1, -20)
-    icon.Position = UDim2.new(0, 10, 0, 10)
-    icon.BackgroundTransparency = 1
-    icon.Text = "💰"
-    icon.TextColor3 = Color3.fromRGB(255, 255, 200)
-    icon.TextSize = 30
-    icon.Font = Enum.Font.GothamBold
-    icon.Parent = notif
-    
-    -- Content
-    local playerLabel = Instance.new("TextLabel")
-    playerLabel.Name = "Player"
-    playerLabel.Size = UDim2.new(1, -70, 0, 25)
-    playerLabel.Position = UDim2.new(0, 70, 0, 15)
-    playerLabel.BackgroundTransparency = 1
-    playerLabel.Text = purchase.player
-    playerLabel.TextColor3 = Color3.white
-    playerLabel.TextSize = 16
-    playerLabel.Font = Enum.Font.GothamBold
-    playerLabel.TextXAlignment = Enum.TextXAlignment.Left
-    playerLabel.Parent = notif
-    
-    local productLabel = Instance.new("TextLabel")
-    productLabel.Name = "Product"
-    productLabel.Size = UDim2.new(1, -70, 0, 35)
-    productLabel.Position = UDim2.new(0, 70, 0, 40)
-    productLabel.BackgroundTransparency = 1
-    productLabel.Text = purchase.message
-    productLabel.TextColor3 = Color3.fromRGB(230, 230, 255)
-    productLabel.TextSize = 12
-    productLabel.Font = Enum.Font.Gotham
-    productLabel.TextXAlignment = Enum.TextXAlignment.Left
-    productLabel.TextYAlignment = Enum.TextYAlignment.Top
-    productLabel.Parent = notif
-    
-    -- Amount badge
-    local amountBadge = Instance.new("Frame")
-    amountBadge.Name = "Amount"
-    amountBadge.Size = UDim2.new(0, 60, 0, 25)
-    amountBadge.Position = UDim2.new(1, -70, 0, 10)
-    amountBadge.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-    
-    local badgeCorner = Instance.new("UICorner")
-    badgeCorner.CornerRadius = UDim.new(0, 12)
-    badgeCorner.Parent = amountBadge
-    
-    local amountText = Instance.new("TextLabel")
-    amountText.Name = "Text"
-    amountText.Size = UDim2.new(1, 0, 1, 0)
-    amountText.BackgroundTransparency = 1
-    amountText.Text = "R$" .. purchase.amount
-    amountText.TextColor3 = Color3.fromRGB(40, 40, 40)
-    amountText.TextSize = 12
-    amountText.Font = Enum.Font.GothamBold
-    amountText.Parent = amountBadge
-    amountBadge.Parent = notif
-    
-    -- Add to screen
-    notif.Parent = self.screenGui
-    
-    -- Animate in
-    notif.Position = UDim2.new(1, 10, 0, 10)
-    
-    local slideIn = game:GetService("TweenService"):Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Position = UDim2.new(1, -310, 0, 10)
-    })
-    slideIn:Play()
-    
-    -- Auto-remove after 8 seconds
-    task.wait(8)
-    
-    local slideOut = game:GetService("TweenService"):Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-        Position = UDim2.new(1, 10, 0, 10)
-    })
-    slideOut:Play()
-    slideOut.Completed:Wait()
-    notif:Destroy()
+	-- Create notification frame
+	local notif = Instance.new("Frame")
+	notif.Name = "PurchaseNotif_" .. HttpService:GenerateGUID(false)
+	notif.Size = UDim2.new(0, 300, 0, 80)
+	notif.Position = UDim2.new(1, 10, 0, 10)
+	notif.BackgroundColor3 = purchase.color or Color3.fromRGB(60, 180, 100)
+	notif.BackgroundTransparency = 0.1
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = notif
+
+	local shadow = Instance.new("ImageLabel")
+	shadow.Name = "Shadow"
+	shadow.Size = UDim2.new(1, 10, 1, 10)
+	shadow.Position = UDim2.new(0, -5, 0, -5)
+	shadow.BackgroundTransparency = 1
+	shadow.Image = "rbxassetid://5554236805"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.8
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+	shadow.Parent = notif
+	shadow.ZIndex = -1
+
+	-- Icon
+	local icon = Instance.new("TextLabel")
+	icon.Name = "Icon"
+	icon.Size = UDim2.new(0, 50, 1, -20)
+	icon.Position = UDim2.new(0, 10, 0, 10)
+	icon.BackgroundTransparency = 1
+	icon.Text = "💰"
+	icon.TextColor3 = Color3.fromRGB(255, 255, 200)
+	icon.TextSize = 30
+	icon.Font = Enum.Font.GothamBold
+	icon.Parent = notif
+
+	-- Content
+	local playerLabel = Instance.new("TextLabel")
+	playerLabel.Name = "Player"
+	playerLabel.Size = UDim2.new(1, -70, 0, 25)
+	playerLabel.Position = UDim2.new(0, 70, 0, 15)
+	playerLabel.BackgroundTransparency = 1
+	playerLabel.Text = purchase.player
+	playerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	playerLabel.TextSize = 16
+	playerLabel.Font = Enum.Font.GothamBold
+	playerLabel.TextXAlignment = Enum.TextXAlignment.Left
+	playerLabel.Parent = notif
+
+	local productLabel = Instance.new("TextLabel")
+	productLabel.Name = "Product"
+	productLabel.Size = UDim2.new(1, -70, 0, 35)
+	productLabel.Position = UDim2.new(0, 70, 0, 40)
+	productLabel.BackgroundTransparency = 1
+	productLabel.Text = purchase.message
+	productLabel.TextColor3 = Color3.fromRGB(230, 230, 255)
+	productLabel.TextSize = 12
+	productLabel.Font = Enum.Font.Gotham
+	productLabel.TextXAlignment = Enum.TextXAlignment.Left
+	productLabel.TextYAlignment = Enum.TextYAlignment.Top
+	productLabel.Parent = notif
+
+	-- Amount badge
+	local amountBadge = Instance.new("Frame")
+	amountBadge.Name = "Amount"
+	amountBadge.Size = UDim2.new(0, 60, 0, 25)
+	amountBadge.Position = UDim2.new(1, -70, 0, 10)
+	amountBadge.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+
+	local badgeCorner = Instance.new("UICorner")
+	badgeCorner.CornerRadius = UDim.new(0, 12)
+	badgeCorner.Parent = amountBadge
+
+	local amountText = Instance.new("TextLabel")
+	amountText.Name = "Text"
+	amountText.Size = UDim2.new(1, 0, 1, 0)
+	amountText.BackgroundTransparency = 1
+	amountText.Text = "R$" .. purchase.amount
+	amountText.TextColor3 = Color3.fromRGB(40, 40, 40)
+	amountText.TextSize = 12
+	amountText.Font = Enum.Font.GothamBold
+	amountText.Parent = amountBadge
+	amountBadge.Parent = notif
+
+	-- Add to screen
+	notif.Parent = self.screenGui
+
+	-- Animate in
+	notif.Position = UDim2.new(1, 10, 0, 10)
+
+	local slideIn = game:GetService("TweenService"):Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, -310, 0, 10)
+	})
+	slideIn:Play()
+
+	-- Auto-remove after 8 seconds
+	task.wait(8)
+
+	local slideOut = game:GetService("TweenService"):Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+		Position = UDim2.new(1, 10, 0, 10)
+	})
+	slideOut:Play()
+	slideOut.Completed:Wait()
+	notif:Destroy()
 end
 
 -- ======================
@@ -1045,40 +1045,40 @@ end
 
 -- Initialize settings
 ProductPurchaseSimulator.settings = {
-    interval = 3,
-    duration = 180,
-    massCount = 10
+	interval = 3,
+	duration = 180,
+	massCount = 10
 }
 
 -- Scan products and create GUI on startup
 coroutine.wrap(function()
-    task.wait(2)
-    
-    -- Initial scan
-    DevProductScanner:scanDevProducts()
-    
-    -- Create GUI
-    ProductGUI:createMainGUI()
-    
-    -- Update product list
-    ProductGUI:updateProductList()
-    
-    print("[SYSTEM] DevProduct Fake Purchase Generator v4.0 ready!")
-    print("[SYSTEM] Press F4 to toggle GUI")
-    
-    -- Monitor purchases for notifications
-    while true do
-        if #ProductPurchaseSimulator.announcementQueue > 0 then
-            local purchase = table.remove(ProductPurchaseSimulator.announcementQueue, 1)
-            ProductGUI:showPurchaseNotification(purchase)
-            
-            -- Update stats in GUI
-            ProductGUI.purchaseCountLabel.Value.Text = tostring(ProductPurchaseSimulator.totalFakePurchases)
-            ProductGUI.revenueLabel.Value.Text = "R$" .. tostring(ProductPurchaseSimulator.totalFakeRevenue)
-            ProductGUI.activeLabel.Value.Text = ProductPurchaseSimulator.active and "Active" or "Idle"
-        end
-        task.wait(0.1)
-    end
+	task.wait(2)
+
+	-- Initial scan
+	DevProductScanner:scanDevProducts()
+
+	-- Create GUI
+	ProductGUI:createMainGUI()
+
+	-- Update product list
+	ProductGUI:updateProductList()
+
+	print("[SYSTEM] DevProduct Fake Purchase Generator v4.0 ready!")
+	print("[SYSTEM] Press F4 to toggle GUI")
+
+	-- Monitor purchases for notifications
+	while true do
+		if #ProductPurchaseSimulator.announcementQueue > 0 then
+			local purchase = table.remove(ProductPurchaseSimulator.announcementQueue, 1)
+			ProductGUI:showPurchaseNotification(purchase)
+
+			-- Update stats in GUI
+			ProductGUI.purchaseCountLabel.Value.Text = tostring(ProductPurchaseSimulator.totalFakePurchases)
+			ProductGUI.revenueLabel.Value.Text = "R$" .. tostring(ProductPurchaseSimulator.totalFakeRevenue)
+			ProductGUI.activeLabel.Value.Text = ProductPurchaseSimulator.active and "Active" or "Idle"
+		end
+		task.wait(0.1)
+	end
 end)()
 
 -- ======================
@@ -1087,37 +1087,37 @@ end)()
 
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.F4 then
-        if ProductGUI.screenGui then
-            ProductGUI.screenGui.Enabled = not ProductGUI.screenGui.Enabled
-        end
-    end
+	if not gameProcessed and input.KeyCode == Enum.KeyCode.F4 then
+		if ProductGUI.screenGui then
+			ProductGUI.screenGui.Enabled = not ProductGUI.screenGui.Enabled
+		end
+	end
 end)
 
 -- Export global controls
 _G.DevProductFaker = {
-    scan = function() 
-        DevProductScanner:scanDevProducts()
-        ProductGUI:updateProductList()
-    end,
-    single = function()
-        ProductPurchaseSimulator:spoofPurchase()
-    end,
-    mass = function(count)
-        ProductPurchaseSimulator:massPurchase(count or 10)
-    end,
-    start = function(interval, duration)
-        ProductPurchaseSimulator:start(interval, duration)
-    end,
-    stop = function()
-        ProductPurchaseSimulator:stop()
-    end,
-    stats = function()
-        return {
-            purchases = ProductPurchaseSimulator.totalFakePurchases,
-            revenue = ProductPurchaseSimulator.totalFakeRevenue
-        }
-    end
+	scan = function() 
+		DevProductScanner:scanDevProducts()
+		ProductGUI:updateProductList()
+	end,
+	single = function()
+		ProductPurchaseSimulator:spoofPurchase()
+	end,
+	mass = function(count)
+		ProductPurchaseSimulator:massPurchase(count or 10)
+	end,
+	start = function(interval, duration)
+		ProductPurchaseSimulator:start(interval, duration)
+	end,
+	stop = function()
+		ProductPurchaseSimulator:stop()
+	end,
+	stats = function()
+		return {
+			purchases = ProductPurchaseSimulator.totalFakePurchases,
+			revenue = ProductPurchaseSimulator.totalFakeRevenue
+		}
+	end
 }
 
 print("=========================================")
