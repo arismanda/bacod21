@@ -1,102 +1,88 @@
--- Combined Fishing Cheat (Auto Fishing + Auto Casting)
+-- Auto Fishing Cheat - No GUI, No Playtime Requirement
 local Player = game.Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 
--- Load modules
-local castingModule, fishingModule
+-- Tunggu GUI load
+repeat task.wait() until Player.PlayerGui:FindFirstChild("GameGui")
+repeat task.wait() until Player.PlayerGui.GameGui:FindFirstChild("AutoFishingBtn")
 
-for _, module in pairs(game.ReplicatedStorage.Modules:GetDescendants()) do
-    if module.Name == "CastingBtn" and module:IsA("ModuleScript") then
-        castingModule = require(module)
-    elseif module.Name == "AutoFishingBtn" and module:IsA("ModuleScript") then
-        fishingModule = require(module)
+-- Load module
+local autoFishingModule
+for _, obj in pairs(game.ReplicatedStorage.Modules:GetDescendants()) do
+    if obj.Name == "AutoFishingBtn" and obj:IsA("ModuleScript") then
+        autoFishingModule = require(obj)
+        break
     end
 end
 
-if not castingModule or not fishingModule then
-    warn("[CHEAT] Modules tidak ditemukan!")
+if not autoFishingModule then
+    warn("[CHEAT] AutoFishing module tidak ditemukan!")
     return
 end
 
--- Setup auto fishing
-fishingModule.isCanAuto = function() return true end
-
--- Variables
-local autoMode = false
-local taskRef
-
--- Function untuk auto fishing loop
-local function startAutoFishingLoop()
-    if autoMode then return end
-    
-    autoMode = true
-    print("[AUTO FISHING LOOP] Dimulai...")
-    
-    taskRef = task.spawn(function()
-        while autoMode do
-            -- Aktifkan casting
-            castingModule.casting = true
-            castingModule.castingEvent:Fire(true)
-            task.wait(1)
-            
-            -- Aktifkan auto fishing
-            fishingModule._active = true
-            fishingModule.autoFishingEvent:Fire(true)
-            task.wait(3)
-            
-            -- Reset untuk loop berikutnya
-            castingModule.casting = false
-            castingModule.castingEvent:Fire(false)
-            task.wait(1)
-        end
-    end)
+-- Override fungsi isCanAuto untuk bypass playtime dan gamepass
+autoFishingModule.isCanAuto = function()
+    return true -- Selalu return true, tidak peduli playtime atau gamepass
 end
 
-local function stopAutoFishingLoop()
-    autoMode = false
-    if taskRef then
-        task.cancel(taskRef)
-    end
-    print("[AUTO FISHING LOOP] Dihentikan")
+-- Simpan fungsi asli untuk restore jika perlu
+local originalEnable = autoFishingModule._enableAutoFishing
+local originalDisable = autoFishingModule._disableAutoFishing
+
+-- Override _enableAutoFishing untuk bypass semua check
+autoFishingModule._enableAutoFishing = function(self)
+    -- Langsung enable tanpa cek kondisi
+    autoFishingModule._active = true
+    self.autoFishingEvent:Fire(true)
+    
+    -- Update UI
+    local btn = Player.PlayerGui.GameGui.AutoFishingBtn
+    btn.TextLabel.Text = "AUTO: ON"
+    btn.CanvasGroup.Vector.BackgroundColor3 = Color3.fromRGB(83, 255, 57)
+    
+    -- Notifikasi
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "🎣 AUTO FISHING",
+        Text = "AKTIF (BYPASSED)",
+        Duration = 3
+    })
 end
 
--- Hotkey control
+-- Override _disableAutoFishing
+autoFishingModule._disableAutoFishing = function(self)
+    autoFishingModule._active = false
+    self.autoFishingEvent:Fire(false)
+    
+    -- Update UI
+    local btn = Player.PlayerGui.GameGui.AutoFishingBtn
+    btn.TextLabel.Text = "AUTO: OFF"
+    btn.CanvasGroup.Vector.BackgroundColor3 = Color3.fromRGB(255, 77, 41)
+    
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "🎣 AUTO FISHING",
+        Text = "NON-AKTIF",
+        Duration = 3
+    })
+end
+
+-- Hotkey: F5 untuk toggle auto fishing
 UIS.InputBegan:Connect(function(input, processed)
-    if not processed then
-        -- F10: Toggle auto fishing loop
-        if input.KeyCode == Enum.KeyCode.F10 then
-            if autoMode then
-                stopAutoFishingLoop()
-            else
-                startAutoFishingLoop()
-            end
-        end
-        
-        -- F11: Toggle casting only
-        if input.KeyCode == Enum.KeyCode.F11 then
-            castingModule:onClick()
-        end
-        
-        -- F12: Toggle auto fishing only
-        if input.KeyCode == Enum.KeyCode.F12 then
-            if fishingModule._active then
-                fishingModule:_disableAutoFishing()
-            else
-                fishingModule:_enableAutoFishing()
-            end
+    if not processed and input.KeyCode == Enum.KeyCode.F5 then
+        if autoFishingModule._active then
+            autoFishingModule:_disableAutoFishing()
+        else
+            autoFishingModule:_enableAutoFishing()
         end
     end
 end)
 
--- Show buttons
-castingModule:Show()
-fishingModule:Show()
+-- Force show button dan langsung aktifkan
+autoFishingModule:Show()
+autoFishingModule:_enableAutoFishing()
 
--- Notifikasi
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "FISHING CHEAT",
-    Text = "Script loaded! F10: Auto Loop, F11: Cast, F12: Auto Fish",
-    Duration = 5
-})
-
-print("[CHEAT] Fishing Cheat Package loaded!")
+print("=======================================")
+print("🎣 AUTO FISHING CHEAT LOADED!")
+print("✅ Playtime 50 jam: BYPASSED")
+print("✅ Gamepass requirement: BYPASSED")
+print("🔥 Hotkey: F5 (Toggle Auto Fishing)")
+print("=======================================")
