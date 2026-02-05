@@ -2,172 +2,122 @@ local Player = game:GetService("Players").LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
 local function autoClickMiningButtons()
-    local miningGui = PlayerGui:WaitForChild("MiningGui", 10)
-    if not miningGui then
-        return false
-    end
+    local miningGui = PlayerGui:FindFirstChild("MiningGui")
+    if not miningGui then return false end
     
-    local hitButtons = miningGui:WaitForChild("HitButtons", 5)
-    if not hitButtons then
-        return false
-    end
+    local hitButtons = miningGui:FindFirstChild("HitButtons")
+    if not hitButtons then return false end
     
     local clicked = 0
-    for _, button in ipairs(hitButtons:GetChildren()) do
+    for _, button in pairs(hitButtons:GetChildren()) do
         if button:IsA("TextButton") and button.Visible then
-            local success = pcall(function()
-                button:FireEvent("MouseButton1Click")
-                game:GetService("ReplicatedStorage"):WaitForChild("MiningHitEvent"):FireServer()
+            pcall(function()
+                local success = pcall(function()
+                    button:FireEvent("MouseButton1Click")
+                end)
                 
-                local character = Player.Character
-                if character then
-                    local humanoid = character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        local animator = humanoid:FindFirstChildOfClass("Animator")
-                        if animator then
-                            local animation = Instance.new("Animation")
-                            animation.AnimationId = "rbxassetid://704173649"
-                            local track = animator:LoadAnimation(animation)
-                            track.Priority = Enum.AnimationPriority.Action
-                            track:Play()
-                        end
-                    end
-                end
+                game:GetService("ReplicatedStorage"):WaitForChild("MiningHitEvent"):FireServer()
             end)
             
-            if success then
-                clicked += 1
-                task.wait(0.1)
-            end
+            clicked = clicked + 1
+            task.wait(0.05)
         end
     end
     
     return clicked > 0
 end
 
-local function startAutoMining()
-    while true do
-        local success = autoClickMiningButtons()
-        
-        if not success then
-            pcall(function()
-                local miningGui = PlayerGui:WaitForChild("MiningGui")
-                if miningGui and miningGui.Visible then
-                    miningGui:FireEvent("MouseButton1Click")
-                end
-            end)
-        end
-        
-        task.wait(0.5)
-    end
-end
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoMiningGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
 
-local function createAutoMiningGUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "AutoMiningGUI"
-    screenGui.ResetOnSpawn = false
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 160, 0, 100)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(0, 150, 255)
+mainFrame.Parent = screenGui
+
+local title = Instance.new("TextLabel")
+title.Text = "AUTO MINING"
+title.Size = UDim2.new(1, 0, 0, 25)
+title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+title.TextColor3 = Color3.white
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = mainFrame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Text = "START AUTO"
+toggleButton.Size = UDim2.new(0.8, 0, 0, 30)
+toggleButton.Position = UDim2.new(0.1, 0, 0.3, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+toggleButton.TextColor3 = Color3.white
+toggleButton.Font = Enum.Font.Gotham
+toggleButton.TextSize = 12
+toggleButton.Parent = mainFrame
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Text = "OFF"
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 0.75, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 12
+statusLabel.Parent = mainFrame
+
+local isAutoMining = false
+local miningThread
+
+toggleButton.MouseButton1Click:Connect(function()
+    isAutoMining = not isAutoMining
     
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 200, 0, 120)
-    mainFrame.Position = UDim2.new(0, 10, 0, 10)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    mainFrame.BorderSizePixel = 2
-    mainFrame.BorderColor3 = Color3.fromRGB(0, 150, 255)
-    
-    local title = Instance.new("TextLabel")
-    title.Text = "AUTO MINING"
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-    title.TextColor3 = Color3.white
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 16
-    
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Text = "START AUTO"
-    toggleButton.Size = UDim2.new(0.8, 0, 0, 40)
-    toggleButton.Position = UDim2.new(0.1, 0, 0.3, 0)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-    toggleButton.TextColor3 = Color3.white
-    toggleButton.Font = Enum.Font.Gotham
-    toggleButton.TextSize = 14
-    
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Text = "Status: OFF"
-    statusLabel.Size = UDim2.new(1, 0, 0, 25)
-    statusLabel.Position = UDim2.new(0, 0, 0.75, 0)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 12
-    
-    title.Parent = mainFrame
-    toggleButton.Parent = mainFrame
-    statusLabel.Parent = mainFrame
-    mainFrame.Parent = screenGui
-    screenGui.Parent = PlayerGui
-    
-    local isAutoMining = false
-    local miningThread = nil
-    
-    toggleButton.MouseButton1Click:Connect(function()
-        isAutoMining = not isAutoMining
+    if isAutoMining then
+        toggleButton.Text = "STOP AUTO"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+        statusLabel.Text = "ON"
+        statusLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
         
-        if isAutoMining then
-            toggleButton.Text = "STOP AUTO"
-            toggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-            statusLabel.Text = "Status: ON"
-            statusLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
-            
-            miningThread = task.spawn(function()
-                while isAutoMining do
-                    autoClickMiningButtons()
-                    task.wait(0.2)
-                end
-            end)
-        else
-            toggleButton.Text = "START AUTO"
-            toggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-            statusLabel.Text = "Status: OFF"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-            
-            if miningThread then
-                task.cancel(miningThread)
-                miningThread = nil
+        miningThread = task.spawn(function()
+            while isAutoMining do
+                pcall(autoClickMiningButtons)
+                task.wait(0.1)
             end
+        end)
+    else
+        toggleButton.Text = "START AUTO"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+        statusLabel.Text = "OFF"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        
+        if miningThread then
+            task.cancel(miningThread)
+            miningThread = nil
         end
-    end)
-    
-    local manualButton = Instance.new("TextButton")
-    manualButton.Text = "KLIK SEKARANG"
-    manualButton.Size = UDim2.new(0.8, 0, 0, 25)
-    manualButton.Position = UDim2.new(0.1, 0, 0.5, 0)
-    manualButton.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-    manualButton.TextColor3 = Color3.white
-    manualButton.Font = Enum.Font.Gotham
-    manualButton.TextSize = 12
-    manualButton.Parent = mainFrame
-    
-    manualButton.MouseButton1Click:Connect(function()
-        autoClickMiningButtons()https://github.com/arismanda/bacod21/tree/master
-    end)
-    
-    local UserInputService = game:GetService("UserInputService")
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
-            toggleButton:FireEvent("MouseButton1Click")
-        end
-    end)
-    
-    return screenGui
-end
-
-task.wait(2)
-
-if PlayerGui:FindFirstChild("MiningGui") then
-    createAutoMiningGUI()
-else
-    task.wait(5)
-    if PlayerGui:FindFirstChild("MiningGui") then
-        createAutoMiningGUI()
     end
-end
+end)
+
+local manualButton = Instance.new("TextButton")
+manualButton.Text = "KLIK"
+manualButton.Size = UDim2.new(0.3, 0, 0, 25)
+manualButton.Position = UDim2.new(0.6, 0, 0.5, 0)
+manualButton.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+manualButton.TextColor3 = Color3.white
+manualButton.Font = Enum.Font.Gotham
+manualButton.TextSize = 11
+manualButton.Parent = mainFrame
+
+manualButton.MouseButton1Click:Connect(function()
+    pcall(autoClickMiningButtons)
+end)
+
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F then
+        pcall(function()
+            toggleButton:FireEvent("MouseButton1Click")
+        end)
+    end
+end)
