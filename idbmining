@@ -1,53 +1,500 @@
--- Simple Auto Mining (tekan P untuk toggle)
-local Player = game:GetService("Players").LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage_upvr = game:GetService("ReplicatedStorage")
+local LocalPlayer_upvr = game:GetService("Players").LocalPlayer
+local Parent_upvr = script.Parent
+local HitButtons_upvr = script.Parent.Parent:WaitForChild("HitButtons")
+local var7_upvw = false
+local Vignette = LocalPlayer_upvr:WaitForChild("PlayerGui"):WaitForChild("FishingEffects"):WaitForChild("Vignette")
+local StarterGui_upvr = game:GetService("StarterGui")
+local UserInputService_upvr = game:GetService("UserInputService")
+local PlayerGui_upvr = LocalPlayer_upvr:WaitForChild("PlayerGui")
+local TweenService_upvr = game:GetService("TweenService")
+local RunService_upvr = game:GetService("RunService")
+local var14_upvw = false
+local var15_upvw
+local SprintGUI_upvr = PlayerGui_upvr:WaitForChild("SprintGUI")
+local Playerlist_upvr = PlayerGui_upvr:WaitForChild("Playerlist")
+local TopbarStandard_upvr = PlayerGui_upvr:WaitForChild("TopbarStandard")
+local CurrentCamera_upvr = workspace.CurrentCamera
 
-local autoMining = false
-local miningThread = nil
+-- VARIABEL CHEAT
+local AutoMineEnabled = true -- Set true untuk enable auto mining
+local InstantHitDelay = 0.05 -- Delay antar hit (detik)
+local AutoStartEnabled = true -- Auto start minigame
 
-local function clickMiningButtons()
-    local miningGui = PlayerGui:FindFirstChild("MiningGui")
-    if not miningGui then return false end
+local function getPassword_upvr()
+	return ReplicatedStorage_upvr:WaitForChild("Fish"):WaitForChild("Voucher"):WaitForChild("Voucher"):WaitForChild("Pic"):WaitForChild("SurfaceGui"):WaitForChild("TextLabel"):WaitForChild("Value7").Value
+end
+
+local udim2_upvr = UDim2.new(0.08, 0, 0.08, 0)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CinematicGui"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui_upvr
+
+local TextLabel_upvr = Instance.new("TextLabel")
+TextLabel_upvr.Size = UDim2.new(1, 0, 0.2, 0)
+TextLabel_upvr.AnchorPoint = Vector2.new(0.5, 0.5)
+TextLabel_upvr.Position = UDim2.new(0.5, 0, 0.5, 0)
+TextLabel_upvr.BackgroundTransparency = 1
+TextLabel_upvr.TextTransparency = 1
+TextLabel_upvr.TextStrokeTransparency = 1
+TextLabel_upvr.TextScaled = false
+TextLabel_upvr.TextSize = 60
+TextLabel_upvr.TextXAlignment = Enum.TextXAlignment.Center
+TextLabel_upvr.TextYAlignment = Enum.TextYAlignment.Center
+TextLabel_upvr.Font = Enum.Font.GothamBlack
+TextLabel_upvr.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel_upvr.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+TextLabel_upvr.Parent = ScreenGui
+
+local ColorCorrectionEffect = Instance.new("ColorCorrectionEffect")
+ColorCorrectionEffect.Brightness = 0
+ColorCorrectionEffect.Contrast = 0
+ColorCorrectionEffect.Saturation = 0
+ColorCorrectionEffect.Parent = game:GetService("Lighting")
+
+local var24_upvw = false
+local var25_upvw = 0
+local var26_upvw = 0
+
+-- FUNGSI AUTO HIT
+local function autoHitAllButtons()
+    if not var24_upvw then return end
     
-    local hitButtons = miningGui:FindFirstChild("HitButtons")
-    if not hitButtons then return false end
-    
-    for _, button in ipairs(hitButtons:GetChildren()) do
+    for _, button in ipairs(HitButtons_upvr:GetChildren()) do
         if button:IsA("TextButton") and button.Visible then
-            -- Trigger click event
-            pcall(function()
-                button:FireEvent("MouseButton1Click")
-                game:GetService("ReplicatedStorage"):WaitForChild("MiningHitEvent"):FireServer()
-            end)
-            task.wait(0.1)
+            -- Simulasi klik button
+            button.Visible = false
+            var25_upvw -= 1
+            var26_upvw += 1
+            
+            -- Fire mining event
+            game:GetService("ReplicatedStorage"):WaitForChild("MiningHitEvent"):FireServer()
+            
+            -- Play animation
+            local Character = LocalPlayer_upvr.Character
+            if Character then
+                local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+                if Humanoid then
+                    local Animator = Humanoid:FindFirstChildOfClass("Animator")
+                    if Animator then
+                        local Animation = Instance.new("Animation")
+                        Animation.AnimationId = "rbxassetid://704173649"
+                        local track = Animator:LoadAnimation(Animation)
+                        track.Priority = Enum.AnimationPriority.Action
+                        track:Play()
+                    end
+                end
+            end
+            
+            -- Camera shake effect
+            if not var14_upvw then
+                TweenService_upvr:Create(CurrentCamera_upvr, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {
+                    CFrame = CurrentCamera_upvr.CFrame * CFrame.new(0, 0, 0.6);
+                }):Play()
+                local CFrame_upvr = CurrentCamera_upvr.CFrame
+                task.delay(0.08, function()
+                    TweenService_upvr:Create(CurrentCamera_upvr, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                        CFrame = CFrame_upvr;
+                    }):Play()
+                end)
+            end
+            
+            -- Delay antar hit
+            task.wait(InstantHitDelay)
         end
     end
     
-    return true
+    -- Check jika semua button sudah di-hit
+    if var25_upvw <= 0 then
+        finishMinigame_upvr()
+    end
 end
 
--- Hotkey: Tekan P untuk toggle auto mining
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
-        autoMining = not autoMining
-        
-        if autoMining then
-            print("Auto mining ON")
-            miningThread = task.spawn(function()
-                while autoMining do
-                    clickMiningButtons()
-                    task.wait(0.2)
-                end
-            end)
-        else
-            print("Auto mining OFF")
-            if miningThread then
-                task.cancel(miningThread)
-                miningThread = nil
+local function randomPosition_upvr()
+	return UDim2.new(math.random() * 0.8 + 0.1, 0, math.random() * 0.8 + 0.1, 0)
+end
+
+local function positionsOverlap(arg1, arg2)
+	local var27 = arg1.X.Scale - arg2.X.Scale
+	local var28 = arg1.Y.Scale - arg2.Y.Scale
+	local var29 = udim2_upvr.X.Scale / 2 * 2
+	if math.sqrt(var27 * var27 + var28 * var28) >= var29 + 0.02 then
+		var29 = false
+	else
+		var29 = true
+	end
+	return var29
+end
+
+local function getSafePosition_upvr(arg1)
+    local position
+    local attempts = 0
+    local maxAttempts = 50
+    
+    repeat
+        position = randomPosition_upvr()
+        local overlap = false
+        for _, existingPos in ipairs(arg1) do
+            if positionsOverlap(position, existingPos) then
+                overlap = true
+                break
             end
         end
+        attempts = attempts + 1
+        if attempts >= maxAttempts then
+            break
+        end
+    until not overlap
+    
+    return position
+end
+
+local function resetHitButtons_upvr()
+	for _, v in ipairs(HitButtons_upvr:GetChildren()) do
+		if v:IsA("TextButton") then
+			v.Visible = false
+		end
+	end
+end
+
+local function showCinematicText_upvr(arg1)
+	TextLabel_upvr.Text = arg1
+	TextLabel_upvr.TextTransparency = 1
+	TextLabel_upvr.TextStrokeTransparency = 1
+	TweenService_upvr:Create(TextLabel_upvr, TweenInfo.new(0.25), {
+		TextTransparency = 0;
+		TextStrokeTransparency = 0;
+	}):Play()
+	task.delay(0.8, function()
+		TweenService_upvr:Create(TextLabel_upvr, TweenInfo.new(0.25), {
+			TextTransparency = 1;
+			TextStrokeTransparency = 1;
+		}):Play()
+	end)
+end
+
+local function cameraHitReaction_upvr()
+	if not var14_upvw then
+	else
+		TweenService_upvr:Create(CurrentCamera_upvr, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {
+			CFrame = CurrentCamera_upvr.CFrame * CFrame.new(0, 0, 0.6);
+		}):Play()
+		local CFrame_upvr = CurrentCamera_upvr.CFrame
+		task.delay(0.08, function()
+			TweenService_upvr:Create(CurrentCamera_upvr, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+				CFrame = CFrame_upvr;
+			}):Play()
+		end)
+	end
+end
+
+local function playMiningAnimation_upvr()
+	local Character_3 = LocalPlayer_upvr.Character
+	if not Character_3 then
+		Character_3 = LocalPlayer_upvr.CharacterAdded:Wait()
+	end
+	local class_Humanoid = Character_3:FindFirstChildOfClass("Humanoid")
+	if not class_Humanoid then
+	else
+		local class_Animator = class_Humanoid:FindFirstChildOfClass("Animator")
+		if not class_Animator then
+			class_Animator = class_Humanoid:WaitForChild("Animator", 1)
+		end
+		if not class_Animator then return end
+		for _, v_3 in ipairs(class_Animator:GetPlayingAnimationTracks()) do
+			if v_3.Animation.AnimationId == "rbxassetid://704173649" then return end
+		end
+		local Animation = Instance.new("Animation")
+		Animation.AnimationId = "rbxassetid://704173649"
+		local any_LoadAnimation_result1 = class_Animator:LoadAnimation(Animation)
+		any_LoadAnimation_result1.Priority = Enum.AnimationPriority.Action
+		any_LoadAnimation_result1:Play()
+	end
+end
+
+local var60_upvw
+local function exitCinematicCamera_upvr()
+	var14_upvw = false
+	if var60_upvw then
+		var60_upvw:Disconnect()
+		var60_upvw = nil
+	end
+	local Character_2 = LocalPlayer_upvr.Character
+	if not Character_2 then
+	else
+		local class_Humanoid_upvr = Character_2:FindFirstChildOfClass("Humanoid")
+		local HumanoidRootPart = Character_2:FindFirstChild("HumanoidRootPart")
+		if not class_Humanoid_upvr or not HumanoidRootPart then return end
+		CurrentCamera_upvr.CameraType = Enum.CameraType.Scriptable
+		local var64_upvr = var15_upvw
+		if not var64_upvr then
+			var64_upvr = CurrentCamera_upvr.CFrame
+		end
+		local var66_upvw = 0
+		local cframe_upvr_2 = CFrame.new(HumanoidRootPart.Position + Vector3.new(0, 5, -10), HumanoidRootPart.Position + Vector3.new(0, 3, 0))
+		local var68_upvw
+		var68_upvw = RunService_upvr.RenderStepped:Connect(function(arg1)
+			var66_upvw += arg1
+			local clamped_2 = math.clamp(var66_upvw / 0.45, 0, 1)
+			CurrentCamera_upvr.CFrame = var64_upvr:Lerp(cframe_upvr_2, clamped_2)
+			if 1 <= clamped_2 then
+				var68_upvw:Disconnect()
+				CurrentCamera_upvr.CameraType = Enum.CameraType.Custom
+				CurrentCamera_upvr.CameraSubject = class_Humanoid_upvr
+			end
+		end)
+	end
+end
+
+local any_Create_result1_upvr_2 = TweenService_upvr:Create(Vignette, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
+	ImageTransparency = 0.35;
+})
+
+local any_Create_result1_upvr = TweenService_upvr:Create(Vignette, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
+	ImageTransparency = 1;
+})
+
+local GiveCrystal_upvr = ReplicatedStorage_upvr:WaitForChild("GiveCrystal")
+local function finishMinigame_upvr()
+	if 0 < var25_upvw then
+	else
+		if var26_upvw <= 0 then return end
+		var24_upvw = false
+		var7_upvw = true
+		if not GiveCrystal_upvr:InvokeServer(getPassword_upvr(), var26_upvw) then
+			warn("Mining rejected")
+			var24_upvw = false
+			var7_upvw = false
+			Parent_upvr.Visible = true
+			exitCinematicCamera_upvr()
+			showCinematicText_upvr("MINING FAILED")
+			resetHitButtons_upvr()
+			return
+		end
+		any_Create_result1_upvr_2:Cancel()
+		any_Create_result1_upvr:Play()
+		showCinematicText_upvr("MINING COMPLETE")
+		Playerlist_upvr.Enabled = true
+		TopbarStandard_upvr.Enabled = true
+		PlayerGui_upvr.MoneyGui.Enabled = true
+		PlayerGui_upvr.LeftBar.Enabled = true
+		PlayerGui_upvr.BackpackGui.Enabled = true
+		StarterGui_upvr:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		if UserInputService_upvr.TouchEnabled then
+			SprintGUI_upvr.Enabled = true
+		end
+		task.delay(2, function()
+			var7_upvw = false
+		end)
+	end
+end
+
+local function enterCinematicCamera()
+	local Character = LocalPlayer_upvr.Character
+	if not Character then
+		Character = LocalPlayer_upvr.CharacterAdded:Wait()
+	end
+	local HumanoidRootPart_2 = Character:WaitForChild("HumanoidRootPart")
+	var14_upvw = true
+	CurrentCamera_upvr.CameraType = Enum.CameraType.Scriptable
+	local var84_upvw = 0
+	local CFrame_2_upvr = CurrentCamera_upvr.CFrame
+	local cframe_upvr = CFrame.new(HumanoidRootPart_2.Position + HumanoidRootPart_2.CFrame.RightVector * 4 + HumanoidRootPart_2.CFrame.LookVector * -5 + Vector3.new(0, 2.5, 0), HumanoidRootPart_2.Position + Vector3.new(0, 2, 0))
+	local var87_upvw
+	var87_upvw = RunService_upvr.RenderStepped:Connect(function(arg1)
+		var84_upvw += arg1
+		local clamped = math.clamp(var84_upvw / 0.35, 0, 1)
+		CurrentCamera_upvr.CFrame = CFrame_2_upvr:Lerp(cframe_upvr, clamped)
+		if 1 <= clamped then
+			var87_upvw:Disconnect()
+			var15_upvw = cframe_upvr
+		end
+	end)
+end
+
+local function startMinigame_upvr()
+	if var24_upvw then
+	else
+		var24_upvw = true
+		var25_upvw = 0
+		var26_upvw = 0
+		Parent_upvr.Visible = false
+		showCinematicText_upvr("MINING BEGIN")
+		any_Create_result1_upvr:Cancel()
+		any_Create_result1_upvr_2:Play()
+		game:GetService("ReplicatedStorage"):WaitForChild("MiningStartEvent"):FireServer()
+		Playerlist_upvr.Enabled = false
+		TopbarStandard_upvr.Enabled = false
+		PlayerGui_upvr.MoneyGui.Enabled = false
+		PlayerGui_upvr.LeftBar.Enabled = false
+		PlayerGui_upvr.BackpackGui.Enabled = false
+		StarterGui_upvr:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		if UserInputService_upvr.TouchEnabled then
+			SprintGUI_upvr.Enabled = false
+		end
+		local tbl = {}
+		for _, v_4 in ipairs(HitButtons_upvr:GetChildren()) do
+			if v_4:IsA("TextButton") then
+				v_4.AnchorPoint = Vector2.new(0.5, 0.5)
+				v_4.Size = udim2_upvr
+				local getSafePosition_upvr_result1 = getSafePosition_upvr(tbl)
+				v_4.Position = getSafePosition_upvr_result1
+				table.insert(tbl, getSafePosition_upvr_result1)
+				v_4.Visible = true
+				v_4.TextTransparency = 1
+				v_4.BackgroundTransparency = 1
+				TweenService_upvr:Create(v_4, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+					TextTransparency = 0;
+					BackgroundTransparency = 0;
+				}):Play()
+				var25_upvw += 1
+			end
+		end
+		
+		-- AUTO HIT FITUR
+		if AutoMineEnabled then
+			task.delay(0.5, function() -- Delay sedikit untuk memastikan semua button sudah muncul
+				autoHitAllButtons()
+			end)
+		end
+	end
+end
+
+-- MODIFIKASI BUTTON CLICK UNTUK AUTO HIT
+for _, v_2_upvr in ipairs(HitButtons_upvr:GetChildren()) do
+	if v_2_upvr:IsA("TextButton") then
+		v_2_upvr.MouseButton1Click:Connect(function()
+			if not var24_upvw or not v_2_upvr.Visible then
+			else
+				playMiningAnimation_upvr()
+				cameraHitReaction_upvr()
+				game:GetService("ReplicatedStorage"):WaitForChild("MiningHitEvent"):FireServer()
+				v_2_upvr.Visible = false
+				var25_upvw -= 1
+				var26_upvw += 1
+				
+				-- Auto hit button lain jika fitur enabled
+				if AutoMineEnabled then
+					task.spawn(function()
+						autoHitAllButtons()
+					end)
+				else
+					finishMinigame_upvr()
+				end
+			end
+		end)
+	end
+end
+
+Parent_upvr.MouseButton1Click:Connect(function()
+	if var7_upvw then
+	else
+		startMinigame_upvr()
+	end
+end)
+
+-- AUTO START FITUR
+if AutoStartEnabled then
+    local function autoStartMinigame()
+        while true do
+            if Parent_upvr.Visible and not var7_upvw and not var24_upvw then
+                startMinigame_upvr()
+            end
+            task.wait(1)
+        end
+    end
+    
+    task.spawn(autoStartMinigame)
+end
+
+LocalPlayer_upvr.CharacterAdded:Connect(function()
+	any_Create_result1_upvr_2:Cancel()
+	any_Create_result1_upvr:Play()
+	resetHitButtons_upvr()
+end)
+
+-- GUI CONTROL UNTUK CHEAT (OPTIONAL)
+local CheatGUI = Instance.new("ScreenGui")
+CheatGUI.Name = "MiningCheatGUI"
+CheatGUI.ResetOnSpawn = false
+CheatGUI.Parent = PlayerGui_upvr
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 200, 0, 150)
+Frame.Position = UDim2.new(0, 10, 0.5, -75)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BackgroundTransparency = 0.3
+Frame.Parent = CheatGUI
+
+local Title = Instance.new("TextLabel")
+Title.Text = "Mining Cheat"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.Parent = Frame
+
+local AutoMineToggle = Instance.new("TextButton")
+AutoMineToggle.Text = "Auto Mine: ON"
+AutoMineToggle.Size = UDim2.new(0.9, 0, 0, 30)
+AutoMineToggle.Position = UDim2.new(0.05, 0, 0.25, 0)
+AutoMineToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+AutoMineToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoMineToggle.Font = Enum.Font.Gotham
+AutoMineToggle.TextSize = 14
+AutoMineToggle.Parent = Frame
+
+AutoMineToggle.MouseButton1Click:Connect(function()
+    AutoMineEnabled = not AutoMineEnabled
+    if AutoMineEnabled then
+        AutoMineToggle.Text = "Auto Mine: ON"
+        AutoMineToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        AutoMineToggle.Text = "Auto Mine: OFF"
+        AutoMineToggle.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
     end
 end)
 
-print("Auto mining loaded! Press P to toggle")
+local AutoStartToggle = Instance.new("TextButton")
+AutoStartToggle.Text = "Auto Start: ON"
+AutoStartToggle.Size = UDim2.new(0.9, 0, 0, 30)
+AutoStartToggle.Position = UDim2.new(0.05, 0, 0.5, 0)
+AutoStartToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+AutoStartToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoStartToggle.Font = Enum.Font.Gotham
+AutoStartToggle.TextSize = 14
+AutoStartToggle.Parent = Frame
+
+AutoStartToggle.MouseButton1Click:Connect(function()
+    AutoStartEnabled = not AutoStartEnabled
+    if AutoStartEnabled then
+        AutoStartToggle.Text = "Auto Start: ON"
+        AutoStartToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        AutoStartToggle.Text = "Auto Start: OFF"
+        AutoStartToggle.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+    end
+end)
+
+local InstantHitBtn = Instance.new("TextButton")
+InstantHitBtn.Text = "Instant Hit Now"
+InstantHitBtn.Size = UDim2.new(0.9, 0, 0, 30)
+InstantHitBtn.Position = UDim2.new(0.05, 0, 0.75, 0)
+InstantHitBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+InstantHitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+InstantHitBtn.Font = Enum.Font.GothamBold
+InstantHitBtn.TextSize = 14
+InstantHitBtn.Parent = Frame
+
+InstantHitBtn.MouseButton1Click:Connect(function()
+    if var24_upvw then
+        autoHitAllButtons()
+    end
+end)
+
+print("Mining Cheat Loaded!")
+print("Auto Mine Enabled:", AutoMineEnabled)
+print("Auto Start Enabled:", AutoStartEnabled)
