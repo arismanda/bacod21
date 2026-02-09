@@ -1,0 +1,266 @@
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local UICorner = Instance.new("UICorner")
+local Title = Instance.new("TextLabel")
+local IncreasePopToggle = Instance.new("TextButton")
+local NormalLabel = Instance.new("TextLabel")
+local NormalBox = Instance.new("TextBox")
+local RubyLabel = Instance.new("TextLabel")
+local RubyBox = Instance.new("TextBox")
+local SilverLabel = Instance.new("TextLabel")
+local SilverBox = Instance.new("TextBox")
+local GoldenLabel = Instance.new("TextLabel")
+local GoldenBox = Instance.new("TextBox")
+local DiamondLabel = Instance.new("TextLabel")
+local DiamondBox = Instance.new("TextBox")
+local ToggleAll = Instance.new("TextButton")
+local Status = Instance.new("TextLabel")
+
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Name = "GrassCollectGUI"
+
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+Frame.Position = UDim2.new(0.05, 0, 0.3, 0)
+Frame.Size = UDim2.new(0, 250, 0, 320)
+Frame.Active = true
+Frame.Draggable = true
+
+UICorner.Parent = Frame
+UICorner.CornerRadius = UDim.new(0, 8)
+
+Title.Name = "Title"
+Title.Parent = Frame
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "Grass Collector"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+
+IncreasePopToggle.Name = "IncreasePopToggle"
+IncreasePopToggle.Parent = Frame
+IncreasePopToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+IncreasePopToggle.Position = UDim2.new(0.1, 0, 0.12, 0)
+IncreasePopToggle.Size = UDim2.new(0.8, 0, 0, 30)
+IncreasePopToggle.Font = Enum.Font.Gotham
+IncreasePopToggle.Text = "IncreasePop: OFF"
+IncreasePopToggle.TextColor3 = Color3.fromRGB(255, 100, 100)
+IncreasePopToggle.TextSize = 12
+
+NormalLabel.Name = "NormalLabel"
+NormalLabel.Parent = Frame
+NormalLabel.BackgroundTransparency = 1
+NormalLabel.Position = UDim2.new(0.05, 0, 0.25, 0)
+NormalLabel.Size = UDim2.new(0.3, 0, 0, 25)
+NormalLabel.Font = Enum.Font.Gotham
+NormalLabel.Text = "Normal:"
+NormalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+NormalLabel.TextSize = 12
+
+NormalBox.Name = "NormalBox"
+NormalBox.Parent = Frame
+NormalBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+NormalBox.Position = UDim2.new(0.4, 0, 0.25, 0)
+NormalBox.Size = UDim2.new(0.25, 0, 0, 25)
+NormalBox.Font = Enum.Font.Gotham
+NormalBox.Text = "0"
+NormalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+NormalBox.TextSize = 12
+
+RubyLabel.Name = "RubyLabel"
+RubyLabel.Parent = Frame
+RubyLabel.BackgroundTransparency = 1
+RubyLabel.Position = UDim2.new(0.05, 0, 0.35, 0)
+RubyLabel.Size = UDim2.new(0.3, 0, 0, 25)
+RubyLabel.Font = Enum.Font.Gotham
+RubyLabel.Text = "Ruby:"
+RubyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+RubyLabel.TextSize = 12
+
+RubyBox.Name = "RubyBox"
+RubyBox.Parent = Frame
+RubyBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+RubyBox.Position = UDim2.new(0.4, 0, 0.35, 0)
+RubyBox.Size = UDim2.new(0.25, 0, 0, 25)
+RubyBox.Font = Enum.Font.Gotham
+RubyBox.Text = "0"
+RubyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+RubyBox.TextSize = 12
+
+SilverLabel.Name = "SilverLabel"
+SilverLabel.Parent = Frame
+SilverLabel.BackgroundTransparency = 1
+SilverLabel.Position = UDim2.new(0.05, 0, 0.45, 0)
+SilverLabel.Size = UDim2.new(0.3, 0, 0, 25)
+SilverLabel.Font = Enum.Font.Gotham
+SilverLabel.Text = "Silver:"
+SilverLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SilverLabel.TextSize = 12
+
+SilverBox.Name = "SilverBox"
+SilverBox.Parent = Frame
+SilverBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+SilverBox.Position = UDim2.new(0.4, 0, 0.45, 0)
+SilverBox.Size = UDim2.new(0.25, 0, 0, 25)
+SilverBox.Font = Enum.Font.Gotham
+SilverBox.Text = "0"
+SilverBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SilverBox.TextSize = 12
+
+GoldenLabel.Name = "GoldenLabel"
+GoldenLabel.Parent = Frame
+GoldenLabel.BackgroundTransparency = 1
+GoldenLabel.Position = UDim2.new(0.05, 0, 0.55, 0)
+GoldenLabel.Size = UDim2.new(0.3, 0, 0, 25)
+GoldenLabel.Font = Enum.Font.Gotham
+GoldenLabel.Text = "Golden:"
+GoldenLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+GoldenLabel.TextSize = 12
+
+GoldenBox.Name = "GoldenBox"
+GoldenBox.Parent = Frame
+GoldenBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+GoldenBox.Position = UDim2.new(0.4, 0, 0.55, 0)
+GoldenBox.Size = UDim2.new(0.25, 0, 0, 25)
+GoldenBox.Font = Enum.Font.Gotham
+GoldenBox.Text = "1"
+GoldenBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+GoldenBox.TextSize = 12
+
+DiamondLabel.Name = "DiamondLabel"
+DiamondLabel.Parent = Frame
+DiamondLabel.BackgroundTransparency = 1
+DiamondLabel.Position = UDim2.new(0.05, 0, 0.65, 0)
+DiamondLabel.Size = UDim2.new(0.3, 0, 0, 25)
+DiamondLabel.Font = Enum.Font.Gotham
+DiamondLabel.Text = "Diamond:"
+DiamondLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+DiamondLabel.TextSize = 12
+
+DiamondBox.Name = "DiamondBox"
+DiamondBox.Parent = Frame
+DiamondBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+DiamondBox.Position = UDim2.new(0.4, 0, 0.65, 0)
+DiamondBox.Size = UDim2.new(0.25, 0, 0, 25)
+DiamondBox.Font = Enum.Font.Gotham
+DiamondBox.Text = "1"
+DiamondBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+DiamondBox.TextSize = 12
+
+ToggleAll.Name = "ToggleAll"
+ToggleAll.Parent = Frame
+ToggleAll.BackgroundColor3 = Color3.fromRGB(70, 120, 200)
+ToggleAll.Position = UDim2.new(0.1, 0, 0.8, 0)
+ToggleAll.Size = UDim2.new(0.8, 0, 0, 30)
+ToggleAll.Font = Enum.Font.GothamBold
+ToggleAll.Text = "Toggle All Grass"
+ToggleAll.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleAll.TextSize = 13
+
+Status.Name = "Status"
+Status.Parent = Frame
+Status.BackgroundTransparency = 1
+Status.Position = UDim2.new(0, 0, 0.92, 0)
+Status.Size = UDim2.new(1, 0, 0, 20)
+Status.Font = Enum.Font.Gotham
+Status.Text = "Ready"
+Status.TextColor3 = Color3.fromRGB(150, 200, 255)
+Status.TextSize = 11
+
+local toggleIncreasePop = false
+local toggleGrass = false
+local running = false
+
+local function updateButton(button, state)
+    if state then
+        button.TextColor3 = Color3.fromRGB(100, 255, 100)
+        button.Text = button.Text:gsub(": OFF", ": ON")
+    else
+        button.TextColor3 = Color3.fromRGB(255, 100, 100)
+        button.Text = button.Text:gsub(": ON", ": OFF")
+    end
+end
+
+local function validateNumber(textBox)
+    local text = textBox.Text
+    if text == "" then
+        textBox.Text = "0"
+    elseif not tonumber(text) then
+        textBox.Text = "0"
+    end
+end
+
+NormalBox.FocusLost:Connect(function()
+    validateNumber(NormalBox)
+end)
+
+RubyBox.FocusLost:Connect(function()
+    validateNumber(RubyBox)
+end)
+
+SilverBox.FocusLost:Connect(function()
+    validateNumber(SilverBox)
+end)
+
+GoldenBox.FocusLost:Connect(function()
+    validateNumber(GoldenBox)
+end)
+
+DiamondBox.FocusLost:Connect(function()
+    validateNumber(DiamondBox)
+end)
+
+local function collectLoop()
+    while running do
+        if toggleIncreasePop then
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("IncreasePop"):FireServer(false)
+        end
+        
+        if toggleGrass then
+            local args = {
+                {
+                    normal = tonumber(NormalBox.Text) or 0,
+                    ruby = tonumber(RubyBox.Text) or 0,
+                    silver = tonumber(SilverBox.Text) or 0,
+                    golden = tonumber(GoldenBox.Text) or 1,
+                    diamond = tonumber(DiamondBox.Text) or 1
+                }
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GrassCollect"):FireServer(unpack(args))
+        end
+        
+        task.wait()
+    end
+end
+
+IncreasePopToggle.MouseButton1Click:Connect(function()
+    toggleIncreasePop = not toggleIncreasePop
+    updateButton(IncreasePopToggle, toggleIncreasePop)
+    
+    if (toggleIncreasePop or toggleGrass) and not running then
+        running = true
+        task.spawn(collectLoop)
+    elseif not toggleIncreasePop and not toggleGrass and running then
+        running = false
+    end
+end)
+
+ToggleAll.MouseButton1Click:Connect(function()
+    toggleGrass = not toggleGrass
+    
+    if toggleGrass then
+        Status.Text = "Grass Collect: ON"
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        Status.Text = "Grass Collect: OFF"
+        Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+    
+    if (toggleIncreasePop or toggleGrass) and not running then
+        running = true
+        task.spawn(collectLoop)
+    elseif not toggleIncreasePop and not toggleGrass and running then
+        running = false
+    end
+end)
