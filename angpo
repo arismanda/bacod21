@@ -1,0 +1,235 @@
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Buat ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AngpaoCounter"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Buat Frame utama
+local mainFrame = Instance.new("Frame")
+mainFrame.Parent = screenGui
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 80)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)  -- Pojok kiri atas
+mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.5
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.new(1, 1, 0)  -- Border kuning
+
+-- Buat judul
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Parent = mainFrame
+titleLabel.Name = "Title"
+titleLabel.Size = UDim2.new(1, 0, 0, 25)
+titleLabel.Position = UDim2.new(0, 0, 0, 5)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "ANGPAO AKTIF"
+titleLabel.TextColor3 = Color3.new(1, 1, 0)  -- Kuning
+titleLabel.TextScaled = true
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextStrokeTransparency = 0
+titleLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+
+-- Buat label counter
+local counterLabel = Instance.new("TextLabel")
+counterLabel.Parent = mainFrame
+counterLabel.Name = "Counter"
+counterLabel.Size = UDim2.new(1, 0, 0, 35)
+counterLabel.Position = UDim2.new(0, 0, 0, 35)
+counterLabel.BackgroundTransparency = 1
+counterLabel.Text = "0"
+counterLabel.TextColor3 = Color3.new(1, 1, 1)  -- Putih
+counterLabel.TextScaled = true
+counterLabel.Font = Enum.Font.GothamBold
+counterLabel.TextStrokeTransparency = 0
+counterLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+
+-- Buat close button
+local closeButton = Instance.new("TextButton")
+closeButton.Parent = mainFrame
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 20, 0, 20)
+closeButton.Position = UDim2.new(1, -25, 0, 5)
+closeButton.BackgroundColor3 = Color3.new(1, 0, 0)
+closeButton.BackgroundTransparency = 0.3
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.TextScaled = true
+closeButton.Font = Enum.Font.GothamBold
+closeButton.BorderSizePixel = 1
+closeButton.BorderColor3 = Color3.new(1, 1, 1)
+
+-- Fungsi untuk menghitung angpao aktif
+local function countActiveAngpao()
+	local angpaoFolder = Workspace:FindFirstChild("Event") and Workspace.Event:FindFirstChild("AngpaoFolder")
+	if not angpaoFolder then
+		return 0
+	end
+	
+	local activeCount = 0
+	
+	-- Fungsi rekursif untuk memeriksa semua part
+	local function checkPart(part)
+		if part:IsA("MeshPart") and part.Name:match("^Angpao%d+$") then
+			if part.Transparency < 1 then  -- Aktif jika transparency kurang dari 1
+				activeCount = activeCount + 1
+			end
+		end
+	end
+	
+	-- Cek semua model dan part di AngpaoFolder
+	for _, child in ipairs(angpaoFolder:GetChildren()) do
+		if child:IsA("Model") and child.Name:match("^Angpao%d+$") then
+			-- Cek semua descendant di dalam model
+			for _, descendant in ipairs(child:GetDescendants()) do
+				checkPart(descendant)
+			end
+		else
+			checkPart(child)
+		end
+	end
+	
+	return activeCount
+end
+
+-- Fungsi untuk update counter
+local function updateCounter()
+	local count = countActiveAngpao()
+	counterLabel.Text = tostring(count)
+	
+	-- Ubah warna berdasarkan jumlah
+	if count == 0 then
+		counterLabel.TextColor3 = Color3.new(1, 0, 0)  -- Merah
+	elseif count <= 5 then
+		counterLabel.TextColor3 = Color3.new(1, 1, 0)  -- Kuning
+	else
+		counterLabel.TextColor3 = Color3.new(0, 1, 0)  -- Hijau
+	end
+end
+
+-- Fungsi untuk setup listener pada semua angpao
+local function setupAngpaoListeners()
+	local angpaoFolder = Workspace:FindFirstChild("Event") and Workspace.Event:FindFirstChild("AngpaoFolder")
+	if not angpaoFolder then
+		return
+	end
+	
+	-- Fungsi untuk menambahkan listener ke part
+	local function addListenerToPart(part)
+		if part:IsA("MeshPart") and part.Name:match("^Angpao%d+$") then
+			-- Listener untuk perubahan transparency
+			part:GetPropertyChangedSignal("Transparency"):Connect(updateCounter)
+			
+			-- Listener untuk perubahan nama (jadi Angpao)
+			part:GetPropertyChangedSignal("Name"):Connect(function()
+				if part.Name:match("^Angpao%d+$") then
+					updateCounter()
+				end
+			end)
+		end
+	end
+	
+	-- Setup listener untuk semua part yang ada
+	for _, child in ipairs(angpaoFolder:GetChildren()) do
+		if child:IsA("Model") and child.Name:match("^Angpao%d+$") then
+			for _, descendant in ipairs(child:GetDescendants()) do
+				addListenerToPart(descendant)
+			end
+			
+			-- Listener untuk part baru di model
+			child.DescendantAdded:Connect(function(newPart)
+				addListenerToPart(newPart)
+				updateCounter()
+			end)
+			
+		else
+			addListenerToPart(child)
+		end
+	end
+	
+	-- Listener untuk model/part baru di folder
+	angpaoFolder.ChildAdded:Connect(function(newChild)
+		if newChild:IsA("Model") and newChild.Name:match("^Angpao%d+$") then
+			for _, descendant in ipairs(newChild:GetDescendants()) do
+				addListenerToPart(descendant)
+			end
+			
+			newChild.DescendantAdded:Connect(function(newPart)
+				addListenerToPart(newPart)
+				updateCounter()
+			end)
+			
+		else
+			addListenerToPart(newChild)
+		end
+		
+		updateCounter()
+	end)
+	
+	-- Listener untuk perubahan nama child
+	angpaoFolder.ChildAdded:Connect(function(child)
+		child:GetPropertyChangedSignal("Name"):Connect(function()
+			if child:IsA("Model") and child.Name:match("^Angpao%d+$") then
+				for _, descendant in ipairs(child:GetDescendants()) do
+					addListenerToPart(descendant)
+				end
+			elseif child:IsA("MeshPart") and child.Name:match("^Angpao%d+$") then
+				addListenerToPart(child)
+			end
+			updateCounter()
+		end)
+	end)
+end
+
+-- Close button functionality
+closeButton.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- Buat frame bisa di-drag
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+mainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+	end
+end)
+
+mainFrame.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale, 
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- Initial update
+updateCounter()
+
+-- Setup listeners
+setupAngpaoListeners()
+
+-- Update setiap 5 detik sebagai backup
+while true do
+	task.wait(5)
+	updateCounter()
+end
