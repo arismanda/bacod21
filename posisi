@@ -1,0 +1,133 @@
+local Workspace = game:GetService("Workspace")
+local angpaoFolder = Workspace:FindFirstChild("Event") and Workspace.Event:FindFirstChild("AngpaoFolder")
+
+local function updateBillboardVisibility(part, textLabel, billboard)
+	-- Cek apakah part masih ada dan valid
+	if not part or not part.Parent then
+		if billboard then
+			billboard.Enabled = false
+		end
+		return
+	end
+	
+	-- Sembunyikan billboard jika transparency = 1
+	if part.Transparency >= 1 then
+		if billboard then
+			billboard.Enabled = false
+		end
+	else
+		if billboard then
+			billboard.Enabled = true
+			if textLabel then
+				textLabel.Text = part.Name
+			end
+		end
+	end
+end
+
+local function addEffectsToAngpao(part)
+	-- Cek apakah ini MeshPart dengan nama Angpao diikuti angka
+	if part:IsA("MeshPart") and part.Name:match("^Angpao%d+$") then
+		-- Cek apakah sudah punya effect sebelumnya
+		if not part:FindFirstChild("Highlight") and not part:FindFirstChild("AngpaoBillboard") then
+			-- Tambah Highlight
+			local highlight = Instance.new("Highlight")
+			highlight.Parent = part
+			highlight.FillColor = Color3.new(1, 0, 0)
+			highlight.FillTransparency = 0.3
+			
+			-- Tambah BillboardGui
+			local billboard = Instance.new("BillboardGui")
+			billboard.Parent = part
+			billboard.Name = "AngpaoBillboard"
+			billboard.AlwaysOnTop = true
+			billboard.Size = UDim2.new(0, 100, 0, 50)
+			billboard.StudsOffset = Vector3.new(0, 5, 0)
+			billboard.Enabled = true  -- Default enabled
+			
+			local textLabel = Instance.new("TextLabel")
+			textLabel.Parent = billboard
+			textLabel.Size = UDim2.new(1, 0, 1, 0)
+			textLabel.BackgroundTransparency = 1
+			textLabel.Text = part.Name
+			textLabel.TextColor3 = Color3.new(1, 1, 0)
+			textLabel.TextScaled = true
+			textLabel.Font = Enum.Font.GothamBold
+			textLabel.TextStrokeTransparency = 0
+			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+			
+			-- Update visibility saat transparency berubah
+			part:GetPropertyChangedSignal("Transparency"):Connect(function()
+				updateBillboardVisibility(part, textLabel, billboard)
+			end)
+			
+			-- Update teks jika nama berubah
+			part:GetPropertyChangedSignal("Name"):Connect(function()
+				if billboard.Enabled then
+					textLabel.Text = part.Name
+				end
+			end)
+			
+			-- Initial check
+			updateBillboardVisibility(part, textLabel, billboard)
+		end
+	end
+end
+
+-- Fungsi untuk mencari semua MeshPart di dalam folder dan sub-folder
+local function scanForAngpaoParts(folder)
+	for _, child in ipairs(folder:GetChildren()) do
+		-- Jika child adalah Model dengan nama Angpao diikuti angka
+		if child:IsA("Model") and child.Name:match("^Angpao%d+$") then
+			-- Cari MeshPart di dalam model
+			for _, descendant in ipairs(child:GetDescendants()) do
+				addEffectsToAngpao(descendant)
+			end
+			
+			-- Deteksi jika ada part baru di dalam model
+			child.DescendantAdded:Connect(addEffectsToAngpao)
+			
+		-- Jika child langsung MeshPart
+		elseif child:IsA("MeshPart") and child.Name:match("^Angpao%d+$") then
+			addEffectsToAngpao(child)
+		end
+	end
+end
+
+-- Mulai scanning jika folder ditemukan
+if angpaoFolder then
+	-- Scan existing parts
+	scanForAngpaoParts(angpaoFolder)
+	
+	-- Deteksi model atau part baru di AngpaoFolder
+	angpaoFolder.ChildAdded:Connect(function(child)
+		-- Jika model baru dengan nama Angpao diikuti angka
+		if child:IsA("Model") and child.Name:match("^Angpao%d+$") then
+			-- Langsung scan isinya
+			for _, descendant in ipairs(child:GetDescendants()) do
+				addEffectsToAngpao(descendant)
+			end
+			
+			-- Deteksi descendant baru di model ini
+			child.DescendantAdded:Connect(addEffectsToAngpao)
+			
+		-- Jika langsung MeshPart
+		elseif child:IsA("MeshPart") and child.Name:match("^Angpao%d+$") then
+			addEffectsToAngpao(child)
+		end
+	end)
+	
+	-- Deteksi perubahan nama (mungkin diubah jadi Angpao)
+	angpaoFolder.ChildAdded:Connect(function(child)
+		child:GetPropertyChangedSignal("Name"):Connect(function()
+			if child:IsA("Model") and child.Name:match("^Angpao%d+$") then
+				-- Jika model berubah nama jadi Angpao, scan isinya
+				for _, descendant in ipairs(child:GetDescendants()) do
+					addEffectsToAngpao(descendant)
+				end
+			elseif child:IsA("MeshPart") and child.Name:match("^Angpao%d+$") then
+				addEffectsToAngpao(child)
+			end
+		end)
+	end)
+end
