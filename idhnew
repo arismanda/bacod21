@@ -12,6 +12,7 @@ local TOGGLE_KEY = Enum.KeyCode.KeypadSix
 -- INTERNAL STATE
 local lastGuiVisible = false
 local clickScheduled = false
+local lastRedBarPosition = nil
 
 -- === TOGGLE HANDLER ===
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -20,32 +21,35 @@ UserInputService.InputBegan:Connect(function(input, gp)
         enabled = not enabled
         print("[Reeling Script]", enabled and "ON" or "OFF")
 
-        -- reset state saat OFF
         if not enabled then
             lastGuiVisible = false
             clickScheduled = false
+            lastRedBarPosition = nil
         end
     end
 end)
 
--- === FIND UI ===
-local function findBars()
-    local gui = player.PlayerGui:FindFirstChild("Reeling")
-    if not gui then return end
-
-    local frame = gui:FindFirstChild("Frame", true)
-    if not frame then return end
-
-    local white = frame:FindFirstChild("WhiteBar", true)
-    local red = frame:FindFirstChild("RedBar", true)
-    local progressBg = frame:FindFirstChild("ProgressBg", true) -- Cari ProgressBg
-
-    if white and red then
-        return white, red, gui, progressBg
+-- === DIRECT ACCESS KE UI (sesuai path yang diberikan) ===
+local function getUIElements()
+    -- Akses langsung sesuai path: PlayerGui.Reeling.Frame.Frame.WhiteBar
+    local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
+    if not reelingGui then return end
+    
+    local outerFrame = reelingGui:FindFirstChild("Frame")
+    if not outerFrame then return end
+    
+    local innerFrame = outerFrame:FindFirstChild("Frame")
+    if not innerFrame then return end
+    
+    local whiteBar = innerFrame:FindFirstChild("WhiteBar")
+    local redBar = innerFrame:FindFirstChild("RedBar")  -- Asumsi RedBar di path yang sama
+    
+    if whiteBar and redBar then
+        return whiteBar, redBar, innerFrame
     end
 end
 
--- === LEFT CLICK 1x ===
+-- === LEFT CLICK ===
 local function leftClick()
     VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
     task.wait(0.05)
@@ -56,26 +60,36 @@ end
 RunService.RenderStepped:Connect(function()
     if not enabled then return end
 
-    local WhiteBar, RedBar, gui, ProgressBg = findBars()
+    local WhiteBar, RedBar, parentFrame = getUIElements()
 
     -- GUI muncul
-    if WhiteBar and RedBar and gui then
+    if WhiteBar and RedBar and parentFrame then
         lastGuiVisible = true
         clickScheduled = false
 
-        -- SNAP whitebar ke redbar
-        local parent = WhiteBar.Parent
-        local relativeX =
-            RedBar.AbsolutePosition.X - parent.AbsolutePosition.X
-
-        WhiteBar.Position = UDim2.fromOffset(
-            relativeX,
-            WhiteBar.Position.Y.Offset
+        -- === SET WHITEBAR SIZE KE SCALE 1 ===
+        -- Scale 1 = 100% lebar parent (innerFrame)
+        WhiteBar.Size = UDim2.new(
+            1, 0,  -- Scale X = 1 (full width), Offset X = 0
+            0, 20  -- Tinggi tetap 20 pixel (sesuaikan dengan ukuran asli)
         )
         
-        -- SET PROGRESSBG KE UKURAN FULL (1.0 scale X)
-        if ProgressBg then
-            ProgressBg.Size = UDim2.new(1, 0, ProgressBg.Size.Y.Scale, ProgressBg.Size.Y.Offset)
+        -- === POSISI MENGIKUTI REDBAR ===
+        -- Hitung posisi agar WhiteBar center ke RedBar
+        local redBarCenter = RedBar.AbsolutePosition.X + (RedBar.AbsoluteSize.X / 2)
+        local parentLeft = parentFrame.AbsolutePosition.X
+        local whiteBarWidth = WhiteBar.AbsoluteSize.X
+        
+        -- Posisikan WhiteBar (dengan scale 1) agar center-nya di RedBar
+        local targetX = redBarCenter - parentLeft - (whiteBarWidth / 2)
+        
+        -- Cek apakah posisi berubah (minimal 0.1 pixel)
+        if lastRedBarPosition == nil or math.abs(targetX - lastRedBarPosition) > 0.1 then
+            WhiteBar.Position = UDim2.fromOffset(
+                targetX,
+                WhiteBar.Position.Y.Offset  -- Pertahankan posisi Y asli
+            )
+            lastRedBarPosition = targetX
         end
 
         return
@@ -85,6 +99,7 @@ RunService.RenderStepped:Connect(function()
     if lastGuiVisible and not clickScheduled then
         clickScheduled = true
         lastGuiVisible = false
+        lastRedBarPosition = nil
 
         task.delay(math.random(3, 4), function()
             if enabled then
