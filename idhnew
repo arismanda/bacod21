@@ -12,7 +12,6 @@ local TOGGLE_KEY = Enum.KeyCode.KeypadSix
 -- INTERNAL STATE
 local lastGuiVisible = false
 local clickScheduled = false
-local lastRedBarPosition = nil
 
 -- === TOGGLE HANDLER ===
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -24,28 +23,27 @@ UserInputService.InputBegan:Connect(function(input, gp)
         if not enabled then
             lastGuiVisible = false
             clickScheduled = false
-            lastRedBarPosition = nil
         end
     end
 end)
 
--- === DIRECT ACCESS KE UI (sesuai path yang diberikan) ===
+-- === DIRECT ACCESS KE UI ===
 local function getUIElements()
-    -- Akses langsung sesuai path: PlayerGui.Reeling.Frame.Frame.WhiteBar
+    -- Path: PlayerGui.Reeling.Frame.ProgressBg.ProgressBar
     local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
     if not reelingGui then return end
     
-    local outerFrame = reelingGui:FindFirstChild("Frame")
-    if not outerFrame then return end
+    local frame = reelingGui:FindFirstChild("Frame")
+    if not frame then return end
     
-    local innerFrame = outerFrame:FindFirstChild("Frame")
-    if not innerFrame then return end
+    local progressBg = frame:FindFirstChild("ProgressBg")
+    if not progressBg then return end
     
-    local whiteBar = innerFrame:FindFirstChild("WhiteBar")
-    local redBar = innerFrame:FindFirstChild("RedBar")  -- Asumsi RedBar di path yang sama
+    local progressBar = progressBg:FindFirstChild("ProgressBar")
+    local whiteBar = frame:FindFirstChild("WhiteBar")  -- Cari WhiteBar di Frame
     
-    if whiteBar and redBar then
-        return whiteBar, redBar, innerFrame
+    if progressBar and whiteBar then
+        return progressBar, whiteBar, progressBg, frame
     end
 end
 
@@ -60,37 +58,49 @@ end
 RunService.RenderStepped:Connect(function()
     if not enabled then return end
 
-    local WhiteBar, RedBar, parentFrame = getUIElements()
+    local ProgressBar, WhiteBar, progressBg, mainFrame = getUIElements()
 
     -- GUI muncul
-    if WhiteBar and RedBar and parentFrame then
+    if ProgressBar and WhiteBar and progressBg and mainFrame then
         lastGuiVisible = true
         clickScheduled = false
 
-        -- === SET WHITEBAR SIZE KE SCALE 1 ===
-        -- Scale 1 = 100% lebar parent (innerFrame)
-        WhiteBar.Size = UDim2.new(
-            1, 0,  -- Scale X = 1 (full width), Offset X = 0
-            0, 20  -- Tinggi tetap 20 pixel (sesuaikan dengan ukuran asli)
+        -- === SET PROGRESSBAR SIZE KE SCALE 0.9 ===
+        -- Scale X = 0.9 (90% lebar ProgressBg)
+        -- Pertahankan ukuran Y asli
+        local originalSize = ProgressBar.Size
+        ProgressBar.Size = UDim2.new(
+            0.9, 0,                          -- Scale X = 0.9 (90%), Offset X = 0
+            originalSize.Y.Scale,             -- Tinggi scale (asli)
+            originalSize.Y.Offset              -- Tinggi offset (asli)
         )
         
-        -- === POSISI MENGIKUTI REDBAR ===
-        -- Hitung posisi agar WhiteBar center ke RedBar
-        local redBarCenter = RedBar.AbsolutePosition.X + (RedBar.AbsoluteSize.X / 2)
-        local parentLeft = parentFrame.AbsolutePosition.X
+        -- === OPSI POSISI PROGRESSBAR ===
+        
+        -- OPSI 1: Posisi default (kiri)
+        -- ProgressBar.Position = UDim2.new(0, 0, 0, 0)  -- Biarkan default
+        
+        -- OPSI 2: Center di ProgressBg
+        local bgWidth = progressBg.AbsoluteSize.X
+        local barWidth = ProgressBar.AbsoluteSize.X
+        local centerOffset = (bgWidth - barWidth) / 2
+        
+        ProgressBar.Position = UDim2.fromOffset(
+            centerOffset,
+            ProgressBar.Position.Y.Offset
+        )
+        
+        -- === WHITEBAR MENGIKUTI POSISI PROGRESSBAR ===
+        -- Hitung posisi WhiteBar berdasarkan ProgressBar
+        local barCenter = ProgressBar.AbsolutePosition.X + (ProgressBar.AbsoluteSize.X / 2)
+        local frameLeft = mainFrame.AbsolutePosition.X
         local whiteBarWidth = WhiteBar.AbsoluteSize.X
         
-        -- Posisikan WhiteBar (dengan scale 1) agar center-nya di RedBar
-        local targetX = redBarCenter - parentLeft - (whiteBarWidth / 2)
-        
-        -- Cek apakah posisi berubah (minimal 0.1 pixel)
-        if lastRedBarPosition == nil or math.abs(targetX - lastRedBarPosition) > 0.1 then
-            WhiteBar.Position = UDim2.fromOffset(
-                targetX,
-                WhiteBar.Position.Y.Offset  -- Pertahankan posisi Y asli
-            )
-            lastRedBarPosition = targetX
-        end
+        -- Posisikan WhiteBar center ke ProgressBar
+        WhiteBar.Position = UDim2.fromOffset(
+            barCenter - frameLeft - (whiteBarWidth / 2),
+            WhiteBar.Position.Y.Offset
+        )
 
         return
     end
@@ -99,7 +109,6 @@ RunService.RenderStepped:Connect(function()
     if lastGuiVisible and not clickScheduled then
         clickScheduled = true
         lastGuiVisible = false
-        lastRedBarPosition = nil
 
         task.delay(math.random(3, 4), function()
             if enabled then
