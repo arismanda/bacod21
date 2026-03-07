@@ -12,7 +12,7 @@ local TOGGLE_KEY = Enum.KeyCode.KeypadSix
 -- INTERNAL STATE
 local lastGuiVisible = false
 local clickScheduled = false
-local lastWhiteBarPosition = nil  -- Tambahin ini
+local lastWhiteBarSize = nil  -- Cache untuk ukuran
 
 -- === TOGGLE HANDLER ===
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -24,7 +24,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
         if not enabled then
             lastGuiVisible = false
             clickScheduled = false
-            lastWhiteBarPosition = nil
+            lastWhiteBarSize = nil
         end
     end
 end)
@@ -34,6 +34,7 @@ local guiCache = nil
 local whiteBarCache = nil
 local redBarCache = nil
 local parentCache = nil
+local frameCache = nil
 local cacheTimer = 0
 
 -- === FIND UI dengan caching ===
@@ -41,7 +42,7 @@ local function findBars()
     -- Cek cache dulu (refresh tiap 30 frame atau jika nil)
     cacheTimer = cacheTimer + 1
     if cacheTimer < 30 and guiCache and whiteBarCache and redBarCache and whiteBarCache.Parent then
-        return whiteBarCache, redBarCache, guiCache
+        return whiteBarCache, redBarCache, guiCache, frameCache
     end
     
     cacheTimer = 0
@@ -51,15 +52,17 @@ local function findBars()
         whiteBarCache = nil
         redBarCache = nil
         parentCache = nil
+        frameCache = nil
         return 
     end
 
-    -- Cari sekali, simpan ke cache
+    -- Cari frame utama
     local frame = gui:FindFirstChild("Frame", true)
     if not frame then return end
 
-    local white = frame:FindFirstChild("WhiteBar")  -- Hapus recursive kalo bisa
-    local red = frame:FindFirstChild("RedBar")      -- Hapus recursive kalo bisa
+    -- Cari WhiteBar dan RedBar (tanpa recursive kalo bisa)
+    local white = frame:FindFirstChild("WhiteBar")
+    local red = frame:FindFirstChild("RedBar")
 
     if white and red then
         -- Update cache
@@ -67,13 +70,15 @@ local function findBars()
         whiteBarCache = white
         redBarCache = red
         parentCache = white.Parent
-        return white, red, gui
+        frameCache = frame
+        return white, red, gui, frame
     end
     
     guiCache = nil
     whiteBarCache = nil
     redBarCache = nil
     parentCache = nil
+    frameCache = nil
 end
 
 -- === LEFT CLICK ===
@@ -83,26 +88,45 @@ local function leftClick()
     VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 
--- === MAIN LOOP dengan optimasi ===
+-- === MAIN LOOP dengan WhiteBar Full Width ===
 RunService.RenderStepped:Connect(function()
     if not enabled then return end
 
-    local WhiteBar, RedBar, gui = findBars()
+    local WhiteBar, RedBar, gui, frame = findBars()
 
     -- GUI muncul
-    if WhiteBar and RedBar and gui then
+    if WhiteBar and RedBar and gui and frame then
         lastGuiVisible = true
         clickScheduled = false
 
-        -- Hanya update posisi jika berubah
+        -- === MODIFIKASI: BUAT WHITEBAR FULL WIDTH ===
+        
+        -- Opsi A: WhiteBar selebar frame
+        local frameWidth = frame.AbsoluteSize.X
+        local currentSize = WhiteBar.Size
+        
+        -- Update ukuran WhiteBar jadi full width (pertahankan tinggi asli)
+        if lastWhiteBarSize == nil or lastWhiteBarSize.X.Offset ~= frameWidth then
+            WhiteBar.Size = UDim2.new(
+                0, frameWidth,           -- Lebar = full width frame
+                currentSize.Y.Scale,     -- Tinggi tetap (scale)
+                currentSize.Y.Offset     -- Tinggi tetap (offset)
+            )
+            lastWhiteBarSize = {
+                X = {Offset = frameWidth},
+                Y = {Scale = currentSize.Y.Scale, Offset = currentSize.Y.Offset}
+            }
+        end
+        
+        -- Posisikan WhiteBar di atas RedBar
         local parent = WhiteBar.Parent
         local relativeX = RedBar.AbsolutePosition.X - parent.AbsolutePosition.X
         
-        -- Cek apakah posisi sudah berbeda (minimal 0.1 pixel)
-        if lastWhiteBarPosition == nil or math.abs(relativeX - lastWhiteBarPosition) > 0.1 then
-            WhiteBar.Position = UDim2.fromOffset(relativeX, WhiteBar.Position.Y.Offset)
-            lastWhiteBarPosition = relativeX
-        end
+        -- Atur posisi WhiteBar (bisa digeser atau di tengah)
+        WhiteBar.Position = UDim2.fromOffset(
+            relativeX - (frameWidth / 2) + (RedBar.AbsoluteSize.X / 2),  -- Center ke RedBar
+            WhiteBar.Position.Y.Offset
+        )
 
         return
     end
@@ -111,7 +135,7 @@ RunService.RenderStepped:Connect(function()
     if lastGuiVisible and not clickScheduled then
         clickScheduled = true
         lastGuiVisible = false
-        lastWhiteBarPosition = nil  -- Reset cache posisi
+        lastWhiteBarSize = nil  -- Reset cache
 
         task.delay(math.random(3, 4), function()
             if enabled then
