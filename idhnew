@@ -12,6 +12,7 @@ local TOGGLE_KEY = Enum.KeyCode.KeypadSix
 -- INTERNAL STATE
 local lastGuiVisible = false
 local clickScheduled = false
+local lastWhiteBarPosition = nil
 
 -- === TOGGLE HANDLER ===
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -23,6 +24,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
         if not enabled then
             lastGuiVisible = false
             clickScheduled = false
+            lastWhiteBarPosition = nil
         end
     end
 end)
@@ -30,20 +32,21 @@ end)
 -- === DIRECT ACCESS KE UI ===
 local function getUIElements()
     -- Path: PlayerGui.Reeling.Frame.ProgressBg.ProgressBar
+    -- Dan WhiteBar di Frame
     local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
     if not reelingGui then return end
     
-    local frame = reelingGui:FindFirstChild("Frame")
-    if not frame then return end
+    local mainFrame = reelingGui:FindFirstChild("Frame")
+    if not mainFrame then return end
     
-    local progressBg = frame:FindFirstChild("ProgressBg")
+    local progressBg = mainFrame:FindFirstChild("ProgressBg")
     if not progressBg then return end
     
     local progressBar = progressBg:FindFirstChild("ProgressBar")
-    local whiteBar = frame:FindFirstChild("WhiteBar")  -- Cari WhiteBar di Frame
+    local whiteBar = mainFrame:FindFirstChild("WhiteBar")
     
-    if progressBar and whiteBar then
-        return progressBar, whiteBar, progressBg, frame
+    if progressBar and whiteBar and progressBg then
+        return progressBar, whiteBar, progressBg, mainFrame
     end
 end
 
@@ -65,42 +68,59 @@ RunService.RenderStepped:Connect(function()
         lastGuiVisible = true
         clickScheduled = false
 
-        -- === SET PROGRESSBAR SIZE KE SCALE 0.9 ===
-        -- Scale X = 0.9 (90% lebar ProgressBg)
+        -- === SET PROGRESSBG SIZE KE SCALE 1.0 ===
+        -- Scale X = 1.0 (100% lebar mainFrame)
         -- Pertahankan ukuran Y asli
-        local originalSize = ProgressBar.Size
-        ProgressBar.Size = UDim2.new(
-            0.9, 0,                          -- Scale X = 0.9 (90%), Offset X = 0
-            originalSize.Y.Scale,             -- Tinggi scale (asli)
-            originalSize.Y.Offset              -- Tinggi offset (asli)
+        local originalBgSize = progressBg.Size
+        progressBg.Size = UDim2.new(
+            1.0, 0,                           -- Scale X = 1.0 (100%), Offset X = 0
+            originalBgSize.Y.Scale,            -- Tinggi scale (asli)
+            originalBgSize.Y.Offset             -- Tinggi offset (asli)
         )
         
-        -- === OPSI POSISI PROGRESSBAR ===
-        
-        -- OPSI 1: Posisi default (kiri)
-        -- ProgressBar.Position = UDim2.new(0, 0, 0, 0)  -- Biarkan default
-        
-        -- OPSI 2: Center di ProgressBg
+        -- Optional: Center ProgressBg di mainFrame
+        local frameWidth = mainFrame.AbsoluteSize.X
         local bgWidth = progressBg.AbsoluteSize.X
+        local centerOffset = (frameWidth - bgWidth) / 2
+        
+        progressBg.Position = UDim2.fromOffset(
+            centerOffset,
+            progressBg.Position.Y.Offset
+        )
+        
+        -- === SET PROGRESSBAR SIZE KE SCALE 0.9 (90% dari ProgressBg) ===
+        local originalBarSize = ProgressBar.Size
+        ProgressBar.Size = UDim2.new(
+            0.9, 0,                            -- Scale X = 0.9 (90% dari ProgressBg)
+            originalBarSize.Y.Scale,            -- Tinggi scale (asli)
+            originalBarSize.Y.Offset             -- Tinggi offset (asli)
+        )
+        
+        -- Center ProgressBar di dalam ProgressBg
+        local bgWidth2 = progressBg.AbsoluteSize.X
         local barWidth = ProgressBar.AbsoluteSize.X
-        local centerOffset = (bgWidth - barWidth) / 2
+        local barCenterOffset = (bgWidth2 - barWidth) / 2
         
         ProgressBar.Position = UDim2.fromOffset(
-            centerOffset,
+            barCenterOffset,
             ProgressBar.Position.Y.Offset
         )
         
         -- === WHITEBAR MENGIKUTI POSISI PROGRESSBAR ===
-        -- Hitung posisi WhiteBar berdasarkan ProgressBar
         local barCenter = ProgressBar.AbsolutePosition.X + (ProgressBar.AbsoluteSize.X / 2)
         local frameLeft = mainFrame.AbsolutePosition.X
         local whiteBarWidth = WhiteBar.AbsoluteSize.X
         
-        -- Posisikan WhiteBar center ke ProgressBar
-        WhiteBar.Position = UDim2.fromOffset(
-            barCenter - frameLeft - (whiteBarWidth / 2),
-            WhiteBar.Position.Y.Offset
-        )
+        local targetX = barCenter - frameLeft - (whiteBarWidth / 2)
+        
+        -- Cek apakah posisi berubah
+        if lastWhiteBarPosition == nil or math.abs(targetX - lastWhiteBarPosition) > 0.1 then
+            WhiteBar.Position = UDim2.fromOffset(
+                targetX,
+                WhiteBar.Position.Y.Offset
+            )
+            lastWhiteBarPosition = targetX
+        end
 
         return
     end
@@ -109,6 +129,7 @@ RunService.RenderStepped:Connect(function()
     if lastGuiVisible and not clickScheduled then
         clickScheduled = true
         lastGuiVisible = false
+        lastWhiteBarPosition = nil
 
         task.delay(math.random(3, 4), function()
             if enabled then
