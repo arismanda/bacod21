@@ -73,24 +73,6 @@ RunService.RenderStepped:Connect(function()
             1, 0,  -- Scale X = 1 (full width), Offset X = 0
             0, 20  -- Tinggi tetap 20 pixel (sesuaikan dengan ukuran asli)
         )
-        
-        -- === POSISI MENGIKUTI REDBAR ===
-        -- Hitung posisi agar WhiteBar center ke RedBar
-        local redBarCenter = RedBar.AbsolutePosition.X + (RedBar.AbsoluteSize.X / 2)
-        local parentLeft = parentFrame.AbsolutePosition.X
-        local whiteBarWidth = WhiteBar.AbsoluteSize.X
-        
-        -- Posisikan WhiteBar (dengan scale 1) agar center-nya di RedBar
-        local targetX = redBarCenter - parentLeft - (whiteBarWidth / 2)
-        
-        -- Cek apakah posisi berubah (minimal 0.1 pixel)
-        if lastRedBarPosition == nil or math.abs(targetX - lastRedBarPosition) > 0.1 then
-            WhiteBar.Position = UDim2.fromOffset(
-                targetX,
-                WhiteBar.Position.Y.Offset  -- Pertahankan posisi Y asli
-            )
-            lastRedBarPosition = targetX
-        end
 
         return
     end
