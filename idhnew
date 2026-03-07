@@ -1,0 +1,122 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualInput = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- TOGGLE STATE
+local enabled = true
+local TOGGLE_KEY = Enum.KeyCode.KeypadSix
+
+-- INTERNAL STATE
+local lastGuiVisible = false
+local clickScheduled = false
+local lastWhiteBarPosition = nil  -- Tambahin ini
+
+-- === TOGGLE HANDLER ===
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == TOGGLE_KEY then
+        enabled = not enabled
+        print("[Reeling Script]", enabled and "ON" or "OFF")
+
+        if not enabled then
+            lastGuiVisible = false
+            clickScheduled = false
+            lastWhiteBarPosition = nil
+        end
+    end
+end)
+
+-- === CACHE REFERENCES ===
+local guiCache = nil
+local whiteBarCache = nil
+local redBarCache = nil
+local parentCache = nil
+local cacheTimer = 0
+
+-- === FIND UI dengan caching ===
+local function findBars()
+    -- Cek cache dulu (refresh tiap 30 frame atau jika nil)
+    cacheTimer = cacheTimer + 1
+    if cacheTimer < 30 and guiCache and whiteBarCache and redBarCache and whiteBarCache.Parent then
+        return whiteBarCache, redBarCache, guiCache
+    end
+    
+    cacheTimer = 0
+    local gui = player.PlayerGui:FindFirstChild("Reeling")
+    if not gui then 
+        guiCache = nil
+        whiteBarCache = nil
+        redBarCache = nil
+        parentCache = nil
+        return 
+    end
+
+    -- Cari sekali, simpan ke cache
+    local frame = gui:FindFirstChild("Frame", true)
+    if not frame then return end
+
+    local white = frame:FindFirstChild("WhiteBar")  -- Hapus recursive kalo bisa
+    local red = frame:FindFirstChild("RedBar")      -- Hapus recursive kalo bisa
+
+    if white and red then
+        -- Update cache
+        guiCache = gui
+        whiteBarCache = white
+        redBarCache = red
+        parentCache = white.Parent
+        return white, red, gui
+    end
+    
+    guiCache = nil
+    whiteBarCache = nil
+    redBarCache = nil
+    parentCache = nil
+end
+
+-- === LEFT CLICK ===
+local function leftClick()
+    VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    task.wait(0.05)
+    VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+end
+
+-- === MAIN LOOP dengan optimasi ===
+RunService.RenderStepped:Connect(function()
+    if not enabled then return end
+
+    local WhiteBar, RedBar, gui = findBars()
+
+    -- GUI muncul
+    if WhiteBar and RedBar and gui then
+        lastGuiVisible = true
+        clickScheduled = false
+
+        -- Hanya update posisi jika berubah
+        local parent = WhiteBar.Parent
+        local relativeX = RedBar.AbsolutePosition.X - parent.AbsolutePosition.X
+        
+        -- Cek apakah posisi sudah berbeda (minimal 0.1 pixel)
+        if lastWhiteBarPosition == nil or math.abs(relativeX - lastWhiteBarPosition) > 0.1 then
+            WhiteBar.Position = UDim2.fromOffset(relativeX, WhiteBar.Position.Y.Offset)
+            lastWhiteBarPosition = relativeX
+        end
+
+        return
+    end
+
+    -- GUI baru saja hilang
+    if lastGuiVisible and not clickScheduled then
+        clickScheduled = true
+        lastGuiVisible = false
+        lastWhiteBarPosition = nil  -- Reset cache posisi
+
+        task.delay(math.random(3, 4), function()
+            if enabled then
+                leftClick()
+            end
+        end)
+    end
+end)
