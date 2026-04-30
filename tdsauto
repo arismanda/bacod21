@@ -60,13 +60,13 @@ local function vigilanteAbilityLoop()
                 activateVigilanteAbility(vigilante)
                 lastActivatedIndex = currentIndex
                 
-                task.wait(0.5) -- delay 0.5 detik antar ability
+                task.wait(10) -- delay 0.5 detik antar ability
             end
         else
-            task.wait(1)
+            task.wait(0.1)
         end
         
-        task.wait(5) -- delay 5 detik sebelum loop lagi
+        task.wait(0.1) -- delay 5 detik sebelum loop lagi
     end
 end
 
