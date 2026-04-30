@@ -1,0 +1,277 @@
+local player = game.Players.LocalPlayer
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local remoteFunction = replicatedStorage:WaitForChild("RemoteFunction")
+
+-- Variabel kontrol
+local isRunning = false
+local currentCoroutine = nil
+local isMinimized = false
+
+-- Function untuk mendapatkan semua vigilante
+local function getAllVigilantes()
+    local towersFolder = workspace:WaitForChild("Towers")
+    local vigilantes = {}
+    
+    for _, tower in pairs(towersFolder:GetChildren()) do
+        if tower.Name == "Fallen" then
+            table.insert(vigilantes, tower)
+        end
+    end
+    
+    return vigilantes
+end
+
+-- Function untuk mengaktifkan ability
+local function activateVigilanteAbility(vigilante)
+    local args = {
+        "Troops",
+        "Abilities",
+        "Activate",
+        {
+            Troop = vigilante,
+            Name = "Call Of Arms",
+            Data = {}
+        }
+    }
+    
+    local success = pcall(function()
+        return remoteFunction:InvokeServer(unpack(args))
+    end)
+    
+    return success
+end
+
+-- Function utama untuk loop ability
+local function vigilanteAbilityLoop()
+    local lastActivatedIndex = 0
+    
+    while isRunning do
+        local vigilantes = getAllVigilantes()
+        
+        if #vigilantes > 0 then            
+            local startIndex = (lastActivatedIndex % #vigilantes) + 1
+            
+            for i = 1, #vigilantes do
+                if not isRunning then break end
+                
+                local currentIndex = ((startIndex + i - 2) % #vigilantes) + 1
+                local vigilante = vigilantes[currentIndex]
+                
+                activateVigilanteAbility(vigilante)
+                lastActivatedIndex = currentIndex
+                
+                task.wait(0.5) -- delay 0.5 detik antar ability
+            end
+        else
+            task.wait(1)
+        end
+        
+        task.wait(5) -- delay 5 detik sebelum loop lagi
+    end
+end
+
+-- Function untuk start script
+local function startScript()
+    if isRunning then return end
+    isRunning = true
+    currentCoroutine = coroutine.wrap(vigilanteAbilityLoop)
+    currentCoroutine()
+end
+
+-- Function untuk stop script
+local function stopScript()
+    isRunning = false
+    currentCoroutine = nil
+end
+
+-- Membuat GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "VigilanteGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 110)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.BackgroundTransparency = 0.05
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- Title Bar (untuk drag & tombol)
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundTransparency = 1
+titleBar.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -60, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Vigilante Control"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+-- Tombol Minimize
+local minButton = Instance.new("TextButton")
+minButton.Size = UDim2.new(0, 25, 0, 25)
+minButton.Position = UDim2.new(1, -55, 0, 2.5)
+minButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+minButton.Text = "─"
+minButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minButton.TextSize = 16
+minButton.Font = Enum.Font.Gotham
+minButton.BorderSizePixel = 0
+minButton.Parent = titleBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 4)
+minCorner.Parent = minButton
+
+-- Tombol Close
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 25, 0, 25)
+closeButton.Position = UDim2.new(1, -28, 0, 2.5)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 14
+closeButton.Font = Enum.Font.Gotham
+closeButton.BorderSizePixel = 0
+closeButton.Parent = titleBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 4)
+closeCorner.Parent = closeButton
+
+-- Content Frame (untuk minimize)
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, -30)
+contentFrame.Position = UDim2.new(0, 0, 0, 30)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 0, 5)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: OFF"
+statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = contentFrame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 180, 0, 35)
+toggleButton.Position = UDim2.new(0.5, -90, 0, 40)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+toggleButton.Text = "START"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextSize = 14
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = contentFrame
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 6)
+buttonCorner.Parent = toggleButton
+
+-- Toggle state
+local isActive = false
+
+toggleButton.MouseButton1Click:Connect(function()
+    isActive = not isActive
+    
+    if isActive then
+        startScript()
+        toggleButton.Text = "STOP"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
+        statusLabel.Text = "Status: RUNNING"
+        statusLabel.TextColor3 = Color3.fromRGB(70, 200, 70)
+    else
+        stopScript()
+        toggleButton.Text = "START"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        statusLabel.Text = "Status: OFF"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end)
+
+-- Minimize function
+minButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    contentFrame.Visible = not isMinimized
+    mainFrame.Size = isMinimized and UDim2.new(0, 220, 0, 30) or UDim2.new(0, 220, 0, 110)
+    minButton.Text = isMinimized and "□" or "─"
+end)
+
+-- Close function (destroy GUI)
+closeButton.MouseButton1Click:Connect(function()
+    stopScript()
+    screenGui:Destroy()
+end)
+
+-- Hover effects
+minButton.MouseEnter:Connect(function()
+    minButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+end)
+minButton.MouseLeave:Connect(function()
+    minButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+end)
+
+closeButton.MouseEnter:Connect(function()
+    closeButton.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
+end)
+closeButton.MouseLeave:Connect(function()
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+end)
+
+toggleButton.MouseEnter:Connect(function()
+    if isActive then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(90, 220, 90)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 120, 120)
+    end
+end)
+
+toggleButton.MouseLeave:Connect(function()
+    if isActive then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end)
+
+-- Make GUI draggable
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
