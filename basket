@@ -1,0 +1,340 @@
+-- LocalScript (place in StarterPlayerScripts or StarterGui)
+
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- Create GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ActionGUI"
+screenGui.Parent = player.PlayerGui
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 350, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleBar.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 1, 0)
+title.BackgroundTransparency = 1
+title.Text = "Action Repeater"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = titleBar
+
+-- Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 1, 0)
+closeBtn.Position = UDim2.new(1, -30, 0, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.Parent = titleBar
+
+closeBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- Value 1 Setting
+local value1Frame = Instance.new("Frame")
+value1Frame.Size = UDim2.new(1, -20, 0, 50)
+value1Frame.Position = UDim2.new(0, 10, 0, 45)
+value1Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+value1Frame.BorderSizePixel = 0
+value1Frame.Parent = mainFrame
+
+local value1Label = Instance.new("TextLabel")
+value1Label.Size = UDim2.new(0, 60, 1, 0)
+value1Label.BackgroundTransparency = 1
+value1Label.Text = "Value 1:"
+value1Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+value1Label.Font = Enum.Font.Gotham
+value1Label.TextSize = 12
+value1Label.TextXAlignment = Enum.TextXAlignment.Left
+value1Label.Parent = value1Frame
+
+local value1Box = Instance.new("TextBox")
+value1Box.Size = UDim2.new(0, 100, 0, 30)
+value1Box.Position = UDim2.new(0, 70, 0.5, -15)
+value1Box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+value1Box.TextColor3 = Color3.fromRGB(255, 255, 255)
+value1Box.Font = Enum.Font.Gotham
+value1Box.TextSize = 12
+value1Box.Text = "2"
+value1Box.PlaceholderText = "Value 1"
+value1Box.Parent = value1Frame
+
+-- Value 2 Setting
+local value2Frame = Instance.new("Frame")
+value2Frame.Size = UDim2.new(1, -20, 0, 50)
+value2Frame.Position = UDim2.new(0, 10, 0, 105)
+value2Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+value2Frame.BorderSizePixel = 0
+value2Frame.Parent = mainFrame
+
+local value2Label = Instance.new("TextLabel")
+value2Label.Size = UDim2.new(0, 60, 1, 0)
+value2Label.BackgroundTransparency = 1
+value2Label.Text = "Value 2:"
+value2Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+value2Label.Font = Enum.Font.Gotham
+value2Label.TextSize = 12
+value2Label.TextXAlignment = Enum.TextXAlignment.Left
+value2Label.Parent = value2Frame
+
+local value2Box = Instance.new("TextBox")
+value2Box.Size = UDim2.new(0, 100, 0, 30)
+value2Box.Position = UDim2.new(0, 70, 0.5, -15)
+value2Box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+value2Box.TextColor3 = Color3.fromRGB(255, 255, 255)
+value2Box.Font = Enum.Font.Gotham
+value2Box.TextSize = 12
+value2Box.Text = "1"
+value2Box.PlaceholderText = "Value 2"
+value2Box.Parent = value2Frame
+
+-- Repeat Settings Frame
+local repeatFrame = Instance.new("Frame")
+repeatFrame.Size = UDim2.new(1, -20, 0, 100)
+repeatFrame.Position = UDim2.new(0, 10, 0, 165)
+repeatFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+repeatFrame.BorderSizePixel = 0
+repeatFrame.Parent = mainFrame
+
+-- Toggle On/Off
+local toggleLabel = Instance.new("TextLabel")
+toggleLabel.Size = UDim2.new(0, 80, 0, 30)
+toggleLabel.Position = UDim2.new(0, 10, 0, 10)
+toggleLabel.BackgroundTransparency = 1
+toggleLabel.Text = "Loop: OFF"
+toggleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleLabel.Font = Enum.Font.Gotham
+toggleLabel.TextSize = 12
+toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+toggleLabel.Parent = repeatFrame
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 60, 0, 30)
+toggleBtn.Position = UDim2.new(0, 100, 0, 10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+toggleBtn.Text = "OFF"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 12
+toggleBtn.Parent = repeatFrame
+
+-- Speed Setting (Delay between repeats)
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 80, 0, 30)
+speedLabel.Position = UDim2.new(0, 10, 0, 45)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "Delay (s):"
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 12
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Parent = repeatFrame
+
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0, 80, 0, 30)
+speedBox.Position = UDim2.new(0, 90, 0, 45)
+speedBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = 12
+speedBox.Text = "1"
+speedBox.PlaceholderText = "Delay"
+speedBox.Parent = repeatFrame
+
+-- Multiplier Setting (How many times to repeat)
+local multiplierLabel = Instance.new("TextLabel")
+multiplierLabel.Size = UDim2.new(0, 80, 0, 30)
+multiplierLabel.Position = UDim2.new(0, 10, 0, 80)
+multiplierLabel.BackgroundTransparency = 1
+multiplierLabel.Text = "Multiplier:"
+multiplierLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+multiplierLabel.Font = Enum.Font.Gotham
+multiplierLabel.TextSize = 12
+multiplierLabel.TextXAlignment = Enum.TextXAlignment.Left
+multiplierLabel.Parent = repeatFrame
+
+local multiplierBox = Instance.new("TextBox")
+multiplierBox.Size = UDim2.new(0, 80, 0, 30)
+multiplierBox.Position = UDim2.new(0, 90, 0, 80)
+multiplierBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+multiplierBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+multiplierBox.Font = Enum.Font.Gotham
+multiplierBox.TextSize = 12
+multiplierBox.Text = "1"
+multiplierBox.PlaceholderText = "Multiplier"
+multiplierBox.Parent = repeatFrame
+
+-- Apply Button
+local applyBtn = Instance.new("TextButton")
+applyBtn.Size = UDim2.new(0, 100, 0, 35)
+applyBtn.Position = UDim2.new(0.5, -50, 1, -45)
+applyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+applyBtn.Text = "APPLY"
+applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+applyBtn.Font = Enum.Font.GothamBold
+applyBtn.TextSize = 14
+applyBtn.Parent = mainFrame
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 1, -25)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Ready"
+statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 10
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+-- Variables
+local isLooping = false
+local currentThread = nil
+local actionEvent = game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("RequestServerAction")
+
+-- Function to fire the action
+local function fireAction()
+	local val1 = tonumber(value1Box.Text)
+	local val2 = tonumber(value2Box.Text)
+	
+	if val1 and val2 then
+		local args = {
+			"Gameplay",
+			"Train",
+			{
+				val1,
+				val2
+			}
+		}
+		
+		actionEvent:FireServer(unpack(args))
+		statusLabel.Text = "Action fired! (Value1: " .. val1 .. ", Value2: " .. val2 .. ")"
+		task.wait(0.5)
+		statusLabel.Text = "Ready"
+	else
+		statusLabel.Text = "Error: Invalid values!"
+		task.wait(1)
+		statusLabel.Text = "Ready"
+	end
+end
+
+-- Function to start/stop loop
+local function toggleLoop()
+	isLooping = not isLooping
+	
+	if isLooping then
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+		toggleBtn.Text = "ON"
+		toggleLabel.Text = "Loop: ON"
+		statusLabel.Text = "Loop started"
+		
+		-- Start the loop in a separate thread
+		coroutine.wrap(function()
+			local delay = tonumber(speedBox.Text) or 1
+			local multiplier = tonumber(multiplierBox.Text) or 1
+			
+			while isLooping do
+				for i = 1, multiplier do
+					if not isLooping then break end
+					fireAction()
+					if i < multiplier then
+						task.wait(delay)
+					end
+				end
+				if isLooping then
+					task.wait(delay)
+				end
+			end
+		end)()
+	else
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+		toggleBtn.Text = "OFF"
+		toggleLabel.Text = "Loop: OFF"
+		statusLabel.Text = "Loop stopped"
+		task.wait(0.5)
+		statusLabel.Text = "Ready"
+	end
+end
+
+-- Toggle button click
+toggleBtn.MouseButton1Click:Connect(toggleLoop)
+
+-- Apply button click
+applyBtn.MouseButton1Click:Connect(function()
+	local val1 = tonumber(value1Box.Text)
+	local val2 = tonumber(value2Box.Text)
+	local delay = tonumber(speedBox.Text)
+	local multiplier = tonumber(multiplierBox.Text)
+	
+	-- Validate inputs
+	local errors = {}
+	if not val1 then table.insert(errors, "Value 1") end
+	if not val2 then table.insert(errors, "Value 2") end
+	if not delay or delay <= 0 then table.insert(errors, "Delay") end
+	if not multiplier or multiplier <= 0 then table.insert(errors, "Multiplier") end
+	
+	if #errors > 0 then
+		statusLabel.Text = "Invalid: " .. table.concat(errors, ", ")
+		task.wait(1.5)
+		statusLabel.Text = "Ready"
+		return
+	end
+	
+	-- Clamp values
+	delay = math.max(0.1, delay)
+	multiplier = math.max(1, math.floor(multiplier))
+	
+	speedBox.Text = delay
+	multiplierBox.Text = multiplier
+	
+	statusLabel.Text = "Settings applied!"
+	task.wait(0.5)
+	statusLabel.Text = "Ready"
+	
+	-- If not looping, fire once
+	if not isLooping then
+		fireAction()
+	end
+end)
+
+-- Input validation for number boxes
+local function validateNumberBox(box, defaultValue)
+	box.FocusLost:Connect(function(enterPressed)
+		local num = tonumber(box.Text)
+		if not num then
+			box.Text = defaultValue
+		else
+			if box == speedBox and num < 0.1 then
+				box.Text = "0.1"
+			elseif box == multiplierBox and num < 1 then
+				box.Text = "1"
+			else
+				box.Text = num
+			end
+		end
+	end)
+end
+
+validateNumberBox(value1Box, "2")
+validateNumberBox(value2Box, "1")
+validateNumberBox(speedBox, "1")
+validateNumberBox(multiplierBox, "1")
