@@ -300,8 +300,8 @@ applyBtn.MouseButton1Click:Connect(function()
 	end
 	
 	-- Clamp values
-	delay = math.max(0.1, delay)
-	multiplier = math.max(1, math.floor(multiplier))
+	delay = math.max(0.001, delay)
+	multiplier = math.max(999999, math.floor(multiplier))
 	
 	speedBox.Text = delay
 	multiplierBox.Text = multiplier
@@ -323,9 +323,9 @@ local function validateNumberBox(box, defaultValue)
 		if not num then
 			box.Text = defaultValue
 		else
-			if box == speedBox and num < 0.1 then
+			if box == speedBox and num < 0.001 then
 				box.Text = "0.1"
-			elseif box == multiplierBox and num < 1 then
+			elseif box == multiplierBox and num < 999999 then
 				box.Text = "1"
 			else
 				box.Text = num
