@@ -1,0 +1,216 @@
+-- LocalScript
+-- Taruh di StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local aiming = false
+local lockedTarget = nil -- Target Head yang sedang dikunci
+
+
+--------------------------------------------------
+-- AMBIL SEMUA HEAD DARI SEMUA MOBS
+--------------------------------------------------
+local function getAllMobHeads()
+	local heads = {}
+	local mobs = workspace:FindFirstChild("Mobs")
+	
+	if not mobs then
+		warn("❌ 'Mobs' folder not found in workspace")
+		return heads
+	end
+	
+	-- Loop melalui semua mob di folder Mobs
+	for _, mob in ipairs(mobs:GetChildren()) do
+		-- Cek apakah mob memiliki struktur seperti R1_Hobos_Eoka:GetChildren()[2].Head
+		local mobChildren = mob:GetChildren()
+		
+		-- Coba akses child ke-2 dari mob (index 2)
+		if #mobChildren >= 2 then
+			local targetPart = mobChildren[2]
+			if targetPart then
+				local head = targetPart:FindFirstChild("Head")
+				if head and head:IsA("BasePart") then
+					table.insert(heads, head)
+				end
+			end
+		end
+		
+		-- Fallback: cari langsung part bernama "Head" di dalam mob
+		local directHead = mob:FindFirstChild("Head")
+		if directHead and directHead:IsA("BasePart") then
+			table.insert(heads, directHead)
+		end
+	end
+	
+	return heads
+end
+
+
+--------------------------------------------------
+-- CEK APAKAH HEAD TERLIHAT (TIDAK TERHALANG)
+--------------------------------------------------
+local function isHeadVisible(targetHead)
+	if not targetHead or not targetHead.Parent then
+		return false
+	end
+	
+	if not player.Character or not player.Character:FindFirstChild("Head") then
+		return false
+	end
+	
+	local camera = workspace.CurrentCamera
+	local origin = camera.CFrame.Position
+	local targetPos = targetHead.Position
+	
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+	raycastParams.FilterDescendantsInstances = {
+		player.Character
+	}
+	raycastParams.IgnoreWater = true
+	
+	local result = workspace:Raycast(origin, targetPos - origin, raycastParams)
+	return result == nil
+end
+
+
+--------------------------------------------------
+-- CARI HEAD MOB TERDEKAT DI LAYAR
+--------------------------------------------------
+local function findClosestMobHead()
+	local camera = workspace.CurrentCamera
+	local viewportCenter = camera.ViewportSize / 2
+	
+	local allHeads = getAllMobHeads()
+	local closestHead = nil
+	local closestDistance = math.huge
+	
+	for _, head in ipairs(allHeads) do
+		-- Konversi posisi head ke layar
+		local screenPoint, onScreen = camera:WorldToScreenPoint(head.Position)
+		
+		-- Cek apakah head ada di layar dan terlihat
+		if onScreen and isHeadVisible(head) then
+			local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
+			local distanceFromCenter = (screenPos - viewportCenter).Magnitude
+			
+			-- Ambil head yang paling dekat dengan center layar
+			if distanceFromCenter < closestDistance then
+				closestDistance = distanceFromCenter
+				closestHead = head
+			end
+		end
+	end
+	
+	return closestHead
+end
+
+
+--------------------------------------------------
+-- CEK APAKAH TARGET MASIH VALID
+--------------------------------------------------
+local function isTargetValid()
+	if not lockedTarget then
+		return false
+	end
+	
+	-- Cek apakah Head masih ada di workspace
+	if not lockedTarget.Parent or not lockedTarget.Parent:IsDescendantOf(workspace) then
+		return false
+	end
+	
+	-- Cek apakah Head masih terlihat
+	if not isHeadVisible(lockedTarget) then
+		return false
+	end
+	
+	return true
+end
+
+
+--------------------------------------------------
+-- AIM LOCK: HOLD KLIK KANAN
+--------------------------------------------------
+mouse.Button2Down:Connect(function()
+	if aiming then return end
+	
+	aiming = true
+	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+	
+	-- Cari target head terdekat
+	lockedTarget = findClosestMobHead()
+	
+	if lockedTarget then
+		local mobName = lockedTarget.Parent and lockedTarget.Parent.Parent and lockedTarget.Parent.Parent.Name or "Unknown"
+		print("🔒 AIMLOCK ACTIVE - Locked onto:", mobName, "->", lockedTarget.Parent.Name, "-> HEAD")
+		print("📍 Head Position:", lockedTarget.Position)
+	else
+		print("❌ No mob heads found or visible")
+		print("   Looking for: workspace.Mobs.[mob]:GetChildren()[2].Head")
+	end
+	
+	-- Loop aimlock
+	while aiming do
+		RunService.RenderStepped:Wait()
+		
+		if lockedTarget and isTargetValid() then
+			-- Arahkan kamera tepat ke posisi Head
+			local camera = workspace.CurrentCamera
+			local currentPos = camera.CFrame.Position
+			
+			-- Look at Head position
+			camera.CFrame = CFrame.lookAt(currentPos, lockedTarget.Position)
+		else
+			-- Target tidak valid, cari target baru yang terdekat
+			lockedTarget = findClosestMobHead()
+			
+			if lockedTarget then
+				local mobName = lockedTarget.Parent and lockedTarget.Parent.Parent and lockedTarget.Parent.Parent.Name or "Unknown"
+				print("🔄 Re-acquired:", mobName, "HEAD")
+			end
+		end
+	end
+end)
+
+
+--------------------------------------------------
+-- LEPAS KLIK KANAN
+--------------------------------------------------
+mouse.Button2Up:Connect(function()
+	aiming = false
+	lockedTarget = nil
+	
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	print("🔓 AIMLOCK DEACTIVATED")
+end)
+
+
+--------------------------------------------------
+-- RESET SAAT RESPAWN
+--------------------------------------------------
+player.CharacterAdded:Connect(function()
+	aiming = false
+	lockedTarget = nil
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	print("🔄 Character respawned - Aimlock reset")
+end)
+
+
+--------------------------------------------------
+-- DEBUG: Print info saat script dijalankan
+--------------------------------------------------
+print("=== AIMLOCK SCRIPT LOADED ===")
+print("Target Pattern: workspace.Mobs.[mob]:GetChildren()[2].Head")
+local heads = getAllMobHeads()
+print("Found", #heads, "mob heads:")
+for i, head in ipairs(heads) do
+	local mobName = head.Parent and head.Parent.Parent and head.Parent.Parent.Name or "Unknown"
+	local partName = head.Parent and head.Parent.Name or "Unknown"
+	print("  " .. i .. ".", mobName, "->", partName, "-> Head at", head.Position)
+end
+print("=============================")
