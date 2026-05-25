@@ -11,23 +11,28 @@ local mouse = player:GetMouse()
 
 local aiming = false
 local lockedTarget = nil
+local dragging = false
+local dragStart = nil
+local buttonStartPos = nil
 
 -- Buat GUI untuk mobile
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AimlockGUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
 
--- Frame lingkaran
+-- Frame lingkaran (draggable) - Posisi default kanan tengah
 local holdButton = Instance.new("ImageButton")
 holdButton.Name = "HoldButton"
 holdButton.Size = UDim2.new(0, 80, 0, 80)
-holdButton.Position = UDim2.new(0.5, -40, 0.85, 0)
+holdButton.Position = UDim2.new(0.9, -40, 0.5, -40) -- Kanan tengah
 holdButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 holdButton.BackgroundTransparency = 0.5
 holdButton.Image = "rbxassetid://266784625" -- Circle background
 holdButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
 holdButton.ImageTransparency = 0.3
 holdButton.Parent = screenGui
+holdButton.Draggable = false -- Kita buat manual
 
 -- Lingkaran progress fill
 local progressCircle = Instance.new("ImageLabel")
@@ -39,7 +44,7 @@ progressCircle.Image = "rbxassetid://266784625"
 progressCircle.ImageColor3 = Color3.fromRGB(255, 0, 0)
 progressCircle.ImageTransparency = 0.5
 progressCircle.ZIndex = 2
-progressCircle.Parent = holdButton -- FIXED LINE 42
+progressCircle.Parent = holdButton
 
 -- Text label
 local buttonText = Instance.new("TextLabel")
@@ -81,41 +86,38 @@ holdButton.Visible = isMobile
 
 
 --------------------------------------------------
--- AMBIL SEMUA HEAD DARI SEMUA MOBS
+-- RECURSIVE: AMBIL SEMUA HEAD DARI SEMUA MOBS (ANY DEPTH)
 --------------------------------------------------
-local function getAllMobHeads()
+local function getAllHeadsFromMobs()
 	local heads = {}
 	local mobs = workspace:FindFirstChild("Mobs")
 	
 	if not mobs then
+		warn("❌ 'Mobs' folder not found in workspace")
 		return heads
 	end
 	
-	for _, mob in ipairs(mobs:GetChildren()) do
-		local mobChildren = mob:GetChildren()
-		
-		if #mobChildren >= 2 then
-			local targetPart = mobChildren[2]
-			if targetPart then
-				local head = targetPart:FindFirstChild("Head")
-				if head and head:IsA("BasePart") then
-					table.insert(heads, head)
-				end
+	-- Fungsi rekursif untuk mencari semua part bernama "Head"
+	local function searchForHeads(parent)
+		for _, child in ipairs(parent:GetChildren()) do
+			-- Jika child bernama "Head" dan merupakan BasePart
+			if child.Name == "Head" and child:IsA("BasePart") then
+				table.insert(heads, child)
 			end
-		end
-		
-		local directHead = mob:FindFirstChild("Head")
-		if directHead and directHead:IsA("BasePart") then
-			table.insert(heads, directHead)
+			-- Rekursif ke child jika masih bisa di-crawl
+			if child:IsA("Model") or child:IsA("Folder") or child:IsA("Part") or child:IsA("MeshPart") then
+				searchForHeads(child)
+			end
 		end
 	end
 	
+	searchForHeads(mobs)
 	return heads
 end
 
 
 --------------------------------------------------
--- CEK APAKAH HEAD TERLIHAT
+-- CEK APAKAH HEAD TERLIHAT (TIDAK TERHALANG)
 --------------------------------------------------
 local function isHeadVisible(targetHead)
 	if not targetHead or not targetHead.Parent then
@@ -149,7 +151,7 @@ local function findClosestMobHead()
 	local camera = workspace.CurrentCamera
 	local viewportCenter = camera.ViewportSize / 2
 	
-	local allHeads = getAllMobHeads()
+	local allHeads = getAllHeadsFromMobs()
 	local closestHead = nil
 	local closestDistance = math.huge
 	
@@ -218,24 +220,46 @@ local function updateButtonVisual(active)
 	if not isMobile then return end
 	
 	if active then
-		-- Warna hijau saat aktif
 		local tween1 = TweenService:Create(holdButton, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(0, 255, 0)})
 		local tween2 = TweenService:Create(buttonText, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(0, 255, 0)})
-		local tween3 = TweenService:Create(progressRing, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 255, 0)})
 		tween1:Play()
 		tween2:Play()
-		tween3:Play()
 		buttonText.Text = "LOCKED"
 	else
-		-- Kembali ke warna putih
 		local tween1 = TweenService:Create(holdButton, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(255, 255, 255)})
 		local tween2 = TweenService:Create(buttonText, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 255, 255)})
-		local tween3 = TweenService:Create(progressRing, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 0, 0)})
 		tween1:Play()
 		tween2:Play()
-		tween3:Play()
 		buttonText.Text = "AIM"
 	end
+end
+
+
+--------------------------------------------------
+-- DRAG FUNCTIONALITY
+--------------------------------------------------
+local function startDrag(input)
+	if not isMobile then return end
+	dragging = true
+	dragStart = input.Position
+	buttonStartPos = holdButton.Position
+end
+
+local function onDrag(input)
+	if not dragging or not isMobile then return end
+	local delta = input.Position - dragStart
+	local newX = buttonStartPos.X.Scale + delta.X / screenGui.AbsoluteSize.X
+	local newY = buttonStartPos.Y.Scale + delta.Y / screenGui.AbsoluteSize.Y
+	
+	-- Clamp agar tidak keluar layar (batas margin 10px)
+	newX = math.clamp(newX, 0.02, 0.98)
+	newY = math.clamp(newY, 0.02, 0.98)
+	
+	holdButton.Position = UDim2.new(newX, 0, newY, 0)
+end
+
+local function stopDrag()
+	dragging = false
 end
 
 
@@ -258,8 +282,9 @@ local function startAimlock()
 	lockedTarget = findClosestMobHead()
 	
 	if lockedTarget then
-		local mobName = lockedTarget.Parent and lockedTarget.Parent.Parent and lockedTarget.Parent.Parent.Name or "Unknown"
-		print("🔒 AIMLOCK ACTIVE - Locked onto:", mobName, "HEAD")
+		local path = lockedTarget.Parent and lockedTarget.Parent.Name or "Unknown"
+		local parentPath = lockedTarget.Parent and lockedTarget.Parent.Parent and lockedTarget.Parent.Parent.Name or ""
+		print("🔒 AIMLOCK ACTIVE - Locked onto:", parentPath .. "/" .. path, "HEAD")
 	else
 		print("❌ No mob heads found")
 	end
@@ -274,8 +299,8 @@ local function startAimlock()
 		else
 			lockedTarget = findClosestMobHead()
 			if lockedTarget then
-				local mobName = lockedTarget.Parent and lockedTarget.Parent.Parent and lockedTarget.Parent.Parent.Name or "Unknown"
-				print("🔄 Re-acquired:", mobName)
+				local path = lockedTarget.Parent and lockedTarget.Parent.Name or "Unknown"
+				print("🔄 Re-acquired:", path)
 			end
 		end
 	end
@@ -310,28 +335,39 @@ end
 
 
 --------------------------------------------------
--- INPUT: TOUCH BUTTON (MOBILE)
+-- INPUT: TOUCH BUTTON (MOBILE) + DRAG
 --------------------------------------------------
 if isMobile then
 	local holding = false
-	local holdTimer = nil
 	
-	holdButton.MouseButton1Down:Connect(function()
-		holding = true
-		holdTimer = tick()
-		startAimlock()
+	-- Touch untuk drag
+	holdButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			-- Jika touch singkat dan tidak drag, trigger aimlock
+			task.wait(0.1)
+			if not dragging then
+				holding = true
+				startAimlock()
+			end
+			startDrag(input)
+		end
 	end)
 	
-	holdButton.MouseButton1Up:Connect(function()
-		holding = false
-		stopAimlock()
+	holdButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			onDrag(input)
+		end
 	end)
 	
-	-- Untuk drag keluar dari button
-	holdButton.MouseLeave:Connect(function()
-		if holding then
-			holding = false
-			stopAimlock()
+	holdButton.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if dragging then
+				stopDrag()
+			end
+			if holding then
+				holding = false
+				stopAimlock()
+			end
 		end
 	end)
 end
@@ -361,14 +397,25 @@ end)
 -- DEBUG
 --------------------------------------------------
 print("=== AIMLOCK SCRIPT LOADED ===")
-print("Target: workspace.Mobs.[mob]:GetChildren()[2].Head")
+print("Target: All 'Head' parts inside workspace.Mobs (any depth)")
+print("Path example: workspace.Mobs.R1_Hobos_Paddleboard.Hobo.Head")
 if isMobile then
-	print("✅ Mobile mode - Hold button enabled")
-	print("📍 AIM button appears at bottom center")
+	print("✅ Mobile mode - Draggable button enabled")
+	print("📍 Button position: Center-right (draggable)")
+	print("💡 Drag to move button | Tap & hold to aim")
 else
 	print("✅ PC mode - Hold right-click to activate")
 end
 
-local heads = getAllMobHeads()
-print("Found", #heads, "mob heads")
+local heads = getAllHeadsFromMobs()
+print("Found", #heads, "Head parts:")
+for i, head in ipairs(heads) do
+	local path = ""
+	local current = head.Parent
+	while current and current ~= workspace do
+		path = current.Name .. "/" .. path
+		current = current.Parent
+	end
+	print("  " .. i .. ".", path .. head.Name)
+end
 print("=============================")
