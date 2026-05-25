@@ -39,8 +39,7 @@ progressCircle.Image = "rbxassetid://266784625"
 progressCircle.ImageColor3 = Color3.fromRGB(255, 0, 0)
 progressCircle.ImageTransparency = 0.5
 progressCircle.ZIndex = 2
-holdButton.Parent = holdButton
-progressCircle.Parent = holdButton
+progressCircle.Parent = holdButton -- FIXED LINE 42
 
 -- Text label
 local buttonText = Instance.new("TextLabel")
