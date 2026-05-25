@@ -11,6 +11,7 @@ local mouse = player:GetMouse()
 
 local aiming = false
 local lockedTarget = nil
+local allHeads = {} -- Database semua head yang terdeteksi
 
 -- Buat GUI untuk mobile
 local screenGui = Instance.new("ScreenGui")
@@ -83,14 +84,15 @@ holdButton.Visible = isMobile
 
 
 --------------------------------------------------
--- RECURSIVE: AMBIL SEMUA HEAD DARI SEMUA MOBS
+-- UPDATE DATABASE HEADS (SCAN ULANG)
 --------------------------------------------------
-local function getAllHeadsFromMobs()
-	local heads = {}
+local function updateHeadsDatabase()
+	local newHeads = {}
 	local mobs = workspace:FindFirstChild("Mobs")
 	
 	if not mobs then
-		return heads
+		allHeads = {}
+		return
 	end
 	
 	-- Fungsi rekursif untuk mencari semua part bernama "Head"
@@ -98,15 +100,53 @@ local function getAllHeadsFromMobs()
 		for _, child in ipairs(parent:GetChildren()) do
 			-- Jika child bernama "Head" dan merupakan BasePart
 			if child.Name == "Head" and child:IsA("BasePart") then
-				table.insert(heads, child)
+				table.insert(newHeads, child)
 			end
-			-- Rekursif ke semua child
+			-- Rekursif ke semua child (model, folder, part, dll)
 			searchForHeads(child)
 		end
 	end
 	
 	searchForHeads(mobs)
-	return heads
+	allHeads = newHeads
+end
+
+
+--------------------------------------------------
+-- DETEKSI HEAD BARU (MENGGUNAKAN CHILD ADDED)
+--------------------------------------------------
+local function setupHeadDetection()
+	local mobs = workspace:FindFirstChild("Mobs")
+	if not mobs then return end
+	
+	-- Fungsi untuk mendeteksi head baru di dalam instance apapun
+	local function onChildAdded(parent)
+		local function checkForHead(instance)
+			if instance.Name == "Head" and instance:IsA("BasePart") then
+				updateHeadsDatabase()
+				print("🆕 New head detected:", instance:GetFullName())
+			end
+			
+			-- Rekursif untuk child dari instance baru
+			instance.ChildAdded:Connect(function(child)
+				checkForHead(child)
+			end)
+		end
+		
+		checkForHead(parent)
+	end
+	
+	-- Deteksi head baru di Mobs
+	mobs.ChildAdded:Connect(function(newChild)
+		updateHeadsDatabase()
+		onChildAdded(newChild)
+		print("📁 New folder/model added to Mobs:", newChild.Name)
+	end)
+	
+	-- Deteksi head baru di semua child yang sudah ada
+	for _, child in ipairs(mobs:GetChildren()) do
+		onChildAdded(child)
+	end
 end
 
 
@@ -143,21 +183,22 @@ local function findClosestHeadOnScreen()
 	local camera = workspace.CurrentCamera
 	local viewportCenter = camera.ViewportSize / 2
 	
-	local allHeads = getAllHeadsFromMobs()
 	local closestHead = nil
 	local closestDistance = math.huge
 	
 	for _, head in ipairs(allHeads) do
-		-- Cek apakah Head masih ada dan visible
-		local screenPoint, onScreen = camera:WorldToScreenPoint(head.Position)
-		
-		if onScreen and isHeadVisible(head) then
-			local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
-			local distanceFromCenter = (screenPos - viewportCenter).Magnitude
+		-- Cek apakah head masih ada (valid)
+		if head and head.Parent then
+			local screenPoint, onScreen = camera:WorldToScreenPoint(head.Position)
 			
-			if distanceFromCenter < closestDistance then
-				closestDistance = distanceFromCenter
-				closestHead = head
+			if onScreen and isHeadVisible(head) then
+				local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
+				local distanceFromCenter = (screenPos - viewportCenter).Magnitude
+				
+				if distanceFromCenter < closestDistance then
+					closestDistance = distanceFromCenter
+					closestHead = head
+				end
 			end
 		end
 	end
@@ -172,18 +213,20 @@ end
 local function updateAimlock()
 	if not aiming then return end
 	
+	-- Update database head setiap saat (untuk deteksi head baru)
+	updateHeadsDatabase()
+	
 	-- Cari target jika belum ada atau target tidak valid
-	if not lockedTarget or not isHeadVisible(lockedTarget) then
+	if not lockedTarget or not lockedTarget.Parent or not isHeadVisible(lockedTarget) then
 		lockedTarget = findClosestHeadOnScreen()
 	end
 	
 	-- Jika ada target, lock camera ke head
-	if lockedTarget and isHeadVisible(lockedTarget) then
+	if lockedTarget and lockedTarget.Parent and isHeadVisible(lockedTarget) then
 		local camera = workspace.CurrentCamera
 		local currentPos = camera.CFrame.Position
 		local lookAtPos = lockedTarget.Position
 		
-		-- Buat CFrame baru yang melihat ke target head
 		local newCFrame = CFrame.lookAt(currentPos, lookAtPos)
 		camera.CFrame = newCFrame
 	end
@@ -239,12 +282,12 @@ local function startAimlock()
 		updateButtonVisual(true)
 	end
 	
-	-- Langsung cari target
+	-- Update database dan cari target
+	updateHeadsDatabase()
 	lockedTarget = findClosestHeadOnScreen()
 	
 	if lockedTarget then
-		local headPath = lockedTarget:GetFullName()
-		print("🔒 AIMLOCK ACTIVE - Locked onto:", headPath)
+		print("🔒 AIMLOCK ACTIVE - Locked onto:", lockedTarget:GetFullName())
 	else
 		print("⚠️ No head found on screen")
 	end
@@ -287,7 +330,7 @@ end
 
 
 --------------------------------------------------
--- INPUT: TOUCH BUTTON (MOBILE) - TIDAK BISA DRAG
+-- INPUT: TOUCH BUTTON (MOBILE)
 --------------------------------------------------
 if isMobile then
 	holdButton.MouseButton1Down:Connect(function()
@@ -317,22 +360,43 @@ end)
 
 
 --------------------------------------------------
+-- INITIALIZATION & AUTO DETECTION
+--------------------------------------------------
+updateHeadsDatabase()
+setupHeadDetection()
+
+-- Update database setiap 5 detik (fallback)
+task.spawn(function()
+	while true do
+		task.wait(5)
+		updateHeadsDatabase()
+	end
+end)
+
+
+--------------------------------------------------
 -- DEBUG INFO
 --------------------------------------------------
 print("=== AIMLOCK SCRIPT LOADED ===")
-print("Target: All 'Head' parts inside workspace.Mobs")
-print("Path example: workspace.Mobs.R1_Hobos_Paddleboard.Hobo.Head")
+print("Target: ALL 'Head' parts inside workspace.Mobs")
+print("Auto-detects new heads (models, folders, etc)")
 
-local heads = getAllHeadsFromMobs()
-print("Found", #heads, "Head parts:")
-for i, head in ipairs(heads) do
-	print("  " .. i .. ".", head:GetFullName())
+local mobs = workspace:FindFirstChild("Mobs")
+if mobs then
+	print("✅ Mobs folder found!")
+	print("Found", #allHeads, "Head parts:")
+	for i, head in ipairs(allHeads) do
+		print("  " .. i .. ".", head:GetFullName())
+	end
+else
+	print("❌ Mobs folder not found in workspace")
 end
 
 if isMobile then
-	print("✅ Mobile mode - Hold button (center-right)")
-	print("💡 Tap and HOLD the AIM button to lock")
+	print("✅ Mobile mode - Hold AIM button (center-right)")
+	print("💡 Tap and HOLD to lock onto heads")
 else
-	print("✅ PC mode - Hold right-click to lock")
+	print("✅ PC mode - Hold right-click to lock onto heads")
 end
+print("🔄 Script will auto-detect new heads added to Mobs folder")
 print("=============================")
