@@ -11,7 +11,7 @@ local mouse = player:GetMouse()
 
 local aiming = false
 local lockedTarget = nil
-local allHeads = {} -- Database semua head yang terdeteksi
+local allHeads = {} -- Database semua head
 
 -- Buat GUI untuk mobile
 local screenGui = Instance.new("ScreenGui")
@@ -19,11 +19,11 @@ screenGui.Name = "AimlockGUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.ResetOnSpawn = false
 
--- Frame lingkaran (fixed position - tidak bisa drag)
+-- Frame lingkaran
 local holdButton = Instance.new("ImageButton")
 holdButton.Name = "HoldButton"
 holdButton.Size = UDim2.new(0, 80, 0, 80)
-holdButton.Position = UDim2.new(0.85, -40, 0.5, -40) -- Kanan tengah
+holdButton.Position = UDim2.new(0.85, -40, 0.5, -40)
 holdButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 holdButton.BackgroundTransparency = 0.5
 holdButton.Image = "rbxassetid://266784625"
@@ -84,120 +84,174 @@ holdButton.Visible = isMobile
 
 
 --------------------------------------------------
--- UPDATE DATABASE HEADS (SCAN ULANG)
+-- SCAN SEMUA HEAD DI MOBS (REALTIME)
 --------------------------------------------------
-local function updateHeadsDatabase()
-	local newHeads = {}
+local function scanAllHeads()
+	local heads = {}
 	local mobs = workspace:FindFirstChild("Mobs")
 	
 	if not mobs then
-		allHeads = {}
-		return
+		return heads
 	end
 	
-	-- Fungsi rekursif untuk mencari semua part bernama "Head"
-	local function searchForHeads(parent)
+	-- Scan semua child di Mobs
+	local function recursiveScan(parent)
 		for _, child in ipairs(parent:GetChildren()) do
-			-- Jika child bernama "Head" dan merupakan BasePart
-			if child.Name == "Head" and child:IsA("BasePart") then
-				table.insert(newHeads, child)
+			-- Jika nemu part bernama Head
+			if child:IsA("BasePart") and child.Name == "Head" then
+				table.insert(heads, child)
 			end
-			-- Rekursif ke semua child (model, folder, part, dll)
-			searchForHeads(child)
+			-- Scan lebih dalam
+			recursiveScan(child)
 		end
 	end
 	
-	searchForHeads(mobs)
-	allHeads = newHeads
+	recursiveScan(mobs)
+	return heads
 end
 
 
 --------------------------------------------------
--- DETEKSI HEAD BARU (MENGGUNAKAN CHILD ADDED)
+-- UPDATE DATABASE HEAD SETIAP DETIK
 --------------------------------------------------
-local function setupHeadDetection()
+local function updateHeadDatabase()
+	local newHeads = scanAllHeads()
+	
+	-- Cek apakah ada perubahan
+	if #newHeads ~= #allHeads then
+		allHeads = newHeads
+		print("📊 Database updated! Total heads:", #allHeads)
+		for i, head in ipairs(allHeads) do
+			print("  " .. i .. ".", head:GetFullName())
+		end
+	else
+		allHeads = newHeads
+	end
+end
+
+
+--------------------------------------------------
+-- DETEKSI HEAD BARU SECARA LANGSUNG
+--------------------------------------------------
+local function watchForNewHeads()
 	local mobs = workspace:FindFirstChild("Mobs")
 	if not mobs then return end
 	
-	-- Fungsi untuk mendeteksi head baru di dalam instance apapun
-	local function onChildAdded(parent)
-		local function checkForHead(instance)
-			if instance.Name == "Head" and instance:IsA("BasePart") then
-				updateHeadsDatabase()
-				print("🆕 New head detected:", instance:GetFullName())
-			end
-			
-			-- Rekursif untuk child dari instance baru
-			instance.ChildAdded:Connect(function(child)
-				checkForHead(child)
-			end)
+	-- Fungsi untuk monitor instance
+	local function monitorInstance(instance)
+		-- Jika instance adalah Head, update database
+		if instance:IsA("BasePart") and instance.Name == "Head" then
+			print("🆕 NEW HEAD DETECTED!", instance:GetFullName())
+			updateHeadDatabase()
 		end
 		
-		checkForHead(parent)
+		-- Monitor child baru dari instance ini
+		instance.ChildAdded:Connect(function(child)
+			if child:IsA("BasePart") and child.Name == "Head" then
+				print("🆕 NEW HEAD ADDED!", child:GetFullName())
+				updateHeadDatabase()
+			end
+			-- Monitor juga child dari child
+			monitorInstance(child)
+		end)
 	end
 	
-	-- Deteksi head baru di Mobs
-	mobs.ChildAdded:Connect(function(newChild)
-		updateHeadsDatabase()
-		onChildAdded(newChild)
-		print("📁 New folder/model added to Mobs:", newChild.Name)
-	end)
-	
-	-- Deteksi head baru di semua child yang sudah ada
+	-- Monitor semua yang sudah ada di Mobs
 	for _, child in ipairs(mobs:GetChildren()) do
-		onChildAdded(child)
+		monitorInstance(child)
 	end
+	
+	-- Monitor folder Mobs sendiri
+	mobs.ChildAdded:Connect(function(newFolder)
+		print("📁 New folder added to Mobs:", newFolder.Name)
+		monitorInstance(newFolder)
+		updateHeadDatabase()
+	end)
 end
 
 
 --------------------------------------------------
--- CEK APAKAH HEAD TERLIHAT
+-- CEK APAKAH HEAD DI LAYAR
 --------------------------------------------------
-local function isHeadVisible(targetHead)
-	if not targetHead or not targetHead.Parent then
+local function isHeadOnScreen(head)
+	local camera = workspace.CurrentCamera
+	if not camera then return false end
+	
+	local screenPoint, onScreen = camera:WorldToScreenPoint(head.Position)
+	return onScreen
+end
+
+
+--------------------------------------------------
+-- CEK VISIBILITY (RAYCAST)
+--------------------------------------------------
+local function isHeadVisible(head)
+	if not head or not head.Parent then
 		return false
 	end
 	
-	if not player.Character or not player.Character:FindFirstChild("Head") then
+	if not player.Character then
 		return false
 	end
 	
 	local camera = workspace.CurrentCamera
 	local origin = camera.CFrame.Position
-	local targetPos = targetHead.Position
+	local direction = (head.Position - origin)
 	
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
 	raycastParams.FilterDescendantsInstances = {player.Character}
 	raycastParams.IgnoreWater = true
 	
-	local result = workspace:Raycast(origin, targetPos - origin, raycastParams)
-	return result == nil
+	local result = workspace:Raycast(origin, direction, raycastParams)
+	
+	if not result then
+		return true
+	end
+	
+	-- Cek apakah yang kena adalah head atau bagian dari mob yang sama
+	local hit = result.Instance
+	while hit do
+		if hit == head or hit == head.Parent then
+			return true
+		end
+		hit = hit.Parent
+	end
+	
+	return false
 end
 
 
 --------------------------------------------------
--- CARI HEAD TERDEKAT DI LAYAR
+-- CARI HEAD TERDEKAT DARI CROSSHAIR
 --------------------------------------------------
-local function findClosestHeadOnScreen()
+local function findClosestHead()
 	local camera = workspace.CurrentCamera
-	local viewportCenter = camera.ViewportSize / 2
+	if not camera then return nil end
 	
+	local viewportCenter = camera.ViewportSize / 2
 	local closestHead = nil
 	local closestDistance = math.huge
 	
+	-- Update database dulu
+	updateHeadDatabase()
+	
 	for _, head in ipairs(allHeads) do
-		-- Cek apakah head masih ada (valid)
+		-- Cek apakah head masih ada
 		if head and head.Parent then
 			local screenPoint, onScreen = camera:WorldToScreenPoint(head.Position)
 			
-			if onScreen and isHeadVisible(head) then
-				local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
-				local distanceFromCenter = (screenPos - viewportCenter).Magnitude
-				
-				if distanceFromCenter < closestDistance then
-					closestDistance = distanceFromCenter
-					closestHead = head
+			-- Harus on screen
+			if onScreen then
+				-- Cek visibility (tidak terhalang)
+				if isHeadVisible(head) then
+					local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
+					local distance = (screenPos - viewportCenter).Magnitude
+					
+					if distance < closestDistance then
+						closestDistance = distance
+						closestHead = head
+					end
 				end
 			end
 		end
@@ -208,69 +262,53 @@ end
 
 
 --------------------------------------------------
--- UPDATE CAMERA UNTUK AIMLOCK
+-- LOCK CAMERA KE HEAD
+--------------------------------------------------
+local function lockToHead()
+	if not lockedTarget or not lockedTarget.Parent then
+		return false
+	end
+	
+	local camera = workspace.CurrentCamera
+	local currentPos = camera.CFrame.Position
+	local targetPos = lockedTarget.Position
+	
+	-- Lock camera
+	camera.CFrame = CFrame.new(currentPos, targetPos)
+	return true
+end
+
+
+--------------------------------------------------
+-- UPDATE AIMLOCK
 --------------------------------------------------
 local function updateAimlock()
 	if not aiming then return end
 	
-	-- Update database head setiap saat (untuk deteksi head baru)
-	updateHeadsDatabase()
+	-- Update database setiap frame
+	updateHeadDatabase()
 	
-	-- Cari target jika belum ada atau target tidak valid
+	-- Cari target baru jika perlu
 	if not lockedTarget or not lockedTarget.Parent or not isHeadVisible(lockedTarget) then
-		lockedTarget = findClosestHeadOnScreen()
+		local newTarget = findClosestHead()
+		if newTarget then
+			lockedTarget = newTarget
+			print("🎯 Locked onto:", lockedTarget:GetFullName())
+		else
+			-- Tidak ada target
+			return
+		end
 	end
 	
-	-- Jika ada target, lock camera ke head
-	if lockedTarget and lockedTarget.Parent and isHeadVisible(lockedTarget) then
-		local camera = workspace.CurrentCamera
-		local currentPos = camera.CFrame.Position
-		local lookAtPos = lockedTarget.Position
-		
-		local newCFrame = CFrame.lookAt(currentPos, lookAtPos)
-		camera.CFrame = newCFrame
-	end
-end
-
-
---------------------------------------------------
--- ANIMASI BUTTON
---------------------------------------------------
-local function animateProgress(isHolding)
-	if not isMobile then return end
-	
-	local goal = {}
-	if isHolding then
-		goal.ImageTransparency = 0.1
-	else
-		goal.ImageTransparency = 0.5
-	end
-	
-	local tween = TweenService:Create(progressCircle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), goal)
-	tween:Play()
-end
-
-local function updateButtonVisual(active)
-	if not isMobile then return end
-	
-	if active then
-		local tween1 = TweenService:Create(holdButton, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(0, 255, 0)})
-		local tween2 = TweenService:Create(buttonText, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(0, 255, 0)})
-		tween1:Play()
-		tween2:Play()
-		buttonText.Text = "LOCKED"
-	else
-		local tween1 = TweenService:Create(holdButton, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(255, 255, 255)})
-		local tween2 = TweenService:Create(buttonText, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 255, 255)})
-		tween1:Play()
-		tween2:Play()
-		buttonText.Text = "AIM"
+	-- Lock camera
+	if lockedTarget and lockedTarget.Parent then
+		lockToHead()
 	end
 end
 
 
 --------------------------------------------------
--- AIMLOCK START
+-- START AIMLOCK
 --------------------------------------------------
 local function startAimlock()
 	if aiming then return end
@@ -283,19 +321,26 @@ local function startAimlock()
 	end
 	
 	-- Update database dan cari target
-	updateHeadsDatabase()
-	lockedTarget = findClosestHeadOnScreen()
+	updateHeadDatabase()
+	lockedTarget = findClosestHead()
 	
 	if lockedTarget then
-		print("🔒 AIMLOCK ACTIVE - Locked onto:", lockedTarget:GetFullName())
+		print("🔒 AIMLOCK ACTIVE")
+		print("🎯 Target:", lockedTarget:GetFullName())
+		print("📍 Position:", lockedTarget.Position)
 	else
-		print("⚠️ No head found on screen")
+		print("⚠️ NO HEAD FOUND ON SCREEN!")
+		print("📊 Total heads in database:", #allHeads)
+		print("💡 Tips:")
+		print("   - Pastikan head ada di workspace.Mobs")
+		print("   - Pastikan head visible di layar")
+		print("   - Cek posisi kamera")
 	end
 end
 
 
 --------------------------------------------------
--- AIMLOCK STOP
+-- STOP AIMLOCK
 --------------------------------------------------
 local function stopAimlock()
 	aiming = false
@@ -311,92 +356,100 @@ end
 
 
 --------------------------------------------------
--- RENDER STEP UNTUK AIMLOCK
+-- ANIMASI BUTTON
 --------------------------------------------------
-RunService.RenderStepped:Connect(function()
-	if aiming then
-		updateAimlock()
+local function animateProgress(isHolding)
+	if not isMobile then return end
+	
+	local goal = {ImageTransparency = isHolding and 0.1 or 0.5}
+	local tween = TweenService:Create(progressCircle, TweenInfo.new(0.2), goal)
+	tween:Play()
+end
+
+local function updateButtonVisual(active)
+	if not isMobile then return end
+	
+	if active then
+		TweenService:Create(holdButton, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(0, 255, 0)}):Play()
+		TweenService:Create(buttonText, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(0, 255, 0)}):Play()
+		buttonText.Text = "LOCKED"
+	else
+		TweenService:Create(holdButton, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+		TweenService:Create(buttonText, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+		buttonText.Text = "AIM"
 	end
-end)
+end
 
 
 --------------------------------------------------
--- INPUT: HOLD KLIK KANAN (PC)
+-- INPUT
 --------------------------------------------------
 if not isMobile then
 	mouse.Button2Down:Connect(startAimlock)
 	mouse.Button2Up:Connect(stopAimlock)
 end
 
-
---------------------------------------------------
--- INPUT: TOUCH BUTTON (MOBILE)
---------------------------------------------------
 if isMobile then
-	holdButton.MouseButton1Down:Connect(function()
-		startAimlock()
-	end)
-	
-	holdButton.MouseButton1Up:Connect(function()
-		stopAimlock()
-	end)
+	holdButton.MouseButton1Down:Connect(startAimlock)
+	holdButton.MouseButton1Up:Connect(stopAimlock)
 end
 
 
 --------------------------------------------------
--- RESET SAAT RESPAWN
+-- RESET
 --------------------------------------------------
 player.CharacterAdded:Connect(function()
 	aiming = false
 	lockedTarget = nil
-	
 	if isMobile then
 		animateProgress(false)
 		updateButtonVisual(false)
 	end
-	
-	print("🔄 Character respawned - Aimlock reset")
 end)
 
 
 --------------------------------------------------
--- INITIALIZATION & AUTO DETECTION
+-- RENDER STEP
 --------------------------------------------------
-updateHeadsDatabase()
-setupHeadDetection()
-
--- Update database setiap 5 detik (fallback)
-task.spawn(function()
-	while true do
-		task.wait(5)
-		updateHeadsDatabase()
-	end
-end)
+RunService.RenderStepped:Connect(updateAimlock)
 
 
 --------------------------------------------------
--- DEBUG INFO
+-- INITIALIZATION
 --------------------------------------------------
 print("=== AIMLOCK SCRIPT LOADED ===")
-print("Target: ALL 'Head' parts inside workspace.Mobs")
-print("Auto-detects new heads (models, folders, etc)")
 
-local mobs = workspace:FindFirstChild("Mobs")
-if mobs then
+-- Cek apakah Mobs folder ada
+local mobsFolder = workspace:FindFirstChild("Mobs")
+if mobsFolder then
 	print("✅ Mobs folder found!")
-	print("Found", #allHeads, "Head parts:")
+	
+	-- Initial scan
+	updateHeadDatabase()
+	
+	-- Start watching for new heads
+	watchForNewHeads()
+	
+	print("📊 Total heads detected:", #allHeads)
 	for i, head in ipairs(allHeads) do
 		print("  " .. i .. ".", head:GetFullName())
 	end
 else
-	print("❌ Mobs folder not found in workspace")
+	print("❌ Mobs folder NOT FOUND in workspace!")
+	print("💡 Buat folder 'Mobs' di workspace dan tambahkan head di dalamnya")
 end
 
 if isMobile then
-	print("✅ Mobile mode - Hold AIM button (center-right)")
-	print("💡 Tap and HOLD to lock onto heads")
+	print("📱 MODE: Mobile - Hold AIM button")
 else
-	print("✅ PC mode - Hold right-click to lock onto heads")
+	print("💻 MODE: PC - Hold right-click")
 end
-print("🔄 Script will auto-detect new heads added to Mobs folder")
-print("=============================")
+print("============================")
+
+-- Auto update setiap 0.5 detik (fallback)
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		updateHeadDatabase()
+	end
+end)
