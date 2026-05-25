@@ -11,9 +11,6 @@ local mouse = player:GetMouse()
 
 local aiming = false
 local lockedTarget = nil
-local dragging = false
-local dragStart = nil
-local buttonStartPos = nil
 
 -- Buat GUI untuk mobile
 local screenGui = Instance.new("ScreenGui")
@@ -21,18 +18,18 @@ screenGui.Name = "AimlockGUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.ResetOnSpawn = false
 
--- Frame lingkaran (draggable) - Posisi default kanan tengah
+-- Frame lingkaran (fixed position - tidak bisa drag)
 local holdButton = Instance.new("ImageButton")
 holdButton.Name = "HoldButton"
 holdButton.Size = UDim2.new(0, 80, 0, 80)
-holdButton.Position = UDim2.new(0.9, -40, 0.5, -40) -- Kanan tengah
+holdButton.Position = UDim2.new(0.85, -40, 0.5, -40) -- Kanan tengah
 holdButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 holdButton.BackgroundTransparency = 0.5
-holdButton.Image = "rbxassetid://266784625" -- Circle background
+holdButton.Image = "rbxassetid://266784625"
 holdButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
 holdButton.ImageTransparency = 0.3
 holdButton.Parent = screenGui
-holdButton.Draggable = false -- Kita buat manual
+holdButton.AutoButtonColor = true
 
 -- Lingkaran progress fill
 local progressCircle = Instance.new("ImageLabel")
@@ -59,7 +56,7 @@ buttonText.Font = Enum.Font.GothamBold
 buttonText.ZIndex = 3
 buttonText.Parent = holdButton
 
--- Progress indicator (garis tepi)
+-- Progress ring
 local progressRing = Instance.new("Frame")
 progressRing.Name = "ProgressRing"
 progressRing.Size = UDim2.new(1, 0, 1, 0)
@@ -80,20 +77,19 @@ ringStroke.Transparency = 0.5
 ringStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 ringStroke.Parent = progressRing
 
--- Sembunyikan di PC (opsional)
+-- Deteksi mobile
 local isMobile = UserInputService.TouchEnabled
 holdButton.Visible = isMobile
 
 
 --------------------------------------------------
--- RECURSIVE: AMBIL SEMUA HEAD DARI SEMUA MOBS (ANY DEPTH)
+-- RECURSIVE: AMBIL SEMUA HEAD DARI SEMUA MOBS
 --------------------------------------------------
 local function getAllHeadsFromMobs()
 	local heads = {}
 	local mobs = workspace:FindFirstChild("Mobs")
 	
 	if not mobs then
-		warn("❌ 'Mobs' folder not found in workspace")
 		return heads
 	end
 	
@@ -104,10 +100,8 @@ local function getAllHeadsFromMobs()
 			if child.Name == "Head" and child:IsA("BasePart") then
 				table.insert(heads, child)
 			end
-			-- Rekursif ke child jika masih bisa di-crawl
-			if child:IsA("Model") or child:IsA("Folder") or child:IsA("Part") or child:IsA("MeshPart") then
-				searchForHeads(child)
-			end
+			-- Rekursif ke semua child
+			searchForHeads(child)
 		end
 	end
 	
@@ -117,7 +111,7 @@ end
 
 
 --------------------------------------------------
--- CEK APAKAH HEAD TERLIHAT (TIDAK TERHALANG)
+-- CEK APAKAH HEAD TERLIHAT
 --------------------------------------------------
 local function isHeadVisible(targetHead)
 	if not targetHead or not targetHead.Parent then
@@ -134,9 +128,7 @@ local function isHeadVisible(targetHead)
 	
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-	raycastParams.FilterDescendantsInstances = {
-		player.Character
-	}
+	raycastParams.FilterDescendantsInstances = {player.Character}
 	raycastParams.IgnoreWater = true
 	
 	local result = workspace:Raycast(origin, targetPos - origin, raycastParams)
@@ -145,9 +137,9 @@ end
 
 
 --------------------------------------------------
--- CARI HEAD MOB TERDEKAT DI LAYAR
+-- CARI HEAD TERDEKAT DI LAYAR
 --------------------------------------------------
-local function findClosestMobHead()
+local function findClosestHeadOnScreen()
 	local camera = workspace.CurrentCamera
 	local viewportCenter = camera.ViewportSize / 2
 	
@@ -156,6 +148,7 @@ local function findClosestMobHead()
 	local closestDistance = math.huge
 	
 	for _, head in ipairs(allHeads) do
+		-- Cek apakah Head masih ada dan visible
 		local screenPoint, onScreen = camera:WorldToScreenPoint(head.Position)
 		
 		if onScreen and isHeadVisible(head) then
@@ -174,27 +167,31 @@ end
 
 
 --------------------------------------------------
--- CEK APAKAH TARGET MASIH VALID
+-- UPDATE CAMERA UNTUK AIMLOCK
 --------------------------------------------------
-local function isTargetValid()
-	if not lockedTarget then
-		return false
+local function updateAimlock()
+	if not aiming then return end
+	
+	-- Cari target jika belum ada atau target tidak valid
+	if not lockedTarget or not isHeadVisible(lockedTarget) then
+		lockedTarget = findClosestHeadOnScreen()
 	end
 	
-	if not lockedTarget.Parent or not lockedTarget.Parent:IsDescendantOf(workspace) then
-		return false
+	-- Jika ada target, lock camera ke head
+	if lockedTarget and isHeadVisible(lockedTarget) then
+		local camera = workspace.CurrentCamera
+		local currentPos = camera.CFrame.Position
+		local lookAtPos = lockedTarget.Position
+		
+		-- Buat CFrame baru yang melihat ke target head
+		local newCFrame = CFrame.lookAt(currentPos, lookAtPos)
+		camera.CFrame = newCFrame
 	end
-	
-	if not isHeadVisible(lockedTarget) then
-		return false
-	end
-	
-	return true
 end
 
 
 --------------------------------------------------
--- ANIMASI PROGRESS CIRCLE
+-- ANIMASI BUTTON
 --------------------------------------------------
 local function animateProgress(isHolding)
 	if not isMobile then return end
@@ -202,20 +199,14 @@ local function animateProgress(isHolding)
 	local goal = {}
 	if isHolding then
 		goal.ImageTransparency = 0.1
-		goal.Rotation = 360
 	else
 		goal.ImageTransparency = 0.5
-		goal.Rotation = 0
 	end
 	
-	local tween = TweenService:Create(progressCircle, TweenInfo.new(0.3, Enum.EasingStyle.Quad), goal)
+	local tween = TweenService:Create(progressCircle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), goal)
 	tween:Play()
 end
 
-
---------------------------------------------------
--- UPDATE BUTTON VISUAL
---------------------------------------------------
 local function updateButtonVisual(active)
 	if not isMobile then return end
 	
@@ -236,34 +227,6 @@ end
 
 
 --------------------------------------------------
--- DRAG FUNCTIONALITY
---------------------------------------------------
-local function startDrag(input)
-	if not isMobile then return end
-	dragging = true
-	dragStart = input.Position
-	buttonStartPos = holdButton.Position
-end
-
-local function onDrag(input)
-	if not dragging or not isMobile then return end
-	local delta = input.Position - dragStart
-	local newX = buttonStartPos.X.Scale + delta.X / screenGui.AbsoluteSize.X
-	local newY = buttonStartPos.Y.Scale + delta.Y / screenGui.AbsoluteSize.Y
-	
-	-- Clamp agar tidak keluar layar (batas margin 10px)
-	newX = math.clamp(newX, 0.02, 0.98)
-	newY = math.clamp(newY, 0.02, 0.98)
-	
-	holdButton.Position = UDim2.new(newX, 0, newY, 0)
-end
-
-local function stopDrag()
-	dragging = false
-end
-
-
---------------------------------------------------
 -- AIMLOCK START
 --------------------------------------------------
 local function startAimlock()
@@ -272,37 +235,18 @@ local function startAimlock()
 	aiming = true
 	
 	if isMobile then
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		animateProgress(true)
 		updateButtonVisual(true)
-	else
-		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 	end
 	
-	lockedTarget = findClosestMobHead()
+	-- Langsung cari target
+	lockedTarget = findClosestHeadOnScreen()
 	
 	if lockedTarget then
-		local path = lockedTarget.Parent and lockedTarget.Parent.Name or "Unknown"
-		local parentPath = lockedTarget.Parent and lockedTarget.Parent.Parent and lockedTarget.Parent.Parent.Name or ""
-		print("🔒 AIMLOCK ACTIVE - Locked onto:", parentPath .. "/" .. path, "HEAD")
+		local headPath = lockedTarget:GetFullName()
+		print("🔒 AIMLOCK ACTIVE - Locked onto:", headPath)
 	else
-		print("❌ No mob heads found")
-	end
-	
-	while aiming do
-		RunService.RenderStepped:Wait()
-		
-		if lockedTarget and isTargetValid() then
-			local camera = workspace.CurrentCamera
-			local currentPos = camera.CFrame.Position
-			camera.CFrame = CFrame.lookAt(currentPos, lockedTarget.Position)
-		else
-			lockedTarget = findClosestMobHead()
-			if lockedTarget then
-				local path = lockedTarget.Parent and lockedTarget.Parent.Name or "Unknown"
-				print("🔄 Re-acquired:", path)
-			end
-		end
+		print("⚠️ No head found on screen")
 	end
 end
 
@@ -317,12 +261,20 @@ local function stopAimlock()
 	if isMobile then
 		animateProgress(false)
 		updateButtonVisual(false)
-	else
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
 	
 	print("🔓 AIMLOCK DEACTIVATED")
 end
+
+
+--------------------------------------------------
+-- RENDER STEP UNTUK AIMLOCK
+--------------------------------------------------
+RunService.RenderStepped:Connect(function()
+	if aiming then
+		updateAimlock()
+	end
+end)
 
 
 --------------------------------------------------
@@ -335,40 +287,15 @@ end
 
 
 --------------------------------------------------
--- INPUT: TOUCH BUTTON (MOBILE) + DRAG
+-- INPUT: TOUCH BUTTON (MOBILE) - TIDAK BISA DRAG
 --------------------------------------------------
 if isMobile then
-	local holding = false
-	
-	-- Touch untuk drag
-	holdButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			-- Jika touch singkat dan tidak drag, trigger aimlock
-			task.wait(0.1)
-			if not dragging then
-				holding = true
-				startAimlock()
-			end
-			startDrag(input)
-		end
+	holdButton.MouseButton1Down:Connect(function()
+		startAimlock()
 	end)
 	
-	holdButton.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			onDrag(input)
-		end
-	end)
-	
-	holdButton.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			if dragging then
-				stopDrag()
-			end
-			if holding then
-				holding = false
-				stopAimlock()
-			end
-		end
+	holdButton.MouseButton1Up:Connect(function()
+		stopAimlock()
 	end)
 end
 
@@ -380,10 +307,6 @@ player.CharacterAdded:Connect(function()
 	aiming = false
 	lockedTarget = nil
 	
-	if not isMobile then
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-	end
-	
 	if isMobile then
 		animateProgress(false)
 		updateButtonVisual(false)
@@ -394,28 +317,22 @@ end)
 
 
 --------------------------------------------------
--- DEBUG
+-- DEBUG INFO
 --------------------------------------------------
 print("=== AIMLOCK SCRIPT LOADED ===")
-print("Target: All 'Head' parts inside workspace.Mobs (any depth)")
+print("Target: All 'Head' parts inside workspace.Mobs")
 print("Path example: workspace.Mobs.R1_Hobos_Paddleboard.Hobo.Head")
-if isMobile then
-	print("✅ Mobile mode - Draggable button enabled")
-	print("📍 Button position: Center-right (draggable)")
-	print("💡 Drag to move button | Tap & hold to aim")
-else
-	print("✅ PC mode - Hold right-click to activate")
-end
 
 local heads = getAllHeadsFromMobs()
 print("Found", #heads, "Head parts:")
 for i, head in ipairs(heads) do
-	local path = ""
-	local current = head.Parent
-	while current and current ~= workspace do
-		path = current.Name .. "/" .. path
-		current = current.Parent
-	end
-	print("  " .. i .. ".", path .. head.Name)
+	print("  " .. i .. ".", head:GetFullName())
+end
+
+if isMobile then
+	print("✅ Mobile mode - Hold button (center-right)")
+	print("💡 Tap and HOLD the AIM button to lock")
+else
+	print("✅ PC mode - Hold right-click to lock")
 end
 print("=============================")
