@@ -5,33 +5,26 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 
--- TOGGLE STATE
 local enabled = true
 local TOGGLE_KEY = Enum.KeyCode.KeypadSix
 
--- INTERNAL STATE
 local lastGuiVisible = false
 local clickScheduled = false
-local lastRedBarPosition = nil
+local whiteBarLocked = false
 
--- === TOGGLE HANDLER ===
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == TOGGLE_KEY then
         enabled = not enabled
-        print("[Reeling Script]", enabled and "ON" or "OFF")
-
         if not enabled then
             lastGuiVisible = false
             clickScheduled = false
-            lastRedBarPosition = nil
+            whiteBarLocked = false
         end
     end
 end)
 
--- === DIRECT ACCESS KE UI (sesuai path yang diberikan) ===
 local function getUIElements()
-    -- Akses langsung sesuai path: PlayerGui.Reeling.Frame.Frame.WhiteBar
     local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
     if not reelingGui then return end
     
@@ -42,50 +35,72 @@ local function getUIElements()
     if not innerFrame then return end
     
     local whiteBar = innerFrame:FindFirstChild("WhiteBar")
-    local redBar = innerFrame:FindFirstChild("RedBar")  -- Asumsi RedBar di path yang sama
     
-    if whiteBar and redBar then
-        return whiteBar, redBar, innerFrame
+    if whiteBar then
+        return whiteBar, innerFrame
     end
 end
 
--- === LEFT CLICK ===
+local function lockWhiteBar()
+    local WhiteBar, parentFrame = getUIElements()
+    if WhiteBar then
+        WhiteBar.Size = UDim2.new(
+            1, 0,
+            WhiteBar.Size.Y.Scale, WhiteBar.Size.Y.Offset
+        )
+        
+        WhiteBar.Position = UDim2.new(
+            0.5, 0,
+            WhiteBar.Position.Y.Scale, WhiteBar.Position.Y.Offset
+        )
+        
+        whiteBarLocked = true
+    end
+end
+
 local function leftClick()
     VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
     task.wait(0.05)
     VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 
--- === MAIN LOOP ===
 RunService.RenderStepped:Connect(function()
-    if not enabled then return end
-
-    local WhiteBar, RedBar, parentFrame = getUIElements()
-
-    -- GUI muncul
-    if WhiteBar and RedBar and parentFrame then
-        lastGuiVisible = true
-        clickScheduled = false
-
-        -- === SET WHITEBAR SIZE KE SCALE 1 ===
-        -- Scale 1 = 100% lebar parent (innerFrame)
-        WhiteBar.Size = UDim2.new(
-            1, 0,  -- Scale X = 1 (full width), Offset X = 0
-            0, 20  -- Tinggi tetap 20 pixel (sesuaikan dengan ukuran asli)
-        )
-
-        return
+    if not enabled then 
+        if lastGuiVisible or clickScheduled then
+            lastGuiVisible = false
+            clickScheduled = false
+        end
+        return 
     end
 
-    -- GUI baru saja hilang
-    if lastGuiVisible and not clickScheduled then
+    local WhiteBar, parentFrame = getUIElements()
+
+    if WhiteBar and parentFrame then
+        if not whiteBarLocked then
+            lockWhiteBar()
+        else
+            WhiteBar.Size = UDim2.new(
+                1, 0,
+                WhiteBar.Size.Y.Scale, WhiteBar.Size.Y.Offset
+            )
+            WhiteBar.Position = UDim2.new(
+                0.5, 0,
+                WhiteBar.Position.Y.Scale, WhiteBar.Position.Y.Offset
+            )
+        end
+        
+        lastGuiVisible = true
+        clickScheduled = false
+        
+    elseif lastGuiVisible and not clickScheduled then
         clickScheduled = true
         lastGuiVisible = false
-        lastRedBarPosition = nil
-
-        task.delay(math.random(3, 4), function()
+        whiteBarLocked = false
+        
+        task.delay(2, function()
             if enabled then
                 leftClick()
+                clickScheduled = false
             end
         end)
     end
