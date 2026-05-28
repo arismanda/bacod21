@@ -9,6 +9,10 @@ local joystickCenter = nil
 local joystickHandle = nil
 local joystickRadius = 80
 
+-- Variabel untuk kontrol toggle
+local isFlyingActive = false
+local currentFlyThread = nil
+
 -- Fungsi membuat joystick di layar mobile
 local function createMobileJoystick()
     local screenGui = Instance.new("ScreenGui")
@@ -69,6 +73,12 @@ end
 
 -- Fungsi terbang utama (sudah dimodifikasi untuk support mobile)
 function sFLY(vfly)
+    -- Jika sudah terbang, hentikan dulu
+    if FLYING then
+        NOFLY()
+        task.wait(0.1)
+    end
+    
     local plr = game.Players.LocalPlayer
     local char = plr.Character or plr.CharacterAdded:Wait()
     local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -333,6 +343,7 @@ end
 
 -- Fungsi untuk berhenti terbang
 function NOFLY()
+    if not FLYING then return end
     FLYING = false
     if flyKeyDown then flyKeyDown:Disconnect() end
     if flyKeyUp then flyKeyUp:Disconnect() end
@@ -341,11 +352,60 @@ function NOFLY()
     if flyTouchEnd then flyTouchEnd:Disconnect() end
     if flyGamepadConn then flyGamepadConn:Disconnect() end
     
-    if game.Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid') then
-        game.Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid').PlatformStand = false
+    local plr = game.Players.LocalPlayer
+    if plr and plr.Character then
+        local humanoid = plr.Character:FindFirstChildOfClass('Humanoid')
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
     end
     pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
 end
 
--- Mulai terbang
-sFLY(false)
+-- ============ TOMBOL TOGGLE ============
+local function createToggleButton()
+    local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "FlyToggleGui"
+    screenGui.Parent = playerGui
+    
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 120, 0, 50)
+    toggleBtn.Position = UDim2.new(1, -130, 0, 10)
+    toggleBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    toggleBtn.BackgroundTransparency = 0.3
+    toggleBtn.BorderSizePixel = 2
+    toggleBtn.BorderColor3 = Color3.new(1, 1, 1)
+    toggleBtn.Text = "🔘 Terbang OFF"
+    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.TextSize = 16
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.Parent = screenGui
+    
+    -- Buat efek rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = toggleBtn
+    
+    local isFlying = false
+    
+    toggleBtn.MouseButton1Click:Connect(function()
+        if isFlying then
+            NOFLY()
+            toggleBtn.Text = "🔘 Terbang OFF"
+            toggleBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+            isFlying = false
+        else
+            sFLY(false)
+            toggleBtn.Text = "✈️ Terbang ON"
+            toggleBtn.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+            isFlying = true
+        end
+    end)
+end
+
+-- Jalankan pembuatan tombol toggle
+createToggleButton()
+
+-- Optional: Beri pesan di console bahwa script sudah siap
+print("Script fly dengan toggle berhasil dimuat! Tekan tombol di pojok kanan atas untuk mulai terbang.")
