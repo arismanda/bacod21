@@ -1,4 +1,4 @@
--- SIMPLE FLY SCRIPT FOR MOBILE (No GUI Conflicts)
+-- FIXED FLY SCRIPT FOR MOBILE (No comparison errors)
 -- Tap 3 fingers to toggle fly
 
 local Player = game.Players.LocalPlayer
@@ -14,14 +14,14 @@ local moveDirection = Vector3.new(0, 0, 0)
 
 -- Joystick variables
 local joystickActive = false
-local joystickStartPos = nil
-local joystickCurrentPos = nil
 local joystickUI = nil
 
 local function getCharacter()
     local char = Player.Character
-    if not char or not char.Parent then return nil end
-    return char
+    if char and char.Parent then
+        return char
+    end
+    return nil
 end
 
 local function getRootPart()
@@ -50,27 +50,28 @@ local function stopFly()
         bodyGyro = nil
     end
     flying = false
+    moveDirection = Vector3.new(0, 0, 0)
     
-    -- Hide joystick
     if joystickUI and joystickUI.Parent then
         joystickUI.Visible = false
     end
     
-    -- Reset platform stand
     local hum = getHumanoid()
     if hum then
-        hum.PlatformStand = false
+        pcall(function() hum.PlatformStand = false end)
     end
 end
 
 local function startFly()
-    if flying then stopFly() end
+    if flying then 
+        stopFly()
+        return false
+    end
     
     local rootPart = getRootPart()
     local hum = getHumanoid()
     
     if not rootPart or not hum then
-        warn("Cannot fly: Character not ready")
         return false
     end
     
@@ -86,17 +87,12 @@ local function startFly()
     bodyGyro.Parent = rootPart
     bodyGyro.CFrame = rootPart.CFrame
     
-    -- Enable platform stand
     hum.PlatformStand = true
     
     flying = true
     moveDirection = Vector3.new(0, 0, 0)
     
-    -- Show joystick
     createJoystick()
-    
-    -- Notify
-    notify("✈️ Fly Mode: ON", Color3.fromRGB(100, 255, 100))
     
     return true
 end
@@ -104,20 +100,31 @@ end
 local function toggleFly()
     if flying then
         stopFly()
-        notify("🛑 Fly Mode: OFF", Color3.fromRGB(255, 100, 100))
+        notify("Fly Mode: OFF")
     else
-        startFly()
+        local success = startFly()
+        if success then
+            notify("Fly Mode: ON")
+        else
+            notify("Failed to start fly mode")
+        end
     end
 end
 
 local function updateFlyDirection()
-    if not flying or not bodyVelocity then return end
+    if not flying or not bodyVelocity then 
+        return 
+    end
     
     local rootPart = getRootPart()
-    if not rootPart then return end
+    if not rootPart then 
+        return 
+    end
     
     local cam = workspace.CurrentCamera
-    if not cam then return end
+    if not cam then 
+        return 
+    end
     
     local moveVec = moveDirection
     
@@ -127,13 +134,11 @@ local function updateFlyDirection()
         local right = camCF.RightVector
         local up = camCF.UpVector
         
-        -- Calculate movement
         local direction = (right * moveVec.X + up * moveVec.Y + forward * -moveVec.Z)
         direction = direction.Unit
         
         bodyVelocity.Velocity = direction * speed
         
-        -- Update rotation
         if bodyGyro then
             bodyGyro.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + direction)
         end
@@ -143,22 +148,32 @@ local function updateFlyDirection()
 end
 
 -- Simple notification
-local function notify(text, color)
-    local screenGui = Player.PlayerGui:FindFirstChild("FlyNotification")
-    if not screenGui then
-        screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "FlyNotification"
-        screenGui.ResetOnSpawn = false
-        screenGui.Parent = Player.PlayerGui
+local function notify(text)
+    local screenGui = Player:FindFirstChild("PlayerGui")
+    if not screenGui then return end
+    
+    local notifGui = screenGui:FindFirstChild("FlyNotification")
+    if not notifGui then
+        notifGui = Instance.new("ScreenGui")
+        notifGui.Name = "FlyNotification"
+        notifGui.ResetOnSpawn = false
+        notifGui.Parent = screenGui
+    end
+    
+    -- Clean up old notifications
+    for _, child in pairs(notifGui:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
     end
     
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 250, 0, 40)
-    frame.Position = UDim2.new(0.5, -125, 0.8, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    frame.BackgroundTransparency = 0.2
+    frame.Size = UDim2.new(0, 200, 0, 36)
+    frame.Position = UDim2.new(0.5, -100, 0.85, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.3
     frame.BorderSizePixel = 0
-    frame.Parent = screenGui
+    frame.Parent = notifGui
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
@@ -168,38 +183,35 @@ local function notify(text, color)
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = text
-    label.TextColor3 = color or Color3.fromRGB(255, 255, 255)
-    label.TextSize = 16
-    label.Font = Enum.Font.Gothom
-    label.TextScaled = true
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
     label.Parent = frame
     
-    game:GetService("TweenService"):Create(frame, 
-        TweenInfo.new(2, Enum.EasingStyle.Linear), 
-        {BackgroundTransparency = 1}
-    ):Play()
-    
-    task.wait(2)
+    task.wait(1.5)
     pcall(function() frame:Destroy() end)
 end
 
 -- Create joystick UI
 local function createJoystick()
-    -- Remove existing
-    if joystickUI and joystickUI.Parent then
-        joystickUI:Destroy()
+    if joystickUI then
+        pcall(function() joystickUI:Destroy() end)
+        joystickUI = nil
     end
+    
+    local playerGui = Player:FindFirstChild("PlayerGui")
+    if not playerGui then return end
     
     local gui = Instance.new("ScreenGui")
     gui.Name = "FlyJoystick"
     gui.ResetOnSpawn = false
-    gui.Parent = Player.PlayerGui
+    gui.Parent = playerGui
     
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 120, 0, 120)
-    frame.Position = UDim2.new(0, 10, 1, -140)
+    frame.Size = UDim2.new(0, 100, 0, 100)
+    frame.Position = UDim2.new(0, 10, 1, -120)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    frame.BackgroundTransparency = 0.6
+    frame.BackgroundTransparency = 0.5
     frame.BorderSizePixel = 0
     frame.Parent = gui
     
@@ -207,17 +219,11 @@ local function createJoystick()
     corner.CornerRadius = UDim.new(1, 0)
     corner.Parent = frame
     
-    local border = Instance.new("UIStroke")
-    border.Color = Color3.fromRGB(100, 100, 150)
-    border.Thickness = 2
-    border.Transparency = 0.5
-    border.Parent = frame
-    
     local thumb = Instance.new("Frame")
-    thumb.Size = UDim2.new(0, 50, 0, 50)
-    thumb.Position = UDim2.new(0.5, -25, 0.5, -25)
-    thumb.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-    thumb.BackgroundTransparency = 0.4
+    thumb.Size = UDim2.new(0, 40, 0, 40)
+    thumb.Position = UDim2.new(0.5, -20, 0.5, -20)
+    thumb.BackgroundColor3 = Color3.fromRGB(100, 100, 110)
+    thumb.BackgroundTransparency = 0.3
     thumb.BorderSizePixel = 0
     thumb.Parent = frame
     
@@ -226,8 +232,8 @@ local function createJoystick()
     thumbCorner.Parent = thumb
     
     local speedFrame = Instance.new("Frame")
-    speedFrame.Size = UDim2.new(0, 80, 0, 30)
-    speedFrame.Position = UDim2.new(0, 20, 0, 125)
+    speedFrame.Size = UDim2.new(0, 70, 0, 28)
+    speedFrame.Position = UDim2.new(0, 15, 0, 105)
     speedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     speedFrame.BackgroundTransparency = 0.3
     speedFrame.BorderSizePixel = 0
@@ -243,49 +249,48 @@ local function createJoystick()
     speedText.Text = tostring(speed)
     speedText.TextColor3 = Color3.fromRGB(255, 255, 255)
     speedText.TextSize = 14
-    speedText.Font = Enum.Font.GothomBold
+    speedText.Font = Enum.Font.GothamBold
     speedText.Parent = speedFrame
     
-    -- Buttons
+    -- Speed buttons
     local upBtn = Instance.new("TextButton")
-    upBtn.Size = UDim2.new(0, 40, 0, 30)
-    upBtn.Position = UDim2.new(0, 105, 0, 125)
+    upBtn.Size = UDim2.new(0, 35, 0, 28)
+    upBtn.Position = UDim2.new(0, 90, 0, 105)
     upBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    upBtn.Text = "▲"
+    upBtn.Text = "+"
     upBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     upBtn.TextSize = 16
-    upBtn.Font = Enum.Font.GothomBold
+    upBtn.Font = Enum.Font.GothamBold
     upBtn.Parent = gui
     
     local downBtn = Instance.new("TextButton")
-    downBtn.Size = UDim2.new(0, 40, 0, 30)
-    downBtn.Position = UDim2.new(0, 150, 0, 125)
+    downBtn.Size = UDim2.new(0, 35, 0, 28)
+    downBtn.Position = UDim2.new(0, 130, 0, 105)
     downBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    downBtn.Text = "▼"
+    downBtn.Text = "-"
     downBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     downBtn.TextSize = 16
-    downBtn.Font = Enum.Font.GothomBold
+    downBtn.Font = Enum.Font.GothamBold
     downBtn.Parent = gui
     
-    -- Store references
     joystickUI = gui
-    local joystickFrame = frame
-    local joystickThumb = thumb
     
     -- Touch handling
     local center = Vector2.new(0, 0)
-    local maxRadius = 50
+    local maxRadius = 40
     local active = false
     
     local function updateThumb(pos)
+        if not center then return end
         local delta = pos - center
         local distance = math.min(delta.Magnitude, maxRadius)
-        local direction = distance > 0 and delta.Unit or Vector2.new(0, 0)
+        local direction = (distance > 0 and delta.Unit) or Vector2.new(0, 0)
         
         local offset = direction * distance
-        joystickThumb.Position = UDim2.new(0.5, offset.X - 25, 0.5, offset.Y - 25)
+        local newX = 0.5 + (offset.X / 100)
+        local newY = 0.5 + (offset.Y / 100)
+        thumb.Position = UDim2.new(newX, -20, newY, -20)
         
-        -- Update move direction
         local normX = direction.X * (distance / maxRadius)
         local normY = direction.Y * (distance / maxRadius)
         moveDirection = Vector3.new(normX, normY, 0)
@@ -293,10 +298,11 @@ local function createJoystick()
         updateFlyDirection()
     end
     
-    joystickFrame.InputBegan:Connect(function(input)
+    frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
             active = true
-            center = joystickFrame.AbsolutePosition + Vector2.new(60, 60)
+            local absPos = frame.AbsolutePosition
+            center = absPos + Vector2.new(50, 50)
             updateThumb(input.Position)
         end
     end)
@@ -307,42 +313,71 @@ local function createJoystick()
         end
     end)
     
-    UserInputService.InputEnded:Connect(function(input)
+    local function onInputEnded(input)
         if input.UserInputType == Enum.UserInputType.Touch and active then
             active = false
             moveDirection = Vector3.new(0, 0, 0)
-            joystickThumb.Position = UDim2.new(0.5, -25, 0.5, -25)
+            thumb.Position = UDim2.new(0.5, -20, 0.5, -20)
             updateFlyDirection()
         end
-    end)
+    end
+    
+    UserInputService.InputEnded:Connect(onInputEnded)
     
     -- Speed buttons
     upBtn.MouseButton1Click:Connect(function()
-        speed = math.min(200, speed + 10)
-        speedText.Text = tostring(speed)
-        notify("Speed: " .. tostring(speed), Color3.fromRGB(255, 200, 100))
+        if speed < 200 then
+            speed = speed + 10
+            speedText.Text = tostring(speed)
+            notify("Speed: " .. tostring(speed))
+        end
     end)
     
     downBtn.MouseButton1Click:Connect(function()
-        speed = math.max(10, speed - 10)
-        speedText.Text = tostring(speed)
-        notify("Speed: " .. tostring(speed), Color3.fromRGB(255, 200, 100))
+        if speed > 10 then
+            speed = speed - 10
+            speedText.Text = tostring(speed)
+            notify("Speed: " .. tostring(speed))
+        end
     end)
 end
 
--- Character respawn handling
+-- Character respawn
 Player.CharacterAdded:Connect(function()
     task.wait(0.5)
     if flying then
-        -- Recreate fly after respawn
-        local success = startFly()
-        if not success then
+        -- Restart fly after respawn
+        local rootPart = getRootPart()
+        local hum = getHumanoid()
+        
+        if rootPart and hum then
+            if bodyVelocity then
+                pcall(function() bodyVelocity:Destroy() end)
+                bodyVelocity = nil
+            end
+            if bodyGyro then
+                pcall(function() bodyGyro:Destroy() end)
+                bodyGyro = nil
+            end
+            
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            bodyVelocity.Parent = rootPart
+            
+            bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+            bodyGyro.Parent = rootPart
+            bodyGyro.CFrame = rootPart.CFrame
+            
+            hum.PlatformStand = true
+        else
             flying = false
         end
     end
 end)
 
--- 3-finger tap to toggle
+-- 3-finger tap detection
 local tapCount = 0
 local tapTimer = nil
 
@@ -377,29 +412,22 @@ UserInputService.TouchTap:Connect(function(touchPos, tapCount_, isFinal)
 end)
 
 -- Chat command
-local function setupChatCommand()
-    local onChat = function(msg)
-        if msg:lower() == ";fly" then
-            toggleFly()
-        elseif msg:lower() == ";flyspeed" then
-            notify("Current speed: " .. tostring(speed), Color3.fromRGB(200, 200, 255))
-        end
+game:GetService("Players").Chatted:Connect(function(msg)
+    local lowerMsg = string.lower(msg or "")
+    if lowerMsg == ";fly" then
+        toggleFly()
+    elseif lowerMsg == ";flyspeed" then
+        notify("Speed: " .. tostring(speed))
     end
-    
-    -- Legacy chat
-    game:GetService("Players").Chatted:Connect(onChat)
-end
+end)
 
-setupChatCommand()
-
--- Main update loop
+-- Main loop
 RunService.RenderStepped:Connect(function()
     if flying then
         updateFlyDirection()
     end
 end)
 
--- Initial notification
-notify("✨ Fly Script Loaded!\nTap 3 fingers to toggle fly", Color3.fromRGB(100, 200, 255))
-
-print("Fly Script for Mobile Loaded! Use 3-finger tap or type ;fly to toggle")
+-- Success message
+notify("Fly Script Loaded! Tap 3 fingers to fly")
+print("Fly Script for Mobile Loaded! Use ;fly or 3-finger tap")
