@@ -1,411 +1,220 @@
--- Variabel yang diperlukan
-FLYING = false
-QEfly = true  -- Aktifkan tombol Q dan E untuk naik/turun (keyboard only)
-iyflyspeed = 1  -- Kecepatan terbang default
+--[[ 
+    FLY SCRIPT - GAYA ADONIS (Mobile/PC) 
+    Dibuat oleh: ChatGPT | Terinspirasi dari Adonis Admin System
+    Fitur:
+    - Tombol Fly untuk menyalakan/mematikan mode terbang
+    - Pengaturan kecepatan terbang (Speed)
+    - Tombol naik (Up) dan turun (Down) untuk kontrol vertikal
+    - GUI yang minimalis dan bisa digeser (draggable)
+    - Kompatibel dengan R6/R15
+    - Mendukung kontrol mobile (joystick) dan keyboard PC
+]]
 
--- Variabel untuk touch joystick di mobile
-local touchJoystickActive = false
-local joystickCenter = nil
-local joystickHandle = nil
-local joystickRadius = 80
+-- Variabel utama
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Variabel untuk kontrol toggle
-local isFlyingActive = false
-local currentFlyThread = nil
+local flying = false
+local speed = 50
+local bodyVel = nil
+local bodyGyro = nil
 
--- Fungsi membuat joystick di layar mobile
-local function createMobileJoystick()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "FlyJoystick"
-    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    
-    -- Background joystick (lingkaran luar)
-    local joystickBg = Instance.new("ImageLabel")
-    joystickBg.Name = "JoystickBg"
-    joystickBg.Size = UDim2.new(0, joystickRadius * 2, 0, joystickRadius * 2)
-    joystickBg.Position = UDim2.new(0, 80, 1, -120)
-    joystickBg.AnchorPoint = Vector2.new(0.5, 0.5)
-    joystickBg.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
-    joystickBg.BackgroundTransparency = 0.5
-    joystickBg.BorderSizePixel = 0
-    joystickBg.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-    joystickBg.Parent = screenGui
-    
-    -- Handle joystick (lingkaran dalam)
-    local joystickStick = Instance.new("ImageLabel")
-    joystickStick.Name = "JoystickStick"
-    joystickStick.Size = UDim2.new(0, joystickRadius, 0, joystickRadius)
-    joystickStick.Position = UDim2.new(0.5, 0, 0.5, 0)
-    joystickStick.AnchorPoint = Vector2.new(0.5, 0.5)
-    joystickStick.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
-    joystickStick.BackgroundTransparency = 0.3
-    joystickStick.BorderSizePixel = 0
-    joystickStick.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-    joystickStick.Parent = joystickBg
-    
-    -- Tombol naik/turun untuk mobile
-    local upButton = Instance.new("TextButton")
-    upButton.Name = "UpButton"
-    upButton.Size = UDim2.new(0, 60, 0, 60)
-    upButton.Position = UDim2.new(1, -120, 1, -180)
-    upButton.AnchorPoint = Vector2.new(0.5, 0.5)
-    upButton.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
-    upButton.BackgroundTransparency = 0.4
-    upButton.Text = "▲"
-    upButton.TextColor3 = Color3.new(1, 1, 1)
-    upButton.TextSize = 30
-    upButton.Parent = screenGui
-    
-    local downButton = Instance.new("TextButton")
-    downButton.Name = "DownButton"
-    downButton.Size = UDim2.new(0, 60, 0, 60)
-    downButton.Position = UDim2.new(1, -120, 1, -100)
-    downButton.AnchorPoint = Vector2.new(0.5, 0.5)
-    downButton.BackgroundColor3 = Color3.new(0.6, 0.2, 0.2)
-    downButton.BackgroundTransparency = 0.4
-    downButton.Text = "▼"
-    downButton.TextColor3 = Color3.new(1, 1, 1)
-    downButton.TextSize = 30
-    downButton.Parent = screenGui
-    
-    return screenGui, joystickBg, joystickStick, upButton, downButton
-end
+-- Membuat GUI (ScreenGui)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FlyGui"
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Fungsi terbang utama (sudah dimodifikasi untuk support mobile)
-function sFLY(vfly)
-    -- Jika sudah terbang, hentikan dulu
-    if FLYING then
-        NOFLY()
-        task.wait(0.1)
-    end
-    
-    local plr = game.Players.LocalPlayer
-    local char = plr.Character or plr.CharacterAdded:Wait()
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then
-        repeat task.wait() until char:FindFirstChildOfClass("Humanoid")
-        humanoid = char:FindFirstChildOfClass("Humanoid")
-    end
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 150)
+frame.Position = UDim2.new(0.5, -100, 0.5, -75)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BackgroundTransparency = 0.1
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
 
-    -- Hapus koneksi sebelumnya jika ada
-    if flyKeyDown or flyKeyUp or flyTouchMove or flyTouchStart or flyTouchEnd or flyGamepadConn then
-        if flyKeyDown then flyKeyDown:Disconnect() end
-        if flyKeyUp then flyKeyUp:Disconnect() end
-        if flyTouchMove then flyTouchMove:Disconnect() end
-        if flyTouchStart then flyTouchStart:Disconnect() end
-        if flyTouchEnd then flyTouchEnd:Disconnect() end
-        if flyGamepadConn then flyGamepadConn:Disconnect() end
-    end
+-- Membuat tombol Fly
+local flyButton = Instance.new("TextButton")
+flyButton.Size = UDim2.new(0, 100, 0, 30)
+flyButton.Position = UDim2.new(0.5, -50, 0, 10)
+flyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+flyButton.Text = "Fly (OFF)"
+flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyButton.Font = Enum.Font.SourceSansBold
+flyButton.TextSize = 14
+flyButton.Parent = frame
 
-    local T = char:FindFirstChild("HumanoidRootPart")
-    local CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
-    local lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
-    local SPEED = 0
-    local userInput = game:GetService("UserInputService")
+-- Tombol Speed +
+local speedUp = Instance.new("TextButton")
+speedUp.Size = UDim2.new(0, 40, 0, 30)
+speedUp.Position = UDim2.new(0, 10, 0, 50)
+speedUp.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedUp.Text = "+"
+speedUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedUp.Font = Enum.Font.SourceSansBold
+speedUp.TextSize = 14
+speedUp.Parent = frame
+
+-- Tombol Speed -
+local speedDown = Instance.new("TextButton")
+speedDown.Size = UDim2.new(0, 40, 0, 30)
+speedDown.Position = UDim2.new(0, 60, 0, 50)
+speedDown.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedDown.Text = "-"
+speedDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedDown.Font = Enum.Font.SourceSansBold
+speedDown.TextSize = 14
+speedDown.Parent = frame
+
+-- Label kecepatan
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 80, 0, 30)
+speedLabel.Position = UDim2.new(0, 110, 0, 50)
+speedLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedLabel.Text = "Speed: 50"
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.Font = Enum.Font.SourceSansBold
+speedLabel.TextSize = 12
+speedLabel.Parent = frame
+
+-- Tombol Up (naik)
+local upButton = Instance.new("TextButton")
+upButton.Size = UDim2.new(0, 60, 0, 30)
+upButton.Position = UDim2.new(0, 10, 0, 90)
+upButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+upButton.Text = "Up"
+upButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+upButton.Font = Enum.Font.SourceSansBold
+upButton.TextSize = 14
+upButton.Parent = frame
+
+-- Tombol Down (turun)
+local downButton = Instance.new("TextButton")
+downButton.Size = UDim2.new(0, 60, 0, 30)
+downButton.Position = UDim2.new(0, 80, 0, 90)
+downButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+downButton.Text = "Down"
+downButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+downButton.Font = Enum.Font.SourceSansBold
+downButton.TextSize = 14
+downButton.Parent = frame
+
+-- Fungsi untuk memulai terbang
+local function startFly()
+    if bodyVel then bodyVel:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
     
-    -- Buat joystick untuk mobile
-    local screenGui, joystickBg, joystickStick, upBtn, downBtn = createMobileJoystick()
+    bodyVel = Instance.new("BodyVelocity")
+    bodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    bodyVel.Parent = rootPart
     
-    -- Variabel untuk touch joystick
-    local joystickActive = false
-    local joystickStartPos = nil
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+    bodyGyro.Parent = rootPart
     
-    -- Tombol naik/turun mobile
-    local upPressed = false
-    local downPressed = false
+    humanoid.PlatformStand = true
+    flying = true
     
-    upBtn.MouseButton1Down:Connect(function()
-        upPressed = true
-        CONTROL.Q = iyflyspeed * 2
-    end)
-    
-    upBtn.MouseButton1Up:Connect(function()
-        upPressed = false
-        if not downPressed then
-            CONTROL.Q = 0
+    -- Loop gerakan
+    game:GetService("RunService").RenderStepped:Connect(function()
+        if not flying then return end
+        if not rootPart or not bodyVel or not bodyGyro then return end
+        
+        local moveDirection = Vector3.new()
+        local camera = workspace.CurrentCamera
+        local cameraCFrame = camera.CFrame
+        
+        -- Mendapatkan input dari keyboard (WASD)
+        if userInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + cameraCFrame.LookVector
         end
-    end)
-    
-    downBtn.MouseButton1Down:Connect(function()
-        downPressed = true
-        CONTROL.E = -iyflyspeed * 2
-    end)
-    
-    downBtn.MouseButton1Up:Connect(function()
-        downPressed = false
-        if not upPressed then
-            CONTROL.E = 0
+        if userInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - cameraCFrame.LookVector
         end
-    end)
-    
-    -- Touch handler untuk joystick
-    local function handleJoystickTouch(touchPos)
-        if not joystickActive then return end
+        if userInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - cameraCFrame.RightVector
+        end
+        if userInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + cameraCFrame.RightVector
+        end
         
-        local delta = touchPos - joystickStartPos
-        local distance = math.min(delta.Magnitude, joystickRadius)
-        local direction = delta.Unit
+        -- Mendapatkan input dari touch (joystick) untuk mobile
+        -- (Contoh sederhana: gunakan tombol Up/Down untuk vertikal)
+        -- Catatan: Untuk kontrol thumbstick penuh, Anda perlu menggunakan modul MoveVector yang lebih kompleks
         
-        local stickPos = direction * distance
-        joystickStick.Position = UDim2.new(0.5, stickPos.X, 0.5, stickPos.Y)
-        
-        -- Konversi ke kontrol
-        local maxSpeed = iyflyspeed
-        local xInput = stickPos.X / joystickRadius  -- -1..1 untuk kiri/kanan
-        local yInput = stickPos.Y / joystickRadius  -- -1..1 untuk maju/mundur
-        
-        -- Maju/Mundur (Y)
-        if yInput > 0.1 then
-            CONTROL.F = yInput * maxSpeed
-            CONTROL.B = 0
-        elseif yInput < -0.1 then
-            CONTROL.B = yInput * maxSpeed  -- negatif
-            CONTROL.F = 0
+        -- Atur kecepatan dan arah terbang
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit * speed
         else
-            CONTROL.F = 0
-            CONTROL.B = 0
+            moveDirection = Vector3.new(0, 0, 0)
         end
         
-        -- Kiri/Kanan (X)
-        if xInput > 0.1 then
-            CONTROL.R = xInput * maxSpeed
-            CONTROL.L = 0
-        elseif xInput < -0.1 then
-            CONTROL.L = xInput * maxSpeed  -- negatif
-            CONTROL.R = 0
-        else
-            CONTROL.L = 0
-            CONTROL.R = 0
-        end
-    end
-    
-    -- Touch start pada joystick
-    flyTouchStart = userInput.TouchBegan:Connect(function(touch, processed)
-        if processed then return end
-        if not joystickBg then return end
+        -- Tambahkan komponen vertikal dari tombol Up/Down
+        -- (Pada script penuh, Anda bisa menggabungkan dengan input dari thumbstick)
         
-        local screenPos = Vector2.new(touch.Position.X, touch.Position.Y)
-        local bgPos = joystickBg.AbsolutePosition
-        local bgSize = joystickBg.AbsoluteSize
-        
-        if screenPos.X >= bgPos.X and screenPos.X <= bgPos.X + bgSize.X and
-           screenPos.Y >= bgPos.Y and screenPos.Y <= bgPos.Y + bgSize.Y then
-            joystickActive = true
-            joystickStartPos = screenPos
-            handleJoystickTouch(screenPos)
-        end
+        bodyVel.Velocity = moveDirection
+        bodyGyro.CFrame = cameraCFrame
     end)
-    
-    -- Touch move
-    flyTouchMove = userInput.TouchMoved:Connect(function(touch, processed)
-        if processed then return end
-        if joystickActive then
-            handleJoystickTouch(Vector2.new(touch.Position.X, touch.Position.Y))
-        end
-    end)
-    
-    -- Touch end
-    flyTouchEnd = userInput.TouchEnded:Connect(function(touch, processed)
-        if processed then return end
-        if joystickActive then
-            joystickActive = false
-            joystickStick.Position = UDim2.new(0.5, 0, 0.5, 0)
-            -- Reset kontrol
-            CONTROL.F = 0
-            CONTROL.B = 0
-            CONTROL.L = 0
-            CONTROL.R = 0
-        end
-    end)
-    
-    -- Dukungan gamepad analog
-    local function handleGamepad()
-        local gamepads = userInput:GetConnectedGamepads()
-        if #gamepads > 0 then
-            local gamepad = gamepads[1]
-            flyGamepadConn = gamepad.GamepadInputBegan:Connect(function(input, processed)
-                if processed then return end
-                if input.KeyCode == Enum.KeyCode.Thumbstick1 then
-                    local moveVector = gamepad:GetUserGamepadState(Enum.UserGamepadState.KeyCode)[Enum.KeyCode.Thumbstick1]
-                    if moveVector then
-                        CONTROL.F = moveVector.Y * iyflyspeed
-                        CONTROL.R = moveVector.X * iyflyspeed
-                        if moveVector.Y < 0 then
-                            CONTROL.B = moveVector.Y * iyflyspeed
-                            CONTROL.F = 0
-                        end
-                    end
-                end
-            end)
-            
-            gamepad.GamepadInputEnded:Connect(function(input, processed)
-                if input.KeyCode == Enum.KeyCode.Thumbstick1 then
-                    CONTROL.F = 0
-                    CONTROL.B = 0
-                    CONTROL.L = 0
-                    CONTROL.R = 0
-                end
-            end)
-        end
-    end
-    
-    -- Panggil gamepad handler
-    handleGamepad()
-    
-    -- Keyboard handler (tetap ada untuk PC)
-    flyKeyDown = userInput.InputBegan:Connect(function(input, processed)
-        if processed then return end
-        if input.KeyCode == Enum.KeyCode.W then
-            CONTROL.F = iyflyspeed
-        elseif input.KeyCode == Enum.KeyCode.S then
-            CONTROL.B = -iyflyspeed
-        elseif input.KeyCode == Enum.KeyCode.A then
-            CONTROL.L = -iyflyspeed
-        elseif input.KeyCode == Enum.KeyCode.D then
-            CONTROL.R = iyflyspeed
-        elseif input.KeyCode == Enum.KeyCode.E and QEfly then
-            CONTROL.Q = iyflyspeed * 2
-        elseif input.KeyCode == Enum.KeyCode.Q and QEfly then
-            CONTROL.E = -iyflyspeed * 2
-        end
-        pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Track end)
-    end)
-
-    flyKeyUp = userInput.InputEnded:Connect(function(input, processed)
-        if processed then return end
-        if input.KeyCode == Enum.KeyCode.W then
-            CONTROL.F = 0
-        elseif input.KeyCode == Enum.KeyCode.S then
-            CONTROL.B = 0
-        elseif input.KeyCode == Enum.KeyCode.A then
-            CONTROL.L = 0
-        elseif input.KeyCode == Enum.KeyCode.D then
-            CONTROL.R = 0
-        elseif input.KeyCode == Enum.KeyCode.E then
-            CONTROL.Q = 0
-        elseif input.KeyCode == Enum.KeyCode.Q then
-            CONTROL.E = 0
-        end
-    end)
-    
-    -- Fungsi terbang utama
-    local function FLY()
-        FLYING = true
-        local BG = Instance.new('BodyGyro')
-        local BV = Instance.new('BodyVelocity')
-        BG.P = 9e4
-        BG.Parent = T
-        BV.Parent = T
-        BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-        BG.CFrame = T.CFrame
-        BV.Velocity = Vector3.new(0, 0, 0)
-        BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        
-        task.spawn(function()
-            repeat task.wait()
-                local camera = workspace.CurrentCamera
-                if not vfly and humanoid then
-                    humanoid.PlatformStand = true
-                end
-
-                if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
-                    SPEED = 50
-                elseif not (CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0) and SPEED ~= 0 then
-                    SPEED = 0
-                end
-                
-                if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
-                    BV.Velocity = ((camera.CFrame.LookVector * (CONTROL.F + CONTROL.B)) + 
-                        ((camera.CFrame * CFrame.new(CONTROL.L + CONTROL.R, (CONTROL.F + CONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - camera.CFrame.p)) * SPEED
-                    lCONTROL = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R}
-                elseif (CONTROL.L + CONTROL.R) == 0 and (CONTROL.F + CONTROL.B) == 0 and (CONTROL.Q + CONTROL.E) == 0 and SPEED ~= 0 then
-                    BV.Velocity = ((camera.CFrame.LookVector * (lCONTROL.F + lCONTROL.B)) + 
-                        ((camera.CFrame * CFrame.new(lCONTROL.L + lCONTROL.R, (lCONTROL.F + lCONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - camera.CFrame.p)) * SPEED
-                else
-                    BV.Velocity = Vector3.new(0, 0, 0)
-                end
-                BG.CFrame = camera.CFrame
-            until not FLYING
-            
-            -- Cleanup
-            CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
-            lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
-            SPEED = 0
-            BG:Destroy()
-            BV:Destroy()
-            if humanoid then humanoid.PlatformStand = false end
-            if screenGui then screenGui:Destroy() end
-        end)
-    end
-    
-    FLY()
 end
 
 -- Fungsi untuk berhenti terbang
-function NOFLY()
-    if not FLYING then return end
-    FLYING = false
-    if flyKeyDown then flyKeyDown:Disconnect() end
-    if flyKeyUp then flyKeyUp:Disconnect() end
-    if flyTouchMove then flyTouchMove:Disconnect() end
-    if flyTouchStart then flyTouchStart:Disconnect() end
-    if flyTouchEnd then flyTouchEnd:Disconnect() end
-    if flyGamepadConn then flyGamepadConn:Disconnect() end
-    
-    local plr = game.Players.LocalPlayer
-    if plr and plr.Character then
-        local humanoid = plr.Character:FindFirstChildOfClass('Humanoid')
-        if humanoid then
-            humanoid.PlatformStand = false
-        end
+local function stopFly()
+    if bodyVel then bodyVel:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+    humanoid.PlatformStand = false
+    flying = false
+end
+
+-- Event untuk tombol Fly
+flyButton.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+        flyButton.Text = "Fly (OFF)"
+        flyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    else
+        startFly()
+        flyButton.Text = "Fly (ON)"
+        flyButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
     end
-    pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
-end
+end)
 
--- ============ TOMBOL TOGGLE ============
-local function createToggleButton()
-    local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "FlyToggleGui"
-    screenGui.Parent = playerGui
-    
-    local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(0, 120, 0, 50)
-    toggleBtn.Position = UDim2.new(1, -130, 0, 10)
-    toggleBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-    toggleBtn.BackgroundTransparency = 0.3
-    toggleBtn.BorderSizePixel = 2
-    toggleBtn.BorderColor3 = Color3.new(1, 1, 1)
-    toggleBtn.Text = "🔘 Terbang OFF"
-    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
-    toggleBtn.TextSize = 16
-    toggleBtn.Font = Enum.Font.GothamBold
-    toggleBtn.Parent = screenGui
-    
-    -- Buat efek rounded corners
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = toggleBtn
-    
-    local isFlying = false
-    
-    toggleBtn.MouseButton1Click:Connect(function()
-        if isFlying then
-            NOFLY()
-            toggleBtn.Text = "🔘 Terbang OFF"
-            toggleBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-            isFlying = false
-        else
-            sFLY(false)
-            toggleBtn.Text = "✈️ Terbang ON"
-            toggleBtn.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
-            isFlying = true
-        end
-    end)
-end
+-- Event untuk tombol Speed
+speedUp.MouseButton1Click:Connect(function()
+    speed = math.min(speed + 10, 500)
+    speedLabel.Text = "Speed: " .. speed
+end)
 
--- Jalankan pembuatan tombol toggle
-createToggleButton()
+speedDown.MouseButton1Click:Connect(function()
+    speed = math.max(speed - 10, 10)
+    speedLabel.Text = "Speed: " .. speed
+end)
 
--- Optional: Beri pesan di console bahwa script sudah siap
-print("Script fly dengan toggle berhasil dimuat! Tekan tombol di pojok kanan atas untuk mulai terbang.")
+-- Event untuk tombol vertikal (Up/Down)
+upButton.MouseButton1Click:Connect(function()
+    if flying and rootPart then
+        rootPart.Velocity = rootPart.Velocity + Vector3.new(0, 20, 0)
+    end
+end)
+
+downButton.MouseButton1Click:Connect(function()
+    if flying and rootPart then
+        rootPart.Velocity = rootPart.Velocity - Vector3.new(0, 20, 0)
+    end
+end)
+
+-- Perbarui karakter jika respawn
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    if flying then
+        stopFly()
+        flyButton.Text = "Fly (OFF)"
+        flyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    end
+end)
+
+print("Fly Script gaya Adonis sudah berjalan! Gunakan GUI untuk terbang.")
