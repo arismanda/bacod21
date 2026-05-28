@@ -1,9 +1,10 @@
--- FIXED FLY SCRIPT FOR MOBILE (No comparison errors)
+-- FIXED FLY SCRIPT FOR MOBILE (No Chatted error)
 -- Tap 3 fingers to toggle fly
 
 local Player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TextChatService = game:GetService("TextChatService")
 
 -- Variables
 local flying = false
@@ -13,7 +14,6 @@ local bodyGyro = nil
 local moveDirection = Vector3.new(0, 0, 0)
 
 -- Joystick variables
-local joystickActive = false
 local joystickUI = nil
 
 local function getCharacter()
@@ -149,15 +149,15 @@ end
 
 -- Simple notification
 local function notify(text)
-    local screenGui = Player:FindFirstChild("PlayerGui")
-    if not screenGui then return end
+    local playerGui = Player:FindFirstChild("PlayerGui")
+    if not playerGui then return end
     
-    local notifGui = screenGui:FindFirstChild("FlyNotification")
+    local notifGui = playerGui:FindFirstChild("FlyNotification")
     if not notifGui then
         notifGui = Instance.new("ScreenGui")
         notifGui.Name = "FlyNotification"
         notifGui.ResetOnSpawn = false
-        notifGui.Parent = screenGui
+        notifGui.Parent = playerGui
     end
     
     -- Clean up old notifications
@@ -346,7 +346,6 @@ end
 Player.CharacterAdded:Connect(function()
     task.wait(0.5)
     if flying then
-        -- Restart fly after respawn
         local rootPart = getRootPart()
         local hum = getHumanoid()
         
@@ -411,15 +410,52 @@ UserInputService.TouchTap:Connect(function(touchPos, tapCount_, isFinal)
     end
 end)
 
--- Chat command
-game:GetService("Players").Chatted:Connect(function(msg)
-    local lowerMsg = string.lower(msg or "")
-    if lowerMsg == ";fly" then
-        toggleFly()
-    elseif lowerMsg == ";flyspeed" then
-        notify("Speed: " .. tostring(speed))
+-- Chat command untuk Roblox baru (TextChatService)
+local function setupChatCommand()
+    -- Cek apakah pakai chat system baru
+    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+        local textChannels = TextChatService:FindFirstChild("TextChannels")
+        if textChannels then
+            local generalChannel = textChannels:FindFirstChild("RBGeneral")
+            if generalChannel then
+                generalChannel.MessageReceived:Connect(function(message)
+                    -- Cek apakah message dari player lokal
+                    if message.TextSource then
+                        local speaker = message.TextSource.Name
+                        if speaker == Player.Name then
+                            local msg = message.Text or ""
+                            local lowerMsg = string.lower(msg)
+                            if lowerMsg == ";fly" then
+                                toggleFly()
+                            elseif lowerMsg == ";flyspeed" then
+                                notify("Speed: " .. tostring(speed))
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    else
+        -- Legacy chat system (masih support untuk beberapa game)
+        local onChat = function(msg, author)
+            if author == Player then
+                local lowerMsg = string.lower(msg or "")
+                if lowerMsg == ";fly" then
+                    toggleFly()
+                elseif lowerMsg == ";flyspeed" then
+                    notify("Speed: " .. tostring(speed))
+                end
+            end
+        end
+        
+        -- Hook ke legacy chat
+        local Players = game:GetService("Players")
+        Players.Chatted:Connect(onChat)
     end
-end)
+end
+
+-- Setup chat command
+setupChatCommand()
 
 -- Main loop
 RunService.RenderStepped:Connect(function()
