@@ -28,16 +28,23 @@ label.TextSize = 20
 label.Font = Enum.Font.GothamBold
 label.Parent = frame
 
+-- Membuat TextButton untuk klik (sebagai pengganti MouseButton1Click)
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(1, 0, 1, 0)
+button.BackgroundTransparency = 1
+button.Text = ""
+button.Parent = frame
+
 -- Status toggle
 local isActive = false
 local running = false
-local connection = nil
 
 -- Fungsi untuk menunggu GUI MiniGameGUI
 local function waitForMiniGameGUI()
-    while running do
+    local startTime = tick()
+    while running and tick() - startTime < 5 do -- Timeout 5 detik
         local success, miniGameGUI = pcall(function()
-            return player:WaitForChild("PlayerGui"):FindFirstChild("MiniGameGUI")
+            return player.PlayerGui:FindFirstChild("MiniGameGUI")
         end)
         
         if miniGameGUI then
@@ -54,14 +61,16 @@ local function executeProcess()
     
     -- Step 1: Fire CastToPosition event
     local success, castEvent = pcall(function()
-        return player.Character.LavaRod.CastToPosition
+        return player.Character and player.Character:FindFirstChild("LavaRod") and player.Character.LavaRod:FindFirstChild("CastToPosition")
     end)
     
     if success and castEvent then
         castEvent:FireServer(nil)
     else
         task.wait(0.5)
-        if running then executeProcess() end
+        if running then 
+            task.spawn(executeProcess)
+        end
         return
     end
     
@@ -78,7 +87,7 @@ local function executeProcess()
         
         -- Step 3: Fire MiniGame Complete event
         local success2, miniGameEvent = pcall(function()
-            return player.Character.LavaRod.MiniGame
+            return player.Character and player.Character:FindFirstChild("LavaRod") and player.Character.LavaRod:FindFirstChild("MiniGame")
         end)
         
         if success2 and miniGameEvent then
@@ -89,7 +98,7 @@ local function executeProcess()
     -- Loop lagi setelah selesai
     if running then
         task.wait(0.3)
-        executeProcess()
+        task.spawn(executeProcess)
     end
 end
 
@@ -104,9 +113,7 @@ local function toggle()
         running = true
         
         -- Mulai proses
-        coroutine.wrap(function()
-            executeProcess()
-        end)()
+        task.spawn(executeProcess)
     else
         -- Turn OFF
         frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50) -- Abu-abu
@@ -134,7 +141,7 @@ end
 
 frame.MouseEnter:Connect(onMouseEnter)
 frame.MouseLeave:Connect(onMouseLeave)
-frame.MouseButton1Click:Connect(toggle)
+button.MouseButton1Click:Connect(toggle)
 
 -- Cleanup ketika karakter mati/respawn
 local function onCharacterAdded()
@@ -144,9 +151,7 @@ local function onCharacterAdded()
         running = false
         task.wait(0.5)
         running = true
-        coroutine.wrap(function()
-            executeProcess()
-        end)()
+        task.spawn(executeProcess)
     end
 end
 
