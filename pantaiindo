@@ -1,0 +1,195 @@
+-- Membuat GUI ScreenGui
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Fungsi untuk membuat GUI
+local function CreateGUI()
+    -- Buat ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutoMiniGameGUI"
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Buat frame utama (lingkaran)
+    local toggleButton = Instance.new("ImageButton")
+    toggleButton.Size = UDim2.new(0, 60, 0, 60)
+    toggleButton.Position = UDim2.new(0, 10, 0.5, -30)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+    toggleButton.BackgroundTransparency = 0
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Image = "rbxasset://textures/ui/Button/rounded.png"
+    toggleButton.ScaleType = Enum.ScaleType.Slice
+    toggleButton.SliceCenter = Rect.new(10, 10, 10, 10)
+    toggleButton.Parent = screenGui
+    
+    -- Buat label ON
+    local labelOn = Instance.new("TextLabel")
+    labelOn.Size = UDim2.new(1, 0, 0.5, 0)
+    labelOn.Position = UDim2.new(0, 0, 0, 0)
+    labelOn.BackgroundTransparency = 1
+    labelOn.Text = "ON"
+    labelOn.TextColor3 = Color3.fromRGB(0, 255, 0)
+    labelOn.TextSize = 18
+    labelOn.TextScaled = true
+    labelOn.Font = Enum.Font.GothamBold
+    labelOn.Visible = true
+    labelOn.Parent = toggleButton
+    
+    -- Buat label OFF
+    local labelOff = Instance.new("TextLabel")
+    labelOff.Size = UDim2.new(1, 0, 0.5, 0)
+    labelOff.Position = UDim2.new(0, 0, 0.5, 0)
+    labelOff.BackgroundTransparency = 1
+    labelOff.Text = "OFF"
+    labelOff.TextColor3 = Color3.fromRGB(255, 0, 0)
+    labelOff.TextSize = 18
+    labelOff.TextScaled = true
+    labelOff.Font = Enum.Font.GothamBold
+    labelOff.Visible = true
+    labelOff.Parent = toggleButton
+    
+    -- Buat efek lingkaran luar
+    local circleOutline = Instance.new("ImageLabel")
+    circleOutline.Size = UDim2.new(1, 0, 1, 0)
+    circleOutline.Position = UDim2.new(0, 0, 0, 0)
+    circleOutline.BackgroundTransparency = 1
+    circleOutline.Image = "rbxasset://textures/ui/Button/rounded.png"
+    circleOutline.ScaleType = Enum.ScaleType.Slice
+    circleOutline.SliceCenter = Rect.new(10, 10, 10, 10)
+    circleOutline.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    circleOutline.ZIndex = 0
+    circleOutline.Parent = toggleButton
+    
+    return screenGui, toggleButton, labelOn, labelOff
+end
+
+-- Variabel kontrol
+local isRunning = false
+local currentCoroutine = nil
+
+-- Fungsi untuk menjalankan script utama
+local function RunScript()
+    while isRunning do
+        -- Cek apakah karakter dan komponen ada
+        local character = LocalPlayer.Character
+        if character then
+            local lavaRod = character:FindFirstChild("LavaRod")
+            if lavaRod then
+                local castEvent = lavaRod:FindFirstChild("CastToPosition")
+                if castEvent then
+                    -- Fire event pertama
+                    castEvent:FireServer(nil)
+                    
+                    -- Tunggu sebentar sebelum cek MiniGameGUI
+                    task.wait(0.1)
+                    
+                    -- Cek MiniGameGUI
+                    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                    if playerGui then
+                        local miniGameGUI = playerGui:FindFirstChild("MiniGameGUI")
+                        if miniGameGUI and miniGameGUI.Enabled then
+                            local miniGameEvent = lavaRod:FindFirstChild("MiniGame")
+                            if miniGameEvent then
+                                -- Fire event kedua
+                                miniGameEvent:FireServer("Complete")
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Tunggu sebelum loop berikutnya (0.2 detik)
+        task.wait(0.2)
+    end
+end
+
+-- Fungsi untuk toggle ON/OFF
+local function ToggleScript()
+    isRunning = not isRunning
+    
+    if isRunning then
+        -- Jalankan script
+        currentCoroutine = coroutine.create(RunScript)
+        coroutine.resume(currentCoroutine)
+        
+        -- Update GUI ke ON
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+        labelOn.TextColor3 = Color3.fromRGB(144, 238, 144)
+        labelOff.TextColor3 = Color3.fromRGB(150, 150, 150)
+    else
+        -- Hentikan script
+        if currentCoroutine then
+            -- Coroutine akan berhenti karena while loop berhenti
+            currentCoroutine = nil
+        end
+        
+        -- Update GUI ke OFF
+        toggleButton.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+        labelOn.TextColor3 = Color3.fromRGB(100, 100, 100)
+        labelOff.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end
+
+-- Buat GUI
+local screenGui, toggleButton, labelOn, labelOff = CreateGUI()
+
+-- Set posisi label awal
+labelOn.Visible = true
+labelOff.Visible = true
+
+-- Set warna awal (OFF state)
+toggleButton.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+labelOn.TextColor3 = Color3.fromRGB(100, 100, 100)
+labelOff.TextColor3 = Color3.fromRGB(255, 100, 100)
+
+-- Buat mouse enter/leave efek
+toggleButton.MouseEnter:Connect(function()
+    if isRunning then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 130, 0)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50,50)
+    end
+end)
+
+toggleButton.MouseLeave:Connect(function()
+    if isRunning then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+    end
+end)
+
+-- Set fungsi klik
+toggleButton.MouseButton1Click:Connect(ToggleScript)
+
+-- Tambahkan drag functionality (opsional)
+local dragging = false
+local dragStart
+local dragStartPos
+
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        dragStartPos = toggleButton.Position
+    end
+end)
+
+toggleButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        local newPos = UDim2.new(
+            dragStartPos.X.Scale,
+            dragStartPos.X.Offset + delta.X,
+            dragStartPos.Y.Scale,
+            dragStartPos.Y.Offset + delta.Y
+        )
+        toggleButton.Position = newPos
+    end
+end)
