@@ -1,0 +1,1838 @@
+-- ESP Player Manager GUI
+
+local ESPManager = {}
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+
+local espObjects = {}
+local guiMain = nil
+local isVisible = true
+local isContentVisible = true
+local localPlayer = Players.LocalPlayer
+local distanceConnections = {}
+local playerItems = {}
+local searchText = ""
+local playerQueue = {}
+local settingsFrame = nil
+local isSettingsOpen = false
+local selectAllButton = nil
+
+-- Track notified players to avoid spam (only notify ONCE per entry)
+local notifiedPlayers = {} -- Stores player -> boolean (notified or not)
+local warningDistance = 100
+
+-- SETTINGS TABLE FIRST (sebelum fungsi yang menggunakannya)
+local settings = {
+	lineColor = Color3.fromRGB(255, 50, 50),
+	highlightColor = Color3.fromRGB(255, 0, 0),
+	textColor = Color3.fromRGB(255, 255, 255),
+	backgroundColor = Color3.fromRGB(0, 0, 0),
+	backgroundTransparency = 0.3,
+	enabled = true,
+	lineThickness = 0.05,
+	highlightTransparency = 0.5,
+	billboardEnabled = true,
+	billboardBgTransparency = 0.3,
+	billboardTextTransparency = 0,
+	billboardSize = 1,
+	fontType = Enum.Font.Gotham,
+	fontName = "Gotham",
+	maxDistance = math.huge,
+	-- Notification settings
+	enableNotifications = true,
+	enableWarningSound = true,
+	warningSoundVolume = 0.5,
+	warningDistance = 100,
+	closeColor = Color3.fromRGB(255, 0, 0), -- Red for close players
+	farColor = Color3.fromRGB(0, 255, 247) -- Default color for far players
+}
+
+-- Function to play warning sound (DEFINED AFTER settings)
+-- Buat sound permanent di awal (hanya sekali)
+local warningSound = nil
+
+local function createPermanentSound()
+	if warningSound then return end
+
+	warningSound = Instance.new("Sound")
+	warningSound.SoundId = "rbxassetid://129976960969174" -- Ganti dengan sound ID yang valid
+	warningSound.Volume = settings.warningSoundVolume or 0.5
+	warningSound.Parent = SoundService
+end
+
+local function playWarningSound()
+	if not settings.enableWarningSound then return end
+
+	-- Pastikan sound sudah dibuat
+	if not warningSound then
+		createPermanentSound()
+	end
+
+	-- Play sound (tanpa membuat baru)
+	warningSound:Play()
+end
+
+-- Panggil createPermanentSound() di Start() atau langsung di awal
+createPermanentSound()
+
+local fontOptions = {
+	{name = "Gotham", font = Enum.Font.Gotham},
+	{name = "Gotham Bold", font = Enum.Font.GothamBold},
+	{name = "Gotham Black", font = Enum.Font.GothamBlack},
+	{name = "Gotham Medium", font = Enum.Font.GothamMedium},
+	{name = "Gotham Semibold", font = Enum.Font.GothamSemibold},
+	{name = "Arial", font = Enum.Font.Arial},
+	{name = "Arial Bold", font = Enum.Font.ArialBold},
+	{name = "Source Sans", font = Enum.Font.SourceSans},
+	{name = "Source Sans Bold", font = Enum.Font.SourceSansBold},
+	{name = "Source Sans Light", font = Enum.Font.SourceSansLight},
+	{name = "Source Sans Semibold", font = Enum.Font.SourceSansSemibold},
+	{name = "Roboto", font = Enum.Font.Roboto},
+	{name = "Roboto Mono", font = Enum.Font.RobotoMono},
+	{name = "Ubuntu", font = Enum.Font.Ubuntu},
+	{name = "Cartoon", font = Enum.Font.Cartoon},
+	{name = "Fantasy", font = Enum.Font.Fantasy},
+	{name = "SciFi", font = Enum.Font.SciFi},
+	{name = "Legacy", font = Enum.Font.Legacy}
+}
+
+local function getPlayerDisplayName(player)
+	local success, displayName = pcall(function()
+		return player.DisplayName
+	end)
+	if success and displayName then
+		return displayName
+	end
+	return player.Name
+end
+
+local function formatDistance(distance)
+	if distance >= 1000 then
+		return string.format("%.1f km", distance / 1000)
+	else
+		return string.format("%.0f m", distance)
+	end
+end
+
+-- Show notification (ONCE per player entry)
+local function showNotification(title, text, duration)
+	if not guiMain or not settings.enableNotifications then return end
+
+	local notificationFrame = Instance.new("Frame")
+	notificationFrame.Size = UDim2.new(0, 300, 0, 60)
+	notificationFrame.Position = UDim2.new(1, -320, 0, 10)
+	notificationFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	notificationFrame.BackgroundTransparency = 0.1
+	notificationFrame.BorderSizePixel = 0
+	notificationFrame.Parent = guiMain
+
+	local notificationCorner = Instance.new("UICorner")
+	notificationCorner.CornerRadius = UDim.new(0, 8)
+	notificationCorner.Parent = notificationFrame
+
+	local notificationStroke = Instance.new("UIStroke")
+	notificationStroke.Color = Color3.fromRGB(255, 0, 0)
+	notificationStroke.Thickness = 2
+	notificationStroke.Transparency = 0.3
+	notificationStroke.Parent = notificationFrame
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, -10, 0.4, 0)
+	titleLabel.Position = UDim2.new(0, 5, 0, 2)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = title
+	titleLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 14
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = notificationFrame
+
+	local messageLabel = Instance.new("TextLabel")
+	messageLabel.Size = UDim2.new(1, -10, 0.6, 0)
+	messageLabel.Position = UDim2.new(0, 5, 0.4, 0)
+	messageLabel.BackgroundTransparency = 1
+	messageLabel.Text = text
+	messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	messageLabel.Font = Enum.Font.Gotham
+	messageLabel.TextSize = 12
+	messageLabel.TextWrapped = true
+	messageLabel.Parent = notificationFrame
+
+	-- Animate in
+	local tweenIn = TweenService:Create(notificationFrame, 
+		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{Position = UDim2.new(1, -330, 0, 10)}
+	)
+	tweenIn:Play()
+
+	-- Auto remove after duration
+	task.wait(duration)
+
+	local tweenOut = TweenService:Create(notificationFrame,
+		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{Position = UDim2.new(1, -20, 0, 10), BackgroundTransparency = 1}
+	)
+	tweenOut:Play()
+	tweenOut.Completed:Connect(function()
+		notificationFrame:Destroy()
+	end)
+end
+
+-- Update line color based on distance
+local function updateLineColorForPlayer(player, distance)
+	local esp = espObjects[player]
+	if not esp or not esp.Beam then return end
+
+	local newColor
+	local warningDist = settings.warningDistance
+
+	if distance and distance <= warningDist then
+		newColor = settings.closeColor
+	else
+		newColor = settings.farColor
+	end
+
+	if esp.Beam.Color ~= ColorSequence.new(newColor) then
+		esp.Beam.Color = ColorSequence.new(newColor)
+	end
+end
+
+-- Reset notified status when player leaves warning distance
+local function resetNotifiedStatus(player)
+	if notifiedPlayers[player] then
+		notifiedPlayers[player] = nil
+	end
+end
+
+-- Check for nearby players and trigger notifications (ONLY ONCE per entry)
+local function checkNearbyPlayers()
+	if not settings.enabled or not settings.enableNotifications then return end
+
+	local localChar = localPlayer.Character
+	if not localChar then return end
+
+	local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+	if not localRoot then return end
+
+	for player, esp in pairs(espObjects) do
+		if player and player ~= localPlayer then
+			local distance = ESPManager:GetPlayerDistance(player)
+
+			if distance and distance <= settings.warningDistance then
+				-- Update line color
+				updateLineColorForPlayer(player, distance)
+
+				-- Check if we have NOT notified for this player yet
+				local alreadyNotified = notifiedPlayers[player]
+
+				if not alreadyNotified then
+					-- Mark as notified FIRST to prevent multiple notifications
+					notifiedPlayers[player] = true
+
+					-- Play sound
+					if settings.enableWarningSound then
+						playWarningSound()
+					end
+
+					-- Show notification
+					local playerName = getPlayerDisplayName(player)
+					local distanceText = formatDistance(distance)
+					showNotification("⚠️ WARNING!", 
+						playerName .. " is within " .. distanceText, 3)
+
+					-- Flash billboard frame for visual feedback
+					if esp.Billboard then
+						local frame = esp.Billboard:FindFirstChildWhichIsA("Frame")
+						if frame then
+							local originalColor = frame.BackgroundColor3
+							frame.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+							task.wait(0.5)
+							frame.BackgroundColor3 = originalColor
+						end
+					end
+				end
+			else
+				-- Player is out of warning range, reset notification status
+				if notifiedPlayers[player] then
+					resetNotifiedStatus(player)
+				end
+				-- Reset to far color
+				updateLineColorForPlayer(player, distance or math.huge)
+			end
+		end
+	end
+end
+
+-- Reset all line colors
+local function resetAllLineColors()
+	for player, esp in pairs(espObjects) do
+		if esp.Beam then
+			esp.Beam.Color = ColorSequence.new(settings.farColor)
+		end
+	end
+end
+
+function ESPManager:SelectAllPlayers()
+	local anyChecked = false
+
+	for player, data in pairs(playerItems) do
+		if data.checkmark.Visible then
+			anyChecked = true
+			break
+		end
+	end
+
+	local newState = not anyChecked
+
+	for player, data in pairs(playerItems) do
+		if data.checkmark.Visible ~= newState then
+			data.checkmark.Visible = newState
+			if newState then
+				data.checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+				self:EnableESP(player)
+			else
+				data.checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+				self:DisableESP(player)
+			end
+		end
+	end
+
+	if selectAllButton then
+		if newState then
+			selectAllButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+			selectAllButton.ImageColor3 = Color3.fromRGB(0, 255, 0)
+		else
+			selectAllButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			selectAllButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+		end
+	end
+end
+
+function ESPManager:CreateSettingsPanel()
+	if settingsFrame then
+		settingsFrame:Destroy()
+		settingsFrame = nil
+		isSettingsOpen = false
+		return
+	end
+
+	isSettingsOpen = true
+
+	local settingsPanel = Instance.new("Frame")
+	settingsPanel.Name = "SettingsPanel"
+	settingsPanel.Size = UDim2.new(0, 280, 0, 660)
+	settingsPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	settingsPanel.BackgroundTransparency = 0.05
+	settingsPanel.BorderSizePixel = 0
+
+	if self.mainFrame then
+		settingsPanel.Position = UDim2.new(0, self.mainFrame.AbsolutePosition.X + self.mainFrame.AbsoluteSize.X + 10, 0, self.mainFrame.AbsolutePosition.Y)
+	else
+		settingsPanel.Position = UDim2.new(0, 360, 0, 50)
+	end
+
+	settingsPanel.Parent = guiMain
+
+	local panelCorner = Instance.new("UICorner")
+	panelCorner.CornerRadius = UDim.new(0, 8)
+	panelCorner.Parent = settingsPanel
+
+	local panelStroke = Instance.new("UIStroke")
+	panelStroke.Color = Color3.fromRGB(255, 255, 255)
+	panelStroke.Thickness = 1
+	panelStroke.Transparency = 0.7
+	panelStroke.Parent = settingsPanel
+
+	local function updateSettingsPosition()
+		if settingsFrame and self.mainFrame then
+			settingsFrame.Position = UDim2.new(0, self.mainFrame.AbsolutePosition.X + self.mainFrame.AbsoluteSize.X + 10, 0, self.mainFrame.AbsolutePosition.Y)
+		end
+	end
+
+	if self.mainFrame then
+		self.mainFrame:GetPropertyChangedSignal("Position"):Connect(updateSettingsPosition)
+		self.mainFrame:GetPropertyChangedSignal("Size"):Connect(updateSettingsPosition)
+	end
+
+	RunService.RenderStepped:Connect(function()
+		if settingsFrame and self.mainFrame then
+			settingsFrame.Position = UDim2.new(0, self.mainFrame.AbsolutePosition.X + self.mainFrame.AbsoluteSize.X + 10, 0, self.mainFrame.AbsolutePosition.Y)
+		end
+	end)
+
+	local titleFrame = Instance.new("Frame")
+	titleFrame.Size = UDim2.new(1, 0, 0, 35)
+	titleFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	titleFrame.BackgroundTransparency = 0.5
+	titleFrame.BorderSizePixel = 0
+	titleFrame.Draggable = true
+	titleFrame.Parent = settingsPanel
+
+	local titleCorner = Instance.new("UICorner")
+	titleCorner.CornerRadius = UDim.new(0, 8)
+	titleCorner.Parent = titleFrame
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, 0, 1, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "⚙️ ESP Settings"
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 16
+	titleLabel.Parent = titleFrame
+
+	local closeSettings = Instance.new("ImageButton")
+	closeSettings.Size = UDim2.new(0, 25, 0, 25)
+	closeSettings.Position = UDim2.new(1, -30, 0.5, -12)
+	closeSettings.BackgroundTransparency = 1
+	closeSettings.Image = "rbxassetid://385868188"
+	closeSettings.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	closeSettings.Parent = titleFrame
+	closeSettings.MouseButton1Click:Connect(function()
+		if settingsFrame then
+			settingsFrame:Destroy()
+			settingsFrame = nil
+			isSettingsOpen = false
+		end
+	end)
+
+	local settingsScroll = Instance.new("ScrollingFrame")
+	settingsScroll.Size = UDim2.new(1, -20, 1, -45)
+	settingsScroll.Position = UDim2.new(0, 10, 0, 40)
+	settingsScroll.BackgroundTransparency = 1
+	settingsScroll.ScrollBarThickness = 6
+	settingsScroll.Parent = settingsPanel
+
+	local settingsContainer = Instance.new("Frame")
+	settingsContainer.Size = UDim2.new(1, 0, 0, 0)
+	settingsContainer.BackgroundTransparency = 1
+	settingsContainer.AutomaticSize = Enum.AutomaticSize.Y
+	settingsContainer.Parent = settingsScroll
+
+	local settingsLayout = Instance.new("UIListLayout")
+	settingsLayout.Padding = UDim.new(0, 10)
+	settingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	settingsLayout.Parent = settingsContainer
+
+	settingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		settingsScroll.CanvasSize = UDim2.new(0, 0, 0, settingsLayout.AbsoluteContentSize.Y + 20)
+	end)
+
+	local function createSlider(parent, name, minValue, maxValue, getValue, setValue, isColor, isDecimal)
+		local sliderFrame = Instance.new("Frame")
+		sliderFrame.Size = UDim2.new(1, 0, 0, 60)
+		sliderFrame.BackgroundTransparency = 1
+		sliderFrame.Parent = parent
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 0, 20)
+		label.BackgroundTransparency = 1
+		label.Text = name
+		label.TextColor3 = Color3.fromRGB(220, 220, 220)
+		label.Font = Enum.Font.Gotham
+		label.TextSize = 13
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Parent = sliderFrame
+
+		local valueLabel = Instance.new("TextLabel")
+		valueLabel.Size = UDim2.new(0, 50, 0, 20)
+		valueLabel.Position = UDim2.new(1, -55, 0, 0)
+		valueLabel.BackgroundTransparency = 1
+		local initialValue = getValue()
+		if isDecimal then
+			valueLabel.Text = string.format("%.2f", initialValue)
+		else
+			valueLabel.Text = tostring(initialValue)
+		end
+		valueLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+		valueLabel.Font = Enum.Font.Gotham
+		valueLabel.TextSize = 12
+		valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+		valueLabel.Parent = sliderFrame
+
+		local slider = Instance.new("Frame")
+		slider.Size = UDim2.new(1, 0, 0, 4)
+		slider.Position = UDim2.new(0, 0, 0, 30)
+		slider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+		slider.BorderSizePixel = 0
+		slider.Parent = sliderFrame
+
+		local sliderCorner = Instance.new("UICorner")
+		sliderCorner.CornerRadius = UDim.new(1, 0)
+		sliderCorner.Parent = slider
+
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.new((getValue() - minValue) / (maxValue - minValue), 0, 1, 0)
+		fill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+		fill.BorderSizePixel = 0
+		fill.Parent = slider
+
+		local fillCorner = Instance.new("UICorner")
+		fillCorner.CornerRadius = UDim.new(1, 0)
+		fillCorner.Parent = fill
+
+		local knob = Instance.new("Frame")
+		knob.Size = UDim2.new(0, 12, 0, 12)
+		knob.Position = UDim2.new((getValue() - minValue) / (maxValue - minValue), -6, 0.5, -6)
+		knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		knob.BorderSizePixel = 0
+		knob.Parent = slider
+
+		local knobCorner = Instance.new("UICorner")
+		knobCorner.CornerRadius = UDim.new(1, 0)
+		knobCorner.Parent = knob
+
+		local dragging = false
+
+		local function updateSlider(input)
+			local relativeX = math.clamp((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
+			local newValue = minValue + (relativeX * (maxValue - minValue))
+			setValue(newValue)
+			fill.Size = UDim2.new(relativeX, 0, 1, 0)
+			knob.Position = UDim2.new(relativeX, -6, 0.5, -6)
+			if isDecimal then
+				valueLabel.Text = string.format("%.2f", newValue)
+			elseif isColor then
+				valueLabel.Text = string.format("%.0f", newValue)
+			else
+				valueLabel.Text = string.format("%.2f", newValue)
+			end
+		end
+
+		slider.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = true
+				updateSlider(input)
+			end
+		end)
+
+		UserInputService.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
+		end)
+
+		UserInputService.InputChanged:Connect(function(input)
+			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+				updateSlider(input)
+			end
+		end)
+
+		return sliderFrame
+	end
+
+	local function createToggle(parent, name, getValue, setValue)
+		local toggleFrame = Instance.new("Frame")
+		toggleFrame.Size = UDim2.new(1, 0, 0, 40)
+		toggleFrame.BackgroundTransparency = 1
+		toggleFrame.Parent = parent
+
+		local toggleLabel = Instance.new("TextLabel")
+		toggleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+		toggleLabel.BackgroundTransparency = 1
+		toggleLabel.Text = name
+		toggleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+		toggleLabel.Font = Enum.Font.Gotham
+		toggleLabel.TextSize = 13
+		toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+		toggleLabel.Parent = toggleFrame
+
+		local toggleButton = Instance.new("Frame")
+		toggleButton.Size = UDim2.new(0, 50, 0, 24)
+		toggleButton.Position = UDim2.new(1, -55, 0.5, -12)
+		toggleButton.BackgroundColor3 = getValue() and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(100, 100, 100)
+		toggleButton.BorderSizePixel = 0
+		toggleButton.Parent = toggleFrame
+
+		local toggleCorner = Instance.new("UICorner")
+		toggleCorner.CornerRadius = UDim.new(1, 0)
+		toggleCorner.Parent = toggleButton
+
+		local toggleKnob = Instance.new("Frame")
+		toggleKnob.Size = UDim2.new(0, 20, 0, 20)
+		toggleKnob.Position = getValue() and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+		toggleKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		toggleKnob.BorderSizePixel = 0
+		toggleKnob.Parent = toggleButton
+
+		local toggleKnobCorner = Instance.new("UICorner")
+		toggleKnobCorner.CornerRadius = UDim.new(1, 0)
+		toggleKnobCorner.Parent = toggleKnob
+
+		toggleButton.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				local newState = not getValue()
+				setValue(newState)
+				toggleButton.BackgroundColor3 = newState and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(100, 100, 100)
+				toggleKnob.Position = newState and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+			end
+		end)
+
+		return toggleFrame
+	end
+
+	local function createFontDropdown(parent, name, options, getValue, setValue)
+		local dropdownFrame = Instance.new("Frame")
+		dropdownFrame.Size = UDim2.new(1, 0, 0, 60)
+		dropdownFrame.BackgroundTransparency = 1
+		dropdownFrame.Parent = parent
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 0, 20)
+		label.BackgroundTransparency = 1
+		label.Text = name
+		label.TextColor3 = Color3.fromRGB(220, 220, 220)
+		label.Font = Enum.Font.Gotham
+		label.TextSize = 13
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Parent = dropdownFrame
+
+		local dropdownButton = Instance.new("ImageButton")
+		dropdownButton.Size = UDim2.new(1, -20, 0, 30)
+		dropdownButton.Position = UDim2.new(0, 10, 0, 22)
+		dropdownButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		dropdownButton.BackgroundTransparency = 0.3
+		dropdownButton.BorderSizePixel = 0
+		dropdownButton.Parent = dropdownFrame
+
+		local dropdownCorner = Instance.new("UICorner")
+		dropdownCorner.CornerRadius = UDim.new(0, 4)
+		dropdownCorner.Parent = dropdownButton
+
+		local buttonText = Instance.new("TextLabel")
+		buttonText.Size = UDim2.new(1, -30, 1, 0)
+		buttonText.Position = UDim2.new(0, 10, 0, 0)
+		buttonText.BackgroundTransparency = 1
+		buttonText.Text = getValue().name
+		buttonText.TextColor3 = Color3.fromRGB(255, 255, 255)
+		buttonText.Font = getValue().font
+		buttonText.TextSize = 14
+		buttonText.TextXAlignment = Enum.TextXAlignment.Left
+		buttonText.Parent = dropdownButton
+
+		local arrowIcon = Instance.new("ImageLabel")
+		arrowIcon.Size = UDim2.new(0, 16, 0, 16)
+		arrowIcon.Position = UDim2.new(1, -22, 0.5, -8)
+		arrowIcon.BackgroundTransparency = 1
+		arrowIcon.Image = "rbxassetid://6031098373"
+		arrowIcon.ImageColor3 = Color3.fromRGB(200, 200, 200)
+		arrowIcon.Parent = dropdownButton
+
+		local dropdownListContainer = Instance.new("Frame")
+		dropdownListContainer.Size = UDim2.new(1, 0, 0, 150)
+		dropdownListContainer.Position = UDim2.new(0, 0, 0, 32)
+		dropdownListContainer.BackgroundTransparency = 1
+		dropdownListContainer.Visible = false
+		dropdownListContainer.ClipsDescendants = false
+		dropdownListContainer.Parent = dropdownButton
+
+		local dropdownList = Instance.new("ScrollingFrame")
+		dropdownList.Size = UDim2.new(1, 0, 1, 0)
+		dropdownList.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+		dropdownList.BackgroundTransparency = 0.05
+		dropdownList.BorderSizePixel = 0
+		dropdownList.ScrollBarThickness = 4
+		dropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
+		dropdownList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		dropdownList.Parent = dropdownListContainer
+
+		local listCorner = Instance.new("UICorner")
+		listCorner.CornerRadius = UDim.new(0, 4)
+		listCorner.Parent = dropdownList
+
+		local listStroke = Instance.new("UIStroke")
+		listStroke.Color = Color3.fromRGB(100, 100, 100)
+		listStroke.Thickness = 1
+		listStroke.Transparency = 0.5
+		listStroke.Parent = dropdownList
+
+		local listContainer = Instance.new("Frame")
+		listContainer.Size = UDim2.new(1, 0, 0, 0)
+		listContainer.BackgroundTransparency = 1
+		listContainer.AutomaticSize = Enum.AutomaticSize.Y
+		listContainer.Parent = dropdownList
+
+		local listLayout = Instance.new("UIListLayout")
+		listLayout.Padding = UDim.new(0, 2)
+		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		listLayout.Parent = listContainer
+
+		local isOpen = false
+
+		for i, opt in ipairs(options) do
+			local optBtn = Instance.new("ImageButton")
+			optBtn.Size = UDim2.new(1, 0, 0, 30)
+			optBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+			optBtn.BackgroundTransparency = 0.5
+			optBtn.BorderSizePixel = 0
+			optBtn.Parent = listContainer
+
+			local optCorner = Instance.new("UICorner")
+			optCorner.CornerRadius = UDim.new(0, 4)
+			optCorner.Parent = optBtn
+
+			local optText = Instance.new("TextLabel")
+			optText.Size = UDim2.new(1, -10, 1, 0)
+			optText.Position = UDim2.new(0, 10, 0, 0)
+			optText.BackgroundTransparency = 1
+			optText.Text = opt.name
+			optText.TextColor3 = Color3.fromRGB(255, 255, 255)
+			optText.Font = opt.font
+			optText.TextSize = 13
+			optText.TextXAlignment = Enum.TextXAlignment.Left
+			optText.Parent = optBtn
+
+			optBtn.MouseButton1Click:Connect(function()
+				setValue(opt)
+				buttonText.Text = opt.name
+				buttonText.Font = opt.font
+				dropdownListContainer.Visible = false
+				isOpen = false
+
+				for player, esp in pairs(espObjects) do
+					if esp.Billboard then
+						for _, child in ipairs(esp.Billboard:GetDescendants()) do
+							if child:IsA("TextLabel") then
+								child.Font = opt.font
+							end
+						end
+					end
+				end
+			end)
+
+			optBtn.MouseEnter:Connect(function()
+				optBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 150)
+				optBtn.BackgroundTransparency = 0.3
+			end)
+
+			optBtn.MouseLeave:Connect(function()
+				optBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+				optBtn.BackgroundTransparency = 0.5
+			end)
+		end
+
+		listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			local contentHeight = listLayout.AbsoluteContentSize.Y
+			local maxHeight = math.min(contentHeight + 4, 180)
+			dropdownListContainer.Size = UDim2.new(1, 0, 0, maxHeight)
+			dropdownList.CanvasSize = UDim2.new(0, 0, 0, contentHeight + 4)
+		end)
+
+		dropdownButton.MouseButton1Click:Connect(function()
+			isOpen = not isOpen
+			dropdownListContainer.Visible = isOpen
+		end)
+
+		return dropdownFrame
+	end
+
+	local function createColorPicker(parent, name, getColor, setColor)
+		local colorFrame = Instance.new("Frame")
+		colorFrame.Size = UDim2.new(1, 0, 0, 50)
+		colorFrame.BackgroundTransparency = 1
+		colorFrame.Parent = parent
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 0, 20)
+		label.BackgroundTransparency = 1
+		label.Text = name
+		label.TextColor3 = Color3.fromRGB(220, 220, 220)
+		label.Font = Enum.Font.Gotham
+		label.TextSize = 13
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Parent = colorFrame
+
+		local colorDisplay = Instance.new("Frame")
+		colorDisplay.Size = UDim2.new(0, 50, 0, 25)
+		colorDisplay.Position = UDim2.new(0, 0, 0, 22)
+		colorDisplay.BackgroundColor3 = getColor()
+		colorDisplay.BorderSizePixel = 1
+		colorDisplay.BorderColor3 = Color3.fromRGB(100, 100, 100)
+		colorDisplay.Parent = colorFrame
+
+		local colorCorner = Instance.new("UICorner")
+		colorCorner.CornerRadius = UDim.new(0, 4)
+		colorCorner.Parent = colorDisplay
+
+		local colors = {
+			Color3.fromRGB(255, 50, 50),
+			Color3.fromRGB(50, 255, 50),
+			Color3.fromRGB(50, 50, 255),
+			Color3.fromRGB(255, 255, 50),
+			Color3.fromRGB(255, 50, 255),
+			Color3.fromRGB(50, 255, 255),
+			Color3.fromRGB(255, 150, 50),
+			Color3.fromRGB(150, 50, 255),
+		}
+
+		for i, color in ipairs(colors) do
+			local colorBtn = Instance.new("ImageButton")
+			colorBtn.Size = UDim2.new(0, 25, 0, 25)
+			colorBtn.Position = UDim2.new(0, 55 + ((i-1) * 30), 0, 22)
+			colorBtn.BackgroundColor3 = color
+			colorBtn.BorderSizePixel = 1
+			colorBtn.BorderColor3 = Color3.fromRGB(100, 100, 100)
+			colorBtn.Parent = colorFrame
+
+			local btnCorner = Instance.new("UICorner")
+			btnCorner.CornerRadius = UDim.new(0, 4)
+			btnCorner.Parent = colorBtn
+
+			colorBtn.MouseButton1Click:Connect(function()
+				setColor(color)
+				colorDisplay.BackgroundColor3 = color
+				if name == "Line Color (Far)" then
+					settings.farColor = color
+					for player, esp in pairs(espObjects) do
+						local distance = ESPManager:GetPlayerDistance(player)
+						if not distance or distance > settings.warningDistance then
+							if esp.Beam then esp.Beam.Color = ColorSequence.new(color) end
+						end
+					end
+				elseif name == "Line Color (Close)" then
+					settings.closeColor = color
+					for player, esp in pairs(espObjects) do
+						local distance = ESPManager:GetPlayerDistance(player)
+						if distance and distance <= settings.warningDistance then
+							if esp.Beam then esp.Beam.Color = ColorSequence.new(color) end
+						end
+					end
+				elseif name == "Highlight Color" then
+					settings.highlightColor = color
+					for _, esp in pairs(espObjects) do
+						if esp.Highlight then
+							esp.Highlight.FillColor = color
+						end
+					end
+				elseif name == "Text Color" then
+					settings.textColor = color
+					for _, esp in pairs(espObjects) do
+						if esp.Billboard then
+							for _, child in ipairs(esp.Billboard:GetDescendants()) do
+								if child:IsA("TextLabel") and child.Name ~= "BillboardDistance" then
+									child.TextColor3 = color
+								end
+							end
+						end
+					end
+				end
+			end)
+		end
+
+		return colorFrame
+	end
+
+	-- Existing toggles and settings
+	createToggle(settingsContainer, "Enable ESP", function() return settings.enabled end, function(v)
+		settings.enabled = v
+		if not settings.enabled then
+			ESPManager:ClearAllESP()
+			for player, data in pairs(playerItems) do
+				if data.checkmark.Visible then
+					data.checkmark.Visible = false
+					data.checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+				end
+			end
+			if selectAllButton then
+				selectAllButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+				selectAllButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			end
+		else
+			for player, data in pairs(playerItems) do
+				if data.checkmark.Visible then
+					ESPManager:CreateESPForPlayer(player)
+				end
+			end
+		end
+	end)
+
+	createToggle(settingsContainer, "Enable Billboard", function() return settings.billboardEnabled end, function(v)
+		settings.billboardEnabled = v
+		for player, esp in pairs(espObjects) do
+			if esp.Billboard then
+				esp.Billboard.Enabled = v
+			end
+		end
+	end)
+
+	-- Notification toggles
+	createToggle(settingsContainer, "Enable Notifications", function() return settings.enableNotifications end, function(v)
+		settings.enableNotifications = v
+		if not v then
+			resetAllLineColors()
+			-- Clear notified players when disabled
+			for player in pairs(notifiedPlayers) do
+				notifiedPlayers[player] = nil
+			end
+		end
+	end)
+
+	createToggle(settingsContainer, "Enable Warning Sound", function() return settings.enableWarningSound end, function(v)
+		settings.enableWarningSound = v
+	end)
+
+	-- Warning distance slider
+	createSlider(settingsContainer, "Warning Distance (m)", 10, 500, 
+		function() return settings.warningDistance end,
+		function(v) 
+			settings.warningDistance = v
+			warningDistance = v
+		end, false, false)
+
+	-- Sound volume slider
+	createSlider(settingsContainer, "Sound Volume", 0, 1, 
+		function() return settings.warningSoundVolume end,
+		function(v) 
+			settings.warningSoundVolume = v
+		end, false, true)
+
+	createSlider(settingsContainer, "Line Thickness", 0.05, 1, function() return settings.lineThickness end, 
+	function(v) settings.lineThickness = v
+		for _, esp in pairs(espObjects) do
+			if esp.Beam then
+				esp.Beam.Width0 = v
+				esp.Beam.Width1 = v
+			end
+		end
+	end, false, true)
+
+	createSlider(settingsContainer, "Billboard Size", 0.5, 2, function() return settings.billboardSize end,
+	function(v) settings.billboardSize = v
+		for _, esp in pairs(espObjects) do
+			if esp.Billboard then
+				esp.Billboard.Size = UDim2.new(0, 180 * v, 0, 50 * v)
+			end
+		end
+	end, false, true)
+
+	createSlider(settingsContainer, "Billboard BG Opacity", 0, 1, function() return settings.billboardBgTransparency end,
+	function(v) settings.billboardBgTransparency = v
+		for _, esp in pairs(espObjects) do
+			if esp.Billboard then
+				for _, child in ipairs(esp.Billboard:GetDescendants()) do
+					if child:IsA("Frame") and child.Name ~= "MainFrame" then
+						child.BackgroundTransparency = v
+					end
+				end
+			end
+		end
+	end, false, true)
+
+	createSlider(settingsContainer, "Billboard Text Opacity", 0, 1, function() return settings.billboardTextTransparency end,
+	function(v) settings.billboardTextTransparency = v
+		for _, esp in pairs(espObjects) do
+			if esp.Billboard then
+				for _, child in ipairs(esp.Billboard:GetDescendants()) do
+					if child:IsA("TextLabel") then
+						child.TextTransparency = v
+					end
+				end
+			end
+		end
+	end, false, true)
+
+	createSlider(settingsContainer, "Highlight Transparency", 0, 1, function() return settings.highlightTransparency end,
+	function(v) settings.highlightTransparency = v
+		for _, esp in pairs(espObjects) do
+			if esp.Highlight then
+				esp.Highlight.FillTransparency = v
+			end
+		end
+	end, false, true)
+
+	createFontDropdown(settingsContainer, "Billboard Font", fontOptions, 
+		function() return {name = settings.fontName, font = settings.fontType} end,
+		function(v) 
+			settings.fontType = v.font
+			settings.fontName = v.name
+			for player, esp in pairs(espObjects) do
+				if esp.Billboard then
+					for _, child in ipairs(esp.Billboard:GetDescendants()) do
+						if child:IsA("TextLabel") then
+							child.Font = v.font
+						end
+					end
+				end
+			end
+		end)
+
+	-- Updated color pickers
+	createColorPicker(settingsContainer, "Line Color (Far)", function() return settings.farColor end,
+	function(v) 
+		settings.farColor = v
+		for player, esp in pairs(espObjects) do
+			local distance = ESPManager:GetPlayerDistance(player)
+			if not distance or distance > settings.warningDistance then
+				if esp.Beam then esp.Beam.Color = ColorSequence.new(v) end
+			end
+		end
+	end)
+
+	createColorPicker(settingsContainer, "Line Color (Close)", function() return settings.closeColor end,
+	function(v) 
+		settings.closeColor = v
+		for player, esp in pairs(espObjects) do
+			local distance = ESPManager:GetPlayerDistance(player)
+			if distance and distance <= settings.warningDistance then
+				if esp.Beam then esp.Beam.Color = ColorSequence.new(v) end
+			end
+		end
+	end)
+
+	createColorPicker(settingsContainer, "Highlight Color", function() return settings.highlightColor end,
+	function(v) settings.highlightColor = v
+		for _, esp in pairs(espObjects) do
+			if esp.Highlight then
+				esp.Highlight.FillColor = v
+			end
+		end
+	end)
+
+	createColorPicker(settingsContainer, "Text Color", function() return settings.textColor end,
+	function(v) settings.textColor = v
+		for _, esp in pairs(espObjects) do
+			if esp.Billboard then
+				for _, child in ipairs(esp.Billboard:GetDescendants()) do
+					if child:IsA("TextLabel") and child.Name ~= "BillboardDistance" then
+						child.TextColor3 = v
+					end
+				end
+			end
+		end
+	end)
+
+	settingsFrame = settingsPanel
+end
+
+function ESPManager:CreateMainGUI()
+	if guiMain then
+		guiMain:Destroy()
+	end
+
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "ESPPlayerManager"
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.Enabled = true
+	screenGui.Parent = CoreGui or localPlayer:WaitForChild("PlayerGui")
+
+	local mainFrame = Instance.new("Frame")
+	mainFrame.Name = "MainFrame"
+	mainFrame.Size = UDim2.new(0, 300, 0, 450)
+	mainFrame.Position = UDim2.new(0, 50, 0, 50)
+	mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	mainFrame.BackgroundTransparency = 0.1
+	mainFrame.BorderSizePixel = 0
+	mainFrame.Active = true
+	mainFrame.Draggable = true
+	mainFrame.Parent = screenGui
+
+	local uiStroke = Instance.new("UIStroke")
+	uiStroke.Color = Color3.fromRGB(255, 255, 255)
+	uiStroke.Thickness = 1
+	uiStroke.Transparency = 0.8
+	uiStroke.Parent = mainFrame
+
+	local uiCorner = Instance.new("UICorner")
+	uiCorner.CornerRadius = UDim.new(0, 8)
+	uiCorner.Parent = mainFrame
+
+	local titleFrame = Instance.new("Frame")
+	titleFrame.Name = "TitleFrame"
+	titleFrame.Size = UDim2.new(1, 0, 0, 35)
+	titleFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	titleFrame.BackgroundTransparency = 0.5
+	titleFrame.BorderSizePixel = 0
+	titleFrame.Parent = mainFrame
+
+	local titleCorner = Instance.new("UICorner")
+	titleCorner.CornerRadius = UDim.new(0, 8)
+	titleCorner.Parent = titleFrame
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "TitleLabel"
+	titleLabel.Size = UDim2.new(1, -100, 1, 0)
+	titleLabel.Position = UDim2.new(0, 10, 0, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Player List View"
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 16
+	titleLabel.Parent = titleFrame
+
+	local settingsButton = Instance.new("ImageButton")
+	settingsButton.Name = "SettingsButton"
+	settingsButton.Size = UDim2.new(0, 25, 0, 25)
+	settingsButton.Position = UDim2.new(1, -95, 0.5, -12)
+	settingsButton.BackgroundTransparency = 1
+	settingsButton.Image = "rbxassetid://9405931578"
+	settingsButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	settingsButton.Parent = titleFrame
+	settingsButton.MouseButton1Click:Connect(function()
+		if isSettingsOpen then
+			if settingsFrame then
+				settingsFrame:Destroy()
+				settingsFrame = nil
+				isSettingsOpen = false
+			end
+		else
+			self:CreateSettingsPanel()
+		end
+	end)
+
+	local minimizeButton = Instance.new("ImageButton")
+	minimizeButton.Name = "MinimizeButton"
+	minimizeButton.Size = UDim2.new(0, 25, 0, 25)
+	minimizeButton.Position = UDim2.new(1, -60, 0.5, -12)
+	minimizeButton.BackgroundTransparency = 1
+	minimizeButton.Image = "rbxassetid://131579067097219"
+	minimizeButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	minimizeButton.Parent = titleFrame
+	minimizeButton.MouseButton1Click:Connect(function()
+		self:ToggleContent()
+	end)
+
+	local closeButton = Instance.new("ImageButton")
+	closeButton.Name = "CloseButton"
+	closeButton.Size = UDim2.new(0, 25, 0, 25)
+	closeButton.Position = UDim2.new(1, -30, 0.5, -12)
+	closeButton.BackgroundTransparency = 1
+	closeButton.Image = "rbxassetid://385868188"
+	closeButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	closeButton.Parent = titleFrame
+	closeButton.ZIndex = 10
+	closeButton.MouseButton1Click:Connect(function()
+		self:Destroy()
+	end)
+
+	local searchFrame = Instance.new("Frame")
+	searchFrame.Name = "SearchFrame"
+	searchFrame.Size = UDim2.new(1, -20, 0, 35)
+	searchFrame.Position = UDim2.new(0, 10, 0, 40)
+	searchFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	searchFrame.BackgroundTransparency = 0.3
+	searchFrame.BorderSizePixel = 0
+	searchFrame.Parent = mainFrame
+
+	local searchCorner = Instance.new("UICorner")
+	searchCorner.CornerRadius = UDim.new(0, 6)
+	searchCorner.Parent = searchFrame
+
+	local searchIcon = Instance.new("ImageLabel")
+	searchIcon.Name = "SearchIcon"
+	searchIcon.Size = UDim2.new(0, 20, 0, 20)
+	searchIcon.Position = UDim2.new(0, 8, 0.5, -10)
+	searchIcon.BackgroundTransparency = 1
+	searchIcon.Image = "rbxassetid://104986431790017"
+	searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
+	searchIcon.Parent = searchFrame
+
+	local searchBox = Instance.new("TextBox")
+	searchBox.Name = "SearchBox"
+	searchBox.Size = UDim2.new(1, -60, 1, 0)
+	searchBox.Position = UDim2.new(0, 32, 0, 0)
+	searchBox.BackgroundTransparency = 1
+	searchBox.Text = ""
+	searchBox.PlaceholderText = "Search by name/displayname..."
+	searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+	searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	searchBox.TextXAlignment = Enum.TextXAlignment.Left
+	searchBox.Font = Enum.Font.Gotham
+	searchBox.TextSize = 14
+	searchBox.ClearTextOnFocus = false
+	searchBox.Parent = searchFrame
+
+	local clearButton = Instance.new("ImageButton")
+	clearButton.Name = "ClearButton"
+	clearButton.Size = UDim2.new(0, 20, 0, 20)
+	clearButton.Position = UDim2.new(1, -28, 0.5, -10)
+	clearButton.BackgroundTransparency = 1
+	clearButton.Image = "rbxassetid://11768945414"
+	clearButton.ImageColor3 = Color3.fromRGB(150, 150, 150)
+	clearButton.Visible = false
+	clearButton.Parent = searchFrame
+
+	local contentFrame = Instance.new("ScrollingFrame")
+	contentFrame.Name = "ContentFrame"
+	contentFrame.Size = UDim2.new(1, -20, 1, -100)
+	contentFrame.Position = UDim2.new(0, 10, 0, 80)
+	contentFrame.BackgroundTransparency = 1
+	contentFrame.BorderSizePixel = 0
+	contentFrame.ScrollBarThickness = 6
+	contentFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+	contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	contentFrame.Parent = mainFrame
+
+	local container = Instance.new("Frame")
+	container.Name = "Container"
+	container.Size = UDim2.new(1, 0, 0, 0)
+	container.BackgroundTransparency = 1
+	container.AutomaticSize = Enum.AutomaticSize.Y
+	container.Parent = contentFrame
+
+	local uiListLayout = Instance.new("UIListLayout")
+	uiListLayout.Name = "Layout"
+	uiListLayout.SortOrder = Enum.SortOrder.Name
+	uiListLayout.Padding = UDim.new(0, 4)
+	uiListLayout.Parent = container
+
+	uiListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		contentFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y + 10)
+	end)
+
+	local headerFrame = Instance.new("Frame")
+	headerFrame.Name = "HeaderFrame"
+	headerFrame.Size = UDim2.new(1, 0, 0, 25)
+	headerFrame.BackgroundTransparency = 1
+	headerFrame.Parent = container
+
+	self.infoLabel = Instance.new("TextLabel")
+	self.infoLabel.Name = "InfoLabel"
+	self.infoLabel.Size = UDim2.new(0.7, 0, 1, 0)
+	self.infoLabel.Position = UDim2.new(0, 5, 0, 0)
+	self.infoLabel.BackgroundTransparency = 1
+	self.infoLabel.Text = "Total Players: 0"
+	self.infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	self.infoLabel.Font = Enum.Font.Gotham
+	self.infoLabel.TextSize = 12
+	self.infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+	self.infoLabel.Parent = headerFrame
+
+	selectAllButton = Instance.new("ImageButton")
+	selectAllButton.Name = "SelectAllButton"
+	selectAllButton.Size = UDim2.new(0, 70, 0, 20)
+	selectAllButton.Position = UDim2.new(1, -75, 0.5, -10)
+	selectAllButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	selectAllButton.BackgroundTransparency = 0.3
+	selectAllButton.BorderSizePixel = 0
+	selectAllButton.Image = "rbxasset://textures/ui/Windows/Icons/Checkmark.png"
+	selectAllButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	selectAllButton.Parent = headerFrame
+
+	local selectAllCorner = Instance.new("UICorner")
+	selectAllCorner.CornerRadius = UDim.new(0, 4)
+	selectAllCorner.Parent = selectAllButton
+
+	local selectAllLabel = Instance.new("TextLabel")
+	selectAllLabel.Size = UDim2.new(1, -20, 1, 0)
+	selectAllLabel.Position = UDim2.new(0, 22, 0, 0)
+	selectAllLabel.BackgroundTransparency = 1
+	selectAllLabel.Text = "Select All"
+	selectAllLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	selectAllLabel.Font = Enum.Font.Gotham
+	selectAllLabel.TextSize = 10
+	selectAllLabel.TextXAlignment = Enum.TextXAlignment.Left
+	selectAllLabel.Parent = selectAllButton
+
+	selectAllButton.MouseButton1Click:Connect(function()
+		self:SelectAllPlayers()
+	end)
+
+	local separator = Instance.new("Frame")
+	separator.Name = "Separator"
+	separator.Size = UDim2.new(1, 0, 0, 1)
+	separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	separator.BackgroundTransparency = 0.8
+	separator.Parent = container
+
+	self.playerContainer = container
+	self.uiListLayout = uiListLayout
+	self.searchBox = searchBox
+	self.clearButton = clearButton
+
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		searchText = searchBox.Text:lower()
+		clearButton.Visible = searchText ~= ""
+		self:FilterPlayerList()
+	end)
+
+	clearButton.MouseButton1Click:Connect(function()
+		searchBox.Text = ""
+		searchText = ""
+		clearButton.Visible = false
+		self:FilterPlayerList()
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not gameProcessed and input.KeyCode == Enum.KeyCode.F4 then
+			self:ToggleVisibility()
+		end
+	end)
+
+	guiMain = screenGui
+	self.mainFrame = mainFrame
+	self.contentFrame = contentFrame
+	self.searchFrame = searchFrame
+
+	return screenGui
+end
+
+function ESPManager:ToggleContent()
+	local contentFrame = self.contentFrame
+	local searchFrame = self.searchFrame
+
+	if isContentVisible then
+		contentFrame.Visible = false
+		searchFrame.Visible = false
+		self.mainFrame.Size = UDim2.new(0, 300, 0, 45)
+		isContentVisible = false
+	else
+		contentFrame.Visible = true
+		searchFrame.Visible = true
+		self.mainFrame.Size = UDim2.new(0, 300, 0, 450)
+		isContentVisible = true
+	end
+end
+
+function ESPManager:ToggleVisibility()
+	isVisible = not isVisible
+	if guiMain then
+		guiMain.Enabled = isVisible
+	end
+end
+
+function ESPManager:FilterPlayerList()
+	for player, data in pairs(playerItems) do
+		if data and data.frame then
+			local playerName = player.Name:lower()
+			local displayName = getPlayerDisplayName(player):lower()
+
+			if searchText == "" or 
+				string.find(playerName, searchText, 1, true) or 
+				string.find(displayName, searchText, 1, true) then
+				data.frame.Visible = true
+			else
+				data.frame.Visible = false
+			end
+		end
+	end
+end
+
+function ESPManager:UpdatePlayerCount()
+	local count = 0
+	for player, data in pairs(playerItems) do
+		if player and player ~= localPlayer and data and data.frame then
+			count = count + 1
+		end
+	end
+
+	if self.infoLabel then
+		self.infoLabel.Text = "Total Players: " .. count
+	end
+end
+
+function ESPManager:ProcessPlayerQueue()
+	local processed = 0
+	while #playerQueue > 0 and processed < 10 do
+		local player = table.remove(playerQueue, 1)
+		if player and player ~= localPlayer and not playerItems[player] then
+			self:CreatePlayerItem(player)
+			processed = processed + 1
+		end
+	end
+	self:UpdatePlayerCount()
+end
+
+function ESPManager:GetPlayerDistance(player)
+	if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or
+		not localPlayer or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+		return nil
+	end
+
+	local targetRoot = player.Character.HumanoidRootPart
+	local localRoot = localPlayer.Character.HumanoidRootPart
+
+	return (localRoot.Position - targetRoot.Position).Magnitude
+end
+
+function ESPManager:CreatePlayerItem(player)
+	if not player or player == localPlayer then return end
+
+	local itemName = "Player_" .. player.Name
+	if self.playerContainer:FindFirstChild(itemName) or playerItems[player] then
+		return
+	end
+
+	local itemFrame = Instance.new("Frame")
+	itemFrame.Name = itemName
+	itemFrame.Size = UDim2.new(1, 0, 0, 30)
+	itemFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	itemFrame.BackgroundTransparency = 0.3
+	itemFrame.BorderSizePixel = 0
+	itemFrame.Parent = self.playerContainer
+
+	local itemCorner = Instance.new("UICorner")
+	itemCorner.CornerRadius = UDim.new(0, 4)
+	itemCorner.Parent = itemFrame
+
+	local avatar = Instance.new("ImageLabel")
+	avatar.Name = "Avatar"
+	avatar.Size = UDim2.new(0, 25, 0, 25)
+	avatar.Position = UDim2.new(0, 5, 0.5, -12)
+	avatar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	avatar.BackgroundTransparency = 0.5
+	avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+
+	local success, thumbnail = pcall(function()
+		return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size48x48)
+	end)
+	if success and thumbnail then
+		avatar.Image = thumbnail
+	end
+
+	avatar.Parent = itemFrame
+
+	local avatarCorner = Instance.new("UICorner")
+	avatarCorner.CornerRadius = UDim.new(1, 0)
+	avatarCorner.Parent = avatar
+
+	local displayName = getPlayerDisplayName(player)
+	local nameText = if displayName ~= player.Name 
+		then displayName .. " @" .. player.Name 
+		else player.Name
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "NameLabel"
+	nameLabel.Size = UDim2.new(0, 150, 1, 0)
+	nameLabel.Position = UDim2.new(0, 35, 0, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = nameText
+	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Font = Enum.Font.Gotham
+	nameLabel.TextSize = 14
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.Parent = itemFrame
+
+	local distanceLabel = Instance.new("TextLabel")
+	distanceLabel.Name = "DistanceLabel"
+	distanceLabel.Size = UDim2.new(0, 50, 1, 0)
+	distanceLabel.Position = UDim2.new(0, 190, 0, 0)
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.Text = "?"
+	distanceLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+	distanceLabel.Font = Enum.Font.Gotham
+	distanceLabel.TextSize = 12
+	distanceLabel.Parent = itemFrame
+
+	local checkbox = Instance.new("ImageButton")
+	checkbox.Name = "Checkbox"
+	checkbox.Size = UDim2.new(0, 20, 0, 20)
+	checkbox.Position = UDim2.new(1, -25, 0.5, -10)
+	checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	checkbox.BackgroundTransparency = 0.3
+	checkbox.BorderSizePixel = 0
+	checkbox.AutoButtonColor = false
+	checkbox.Parent = itemFrame
+
+	local checkboxCorner = Instance.new("UICorner")
+	checkboxCorner.CornerRadius = UDim.new(0, 4)
+	checkboxCorner.Parent = checkbox
+
+	local checkmark = Instance.new("ImageLabel")
+	checkmark.Name = "Checkmark"
+	checkmark.Size = UDim2.new(0, 16, 0, 16)
+	checkmark.Position = UDim2.new(0.5, -8, 0.5, -8)
+	checkmark.BackgroundTransparency = 1
+	checkmark.Image = "rbxasset://textures/ui/Windows/Icons/Checkmark.png"
+	checkmark.ImageColor3 = Color3.fromRGB(0, 255, 0)
+	checkmark.Visible = false
+	checkmark.Parent = checkbox
+
+	itemFrame:SetAttribute("PlayerName", player.Name)
+	itemFrame:SetAttribute("PlayerDisplayName", displayName)
+	itemFrame:SetAttribute("PlayerUserId", player.UserId)
+
+	playerItems[player] = {
+		frame = itemFrame,
+		distanceLabel = distanceLabel,
+		checkbox = checkbox,
+		checkmark = checkmark,
+		player = player
+	}
+
+	checkbox.MouseButton1Click:Connect(function()
+		local newState = not checkmark.Visible
+		checkmark.Visible = newState
+
+		if newState then
+			checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+			self:EnableESP(player)
+		else
+			checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			self:DisableESP(player)
+		end
+	end)
+
+	self:UpdatePlayerDistance(player, distanceLabel)
+
+	if searchText ~= "" then
+		local playerName = player.Name:lower()
+		local playerDisplayName = displayName:lower()
+		itemFrame.Visible = (string.find(playerName, searchText, 1, true) or 
+			string.find(playerDisplayName, searchText, 1, true)) ~= nil
+	end
+
+	self:UpdatePlayerCount()
+
+	return itemFrame
+end
+
+function ESPManager:RemovePlayerItem(player)
+	if playerItems[player] then
+		local data = playerItems[player]
+		if data.frame then
+			data.frame:Destroy()
+		end
+		playerItems[player] = nil
+	end
+
+	self:RemoveESP(player)
+
+	if distanceConnections[player] then
+		distanceConnections[player]:Disconnect()
+		distanceConnections[player] = nil
+	end
+
+	-- Clear notification status
+	if notifiedPlayers[player] then
+		notifiedPlayers[player] = nil
+	end
+
+	self:UpdatePlayerCount()
+end
+
+function ESPManager:UpdatePlayerDistance(player, distanceLabel)
+	if not player or not distanceLabel then return end
+
+	if distanceConnections[player] then
+		distanceConnections[player]:Disconnect()
+		distanceConnections[player] = nil
+	end
+
+	local function updateDistance()
+		if not distanceLabel or not distanceLabel.Parent then
+			if distanceConnections[player] then
+				distanceConnections[player]:Disconnect()
+				distanceConnections[player] = nil
+			end
+			return
+		end
+
+		local distance = self:GetPlayerDistance(player)
+		if distance then
+			distanceLabel.Text = formatDistance(distance)
+
+			if distance < settings.warningDistance then
+				distanceLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+			elseif distance < 200 then
+				distanceLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+			elseif distance < 500 then
+				distanceLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+			else
+				distanceLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+			end
+		else
+			distanceLabel.Text = "?"
+			distanceLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+		end
+	end
+
+	updateDistance()
+
+	local connection
+	connection = RunService.Heartbeat:Connect(function()
+		updateDistance()
+	end)
+
+	distanceConnections[player] = connection
+
+	player.CharacterAdded:Connect(function()
+		task.wait(0.5)
+		updateDistance()
+	end)
+end
+
+function ESPManager:CreateESPForPlayer(player)
+	if espObjects[player] then
+		self:RemoveESP(player)
+	end
+
+	local esp = {}
+	esp.Player = player
+	local displayName = getPlayerDisplayName(player)
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ESP_Highlight"
+	highlight.FillColor = settings.highlightColor
+	highlight.FillTransparency = settings.highlightTransparency
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.OutlineTransparency = 0.5
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ESP_Billboard"
+	billboard.Size = UDim2.new(0, 180 * settings.billboardSize, 0, 50 * settings.billboardSize)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Enabled = settings.billboardEnabled
+	billboard.ClipsDescendants = false
+
+	local nameFrame = Instance.new("Frame")
+	nameFrame.Size = UDim2.new(1, 0, 1, 0)
+	nameFrame.BackgroundColor3 = settings.backgroundColor
+	nameFrame.BackgroundTransparency = settings.billboardBgTransparency
+	nameFrame.BorderSizePixel = 0
+	nameFrame.Parent = billboard
+
+	local nameCorner = Instance.new("UICorner")
+	nameCorner.CornerRadius = UDim.new(0, 8)
+	nameCorner.Parent = nameFrame
+
+	local nameText = if displayName ~= player.Name 
+		then displayName .. " [" .. player.Name .. "]" 
+		else player.Name
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, -10, 0.6, 0)
+	nameLabel.Position = UDim2.new(0, 5, 0, 2)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = nameText
+	nameLabel.TextColor3 = settings.textColor
+	nameLabel.TextTransparency = settings.billboardTextTransparency
+	nameLabel.TextScaled = true
+	nameLabel.Font = settings.fontType
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.TextYAlignment = Enum.TextYAlignment.Center
+	nameLabel.Parent = nameFrame
+
+	local distanceLabel = Instance.new("TextLabel")
+	distanceLabel.Name = "BillboardDistance"
+	distanceLabel.Size = UDim2.new(1, -10, 0.3, 0)
+	distanceLabel.Position = UDim2.new(0, 5, 0.65, 0)
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.Text = "?"
+	distanceLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+	distanceLabel.TextTransparency = settings.billboardTextTransparency
+	distanceLabel.TextScaled = true
+	distanceLabel.Font = settings.fontType
+	distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
+	distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
+	distanceLabel.Parent = nameFrame
+
+	local attachment1 = Instance.new("Attachment")
+	attachment1.Name = "ESP_Attachment1"
+
+	local attachment2 = Instance.new("Attachment")
+	attachment2.Name = "ESP_Attachment2"
+
+	local beam = Instance.new("Beam")
+	beam.Name = "ESP_Beam"
+	beam.FaceCamera = true
+	beam.Color = ColorSequence.new(settings.farColor)
+	beam.LightEmission = 1
+	beam.LightInfluence = 0
+	beam.TextureLength = 1
+	beam.TextureSpeed = 0
+	beam.Width0 = settings.lineThickness
+	beam.Width1 = settings.lineThickness
+	beam.Attachment0 = attachment1
+	beam.Attachment1 = attachment2
+
+	esp.Highlight = highlight
+	esp.Billboard = billboard
+	esp.Attachment1 = attachment1
+	esp.Attachment2 = attachment2
+	esp.Beam = beam
+	esp.DistanceLabel = distanceLabel
+
+	espObjects[player] = esp
+
+	player.CharacterAdded:Connect(function(character)
+		self:AttachESPToCharacter(player, character)
+	end)
+
+	if player.Character then
+		self:AttachESPToCharacter(player, player.Character)
+	end
+
+	return esp
+end
+
+function ESPManager:AttachESPToCharacter(player, character)
+	local esp = espObjects[player]
+	if not esp then return end
+
+	local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+	local head = character:WaitForChild("Head", 5)
+
+	if not humanoidRootPart or not head then return end
+
+	if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+		local localRoot = localPlayer.Character.HumanoidRootPart
+
+		esp.Attachment1.Parent = localRoot
+		esp.Attachment1.WorldCFrame = localRoot.CFrame
+
+		esp.Attachment2.Parent = humanoidRootPart
+		esp.Attachment2.WorldCFrame = humanoidRootPart.CFrame
+
+		esp.Beam.Parent = workspace
+	end
+
+	esp.Highlight.Adornee = character
+	esp.Highlight.Parent = character
+
+	esp.Billboard.Adornee = head
+	esp.Billboard.Parent = head
+
+	local function updateBillboardDistance()
+		if esp.DistanceLabel and esp.DistanceLabel.Parent then
+			local distance = self:GetPlayerDistance(player)
+			if distance then
+				esp.DistanceLabel.Text = formatDistance(distance)
+			else
+				esp.DistanceLabel.Text = "?"
+			end
+		end
+	end
+
+	updateBillboardDistance()
+
+	local connection = RunService.Heartbeat:Connect(updateBillboardDistance)
+
+	if not esp.Connections then
+		esp.Connections = {}
+	end
+	table.insert(esp.Connections, connection)
+end
+
+function ESPManager:EnableESP(player)
+	if settings.enabled and not espObjects[player] then
+		self:CreateESPForPlayer(player)
+	end
+end
+
+function ESPManager:DisableESP(player)
+	self:RemoveESP(player)
+end
+
+function ESPManager:RemoveESP(player)
+	if espObjects[player] then
+		local esp = espObjects[player]
+
+		if esp.Connections then
+			for _, conn in ipairs(esp.Connections) do
+				conn:Disconnect()
+			end
+		end
+
+		if esp.Highlight then esp.Highlight:Destroy() end
+		if esp.Billboard then esp.Billboard:Destroy() end
+		if esp.Attachment1 then esp.Attachment1:Destroy() end
+		if esp.Attachment2 then esp.Attachment2:Destroy() end
+		if esp.Beam then esp.Beam:Destroy() end
+
+		espObjects[player] = nil
+	end
+end
+
+function ESPManager:ClearAllESP()
+	for player, _ in pairs(espObjects) do
+		self:RemoveESP(player)
+	end
+end
+
+function ESPManager:LoadInitialPlayers()
+	for _, child in ipairs(self.playerContainer:GetChildren()) do
+		if child.Name ~= "HeaderFrame" and child.Name ~= "Separator" and child.Name ~= "Layout" then
+			if child:IsA("Frame") and child.Name:match("Player_") then
+				child:Destroy()
+			end
+		end
+	end
+
+	playerItems = {}
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= localPlayer then
+			self:CreatePlayerItem(player)
+		end
+	end
+
+	self:UpdatePlayerCount()
+end
+
+function ESPManager:Start()
+	self:CreateMainGUI()
+	self:LoadInitialPlayers()
+
+	Players.PlayerAdded:Connect(function(player)
+		if player ~= localPlayer then
+			self:CreatePlayerItem(player)
+		end
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		self:RemovePlayerItem(player)
+	end)
+
+	RunService.Heartbeat:Connect(function()
+		if not settings.enabled then return end
+
+		for player, esp in pairs(espObjects) do
+			if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and 
+				localPlayer and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+				local targetRoot = player.Character.HumanoidRootPart
+				local localRoot = localPlayer.Character.HumanoidRootPart
+
+				if esp.Attachment1 and esp.Attachment1.Parent and esp.Attachment2 and esp.Attachment2.Parent then
+					esp.Attachment1.WorldCFrame = localRoot.CFrame
+					esp.Attachment2.WorldCFrame = targetRoot.CFrame
+
+					if esp.Beam then esp.Beam.Enabled = true end
+					if esp.Billboard then esp.Billboard.Enabled = settings.billboardEnabled end
+				end
+			else
+				if esp.Beam then esp.Beam.Enabled = false end
+				if esp.Billboard then esp.Billboard.Enabled = false end
+			end
+		end
+
+		-- Check for nearby players and trigger notifications (ONLY ONCE)
+		checkNearbyPlayers()
+	end)
+end
+
+function ESPManager:Destroy()
+	self:ClearAllESP()
+
+	if settingsFrame then
+		settingsFrame:Destroy()
+		settingsFrame = nil
+		isSettingsOpen = false
+	end
+
+	for player, connection in pairs(distanceConnections) do
+		if connection then
+			connection:Disconnect()
+		end
+	end
+	distanceConnections = {}
+
+	playerItems = {}
+	playerQueue = {}
+
+	if guiMain then
+		guiMain:Destroy()
+		guiMain = nil
+	end
+end
+
+ESPManager:Start()
