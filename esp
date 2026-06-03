@@ -99,13 +99,13 @@ end
 -- Fungsi showNotification (SEMUA NOTIFIKASI TAMPIL BERSAMAAN)
 local function showNotification(title, text, duration)
 	if not guiMain or not settings.enableNotifications then return end
-	
+
 	notificationIdCounter = notificationIdCounter + 1
 	local notifId = notificationIdCounter
-	
+
 	-- Hitung posisi Y berdasarkan jumlah notifikasi yang sudah ada
 	local yPos = 10 + (#activeNotifications * 70)
-	
+
 	-- Buat notifikasi
 	local notificationFrame = Instance.new("Frame")
 	notificationFrame.Size = UDim2.new(0, 300, 0, 60)
@@ -115,7 +115,7 @@ local function showNotification(title, text, duration)
 	notificationFrame.BackgroundTransparency = 0.1
 	notificationFrame.BorderSizePixel = 0
 	notificationFrame.Parent = guiMain
-	
+
 	-- Simpan ke notifikasi aktif
 	local notifObject = {
 		frame = notificationFrame,
@@ -123,17 +123,17 @@ local function showNotification(title, text, duration)
 		createdAt = tick()
 	}
 	table.insert(activeNotifications, notifObject)
-	
+
 	local notificationCorner = Instance.new("UICorner")
 	notificationCorner.CornerRadius = UDim.new(0, 8)
 	notificationCorner.Parent = notificationFrame
-	
+
 	local notificationStroke = Instance.new("UIStroke")
 	notificationStroke.Color = Color3.fromRGB(255, 0, 0)
 	notificationStroke.Thickness = 2
 	notificationStroke.Transparency = 0.3
 	notificationStroke.Parent = notificationFrame
-	
+
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -10, 0.4, 0)
 	titleLabel.Position = UDim2.new(0, 5, 0, 2)
@@ -144,7 +144,7 @@ local function showNotification(title, text, duration)
 	titleLabel.TextSize = 14
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = notificationFrame
-	
+
 	local messageLabel = Instance.new("TextLabel")
 	messageLabel.Size = UDim2.new(1, -10, 0.6, 0)
 	messageLabel.Position = UDim2.new(0, 5, 0.4, 0)
@@ -155,17 +155,17 @@ local function showNotification(title, text, duration)
 	messageLabel.TextSize = 12
 	messageLabel.TextWrapped = true
 	messageLabel.Parent = notificationFrame
-	
+
 	-- Animate in (dari kanan ke posisi)
 	local tweenIn = TweenService:Create(notificationFrame, 
 		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{Position = UDim2.new(1, -330, 0, yPos)}
 	)
 	tweenIn:Play()
-	
+
 	-- Auto remove after duration
 	task.wait(duration)
-	
+
 	-- Hapus notifikasi setelah durasi selesai
 	removeNotification(notifId)
 end
@@ -404,7 +404,7 @@ function ESPManager:CreateSettingsPanel()
 	panelStroke.Thickness = 1
 	panelStroke.Transparency = 0.7
 	panelStroke.Parent = settingsPanel
-	
+
 	local function updateSettingsPosition()
 		if settingsFrame and self.mainFrame then
 			settingsFrame.Position = UDim2.new(0, self.mainFrame.AbsolutePosition.X + self.mainFrame.AbsoluteSize.X + 10, 0, self.mainFrame.AbsolutePosition.Y)
@@ -1531,6 +1531,23 @@ function ESPManager:CreatePlayerItem(player)
 		end
 	end)
 
+	-- CEK APAKAH MODE SELECT ALL SEDANG AKTIF
+	-- Jika ada player lain yang tercentang, maka player baru juga ikut tercentang
+	local isSelectAllActive = false
+	for p, data in pairs(playerItems) do
+		if data and data.checkmark and data.checkmark.Visible then
+			isSelectAllActive = true
+			break
+		end
+	end
+
+	-- Jika mode select all aktif, centang player baru secara otomatis
+	if isSelectAllActive then
+		checkmark.Visible = true
+		checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+		self:EnableESP(player)
+	end
+
 	self:UpdatePlayerDistance(player, distanceLabel)
 
 	if searchText ~= "" then
@@ -1634,7 +1651,7 @@ function ESPManager:CreateESPForPlayer(player)
 	highlight.FillTransparency = settings.highlightTransparency
 	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 	highlight.OutlineTransparency = 0.5
-	
+
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "ESP_Billboard"
 	billboard.Size = UDim2.new(0, 180 * settings.billboardSize, 0, 50 * settings.billboardSize)
