@@ -20,7 +20,6 @@ local playerQueue = {}
 local settingsFrame = nil
 local isSettingsOpen = false
 local selectAllButton = nil
-local isSelectAllActive = false -- Variabel global untuk status select all
 
 -- Track notified players to avoid spam (only notify ONCE per entry)
 local notifiedPlayers = {} -- Stores player -> boolean (notified or not)
@@ -52,6 +51,9 @@ local settings = {
 	closeColor = Color3.fromRGB(255, 0, 0),
 	farColor = Color3.fromRGB(0, 255, 247)
 }
+
+-- Function to play warning sound (DEFINED AFTER settings)
+-- Buat sound permanent di awal (hanya sekali)
 local warningSound = nil
 
 local function createPermanentSound()
@@ -199,6 +201,14 @@ local function updateLineColorForPlayer(player, distance)
 		esp.Beam.Color = ColorSequence.new(newColor)
 	end
 end
+
+-- Reset notified status when player leaves warning distance
+local function resetNotifiedStatus(player)
+	if notifiedPlayers[player] then
+		notifiedPlayers[player] = nil
+	end
+end
+
 -- Update highlight color based on distance
 local function updateHighlightColorForPlayer(player, distance)
 	local esp = espObjects[player]
@@ -217,15 +227,7 @@ local function updateHighlightColorForPlayer(player, distance)
 		esp.Highlight.FillColor = newColor
 	end
 end
--- Reset notified status when player leaves warning distance
-local function resetNotifiedStatus(player)
-	if notifiedPlayers[player] then
-		notifiedPlayers[player] = nil
-	end
-end
 
--- Check for nearby players and trigger notifications (ONLY ONCE per entry)
--- Check for nearby players and trigger notifications (ONLY ONCE per entry)
 local function checkNearbyPlayers()
 	if not settings.enabled or not settings.enableNotifications then return end
 
@@ -297,27 +299,33 @@ local function resetAllLineColors()
 	end
 end
 
--- ============ PERBAIKAN UTAMA DI SINI ============
 function ESPManager:SelectAllPlayers()
-	-- Toggle status select all
-	isSelectAllActive = not isSelectAllActive
+	local anyChecked = false
 
 	for player, data in pairs(playerItems) do
-		-- Set status checkmark berdasarkan isSelectAllActive
-		data.checkmark.Visible = isSelectAllActive
-
-		if isSelectAllActive then
-			data.checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-			self:EnableESP(player)
-		else
-			data.checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-			self:DisableESP(player)
+		if data.checkmark.Visible then
+			anyChecked = true
+			break
 		end
 	end
 
-	-- Update tampilan tombol Select All
+	local newState = not anyChecked
+
+	for player, data in pairs(playerItems) do
+		if data.checkmark.Visible ~= newState then
+			data.checkmark.Visible = newState
+			if newState then
+				data.checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+				self:EnableESP(player)
+			else
+				data.checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+				self:DisableESP(player)
+			end
+		end
+	end
+
 	if selectAllButton then
-		if isSelectAllActive then
+		if newState then
 			selectAllButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
 			selectAllButton.ImageColor3 = Color3.fromRGB(0, 255, 0)
 		else
@@ -326,7 +334,6 @@ function ESPManager:SelectAllPlayers()
 		end
 	end
 end
--- ================================================
 
 function ESPManager:CreateSettingsPanel()
 	if settingsFrame then
@@ -362,7 +369,9 @@ function ESPManager:CreateSettingsPanel()
 	panelStroke.Thickness = 1
 	panelStroke.Transparency = 0.7
 	panelStroke.Parent = settingsPanel
-
+	
+	
+	
 	local function updateSettingsPosition()
 		if settingsFrame and self.mainFrame then
 			settingsFrame.Position = UDim2.new(0, self.mainFrame.AbsolutePosition.X + self.mainFrame.AbsoluteSize.X + 10, 0, self.mainFrame.AbsolutePosition.Y)
@@ -898,7 +907,26 @@ function ESPManager:CreateSettingsPanel()
 			settings.warningDistance = v
 			warningDistance = v
 		end, false, false)
+	createSlider(settingsContainer, "Line Thickness", 0.05, 1, function() return settings.lineThickness end, 
+	function(v) settings.lineThickness = v
+		for _, esp in pairs(espObjects) do
+			if esp.Beam then
+				esp.Beam.Width0 = v
+				esp.Beam.Width1 = v
+			end
+		end
+	end, false, true)
 
+	-- TAMBAHKAN SLIDER UNTUK LINE TRANSPARENCY
+	createSlider(settingsContainer, "Line Transparency", 0, 1, function() return settings.lineTransparency end,
+	function(v) 
+		settings.lineTransparency = v
+		for _, esp in pairs(espObjects) do
+			if esp.Beam then
+				esp.Beam.Transparency = NumberSequence.new(v)
+			end
+		end
+	end, false, true)
 	-- Sound volume slider
 	createSlider(settingsContainer, "Sound Volume", 0, 1, 
 		function() return settings.warningSoundVolume end,
@@ -915,18 +943,7 @@ function ESPManager:CreateSettingsPanel()
 			end
 		end
 	end, false, true)
-	
-	-- TAMBAHKAN SLIDER UNTUK LINE TRANSPARENCY
-	createSlider(settingsContainer, "Line Transparency", 0, 1, function() return settings.lineTransparency end,
-	function(v) 
-		settings.lineTransparency = v
-		for _, esp in pairs(espObjects) do
-			if esp.Beam then
-				esp.Beam.Transparency = NumberSequence.new(v)
-			end
-		end
-	end, false, true)
-	
+
 	createSlider(settingsContainer, "Billboard Size", 0.5, 2, function() return settings.billboardSize end,
 	function(v) settings.billboardSize = v
 		for _, esp in pairs(espObjects) do
@@ -1009,7 +1026,6 @@ function ESPManager:CreateSettingsPanel()
 			end
 		end
 	end)
-
 
 	createColorPicker(settingsContainer, "Text Color", function() return settings.textColor end,
 	function(v) settings.textColor = v
@@ -1370,7 +1386,6 @@ function ESPManager:GetPlayerDistance(player)
 	return (localRoot.Position - targetRoot.Position).Magnitude
 end
 
--- ============ PERBAIKAN KEDUA DI SINI ============
 function ESPManager:CreatePlayerItem(player)
 	if not player or player == localPlayer then return end
 
@@ -1477,15 +1492,6 @@ function ESPManager:CreatePlayerItem(player)
 		player = player
 	}
 
-	-- ============ LOGIKA OTOMATIS UNTUK PEMAIN BARU ============
-	-- Jika mode Select All sedang aktif, centang pemain baru ini secara otomatis
-	if isSelectAllActive then
-		checkmark.Visible = true
-		checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-		self:EnableESP(player)
-	end
-	-- =======================================================
-
 	checkbox.MouseButton1Click:Connect(function()
 		local newState = not checkmark.Visible
 		checkmark.Visible = newState
@@ -1512,7 +1518,6 @@ function ESPManager:CreatePlayerItem(player)
 
 	return itemFrame
 end
--- ================================================
 
 function ESPManager:RemovePlayerItem(player)
 	if playerItems[player] then
@@ -1600,11 +1605,11 @@ function ESPManager:CreateESPForPlayer(player)
 
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "ESP_Highlight"
-	highlight.FillColor = settings.farColor  -- <-- SEKARANG MENGIKUTI farColor
+	highlight.FillColor = settings.highlightColor  -- <-- GANTI INI
 	highlight.FillTransparency = settings.highlightTransparency
 	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 	highlight.OutlineTransparency = 0.5
-
+	
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "ESP_Billboard"
 	billboard.Size = UDim2.new(0, 180 * settings.billboardSize, 0, 50 * settings.billboardSize)
