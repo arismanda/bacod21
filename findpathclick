@@ -119,8 +119,8 @@ settingsFrame.Name = "SettingsFrame"
 settingsFrame.Parent = screenGui
 settingsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 settingsFrame.BackgroundTransparency = 0
-settingsFrame.Size = UDim2.new(0, 280, 0, 280)
-settingsFrame.Position = UDim2.new(0.5, -140, 0.5, -140)
+settingsFrame.Size = UDim2.new(0, 280, 0, 310)
+settingsFrame.Position = UDim2.new(0.5, -140, 0.5, -155)
 settingsFrame.Visible = false
 settingsFrame.Active = true
 settingsFrame.Draggable = true
@@ -140,7 +140,7 @@ settingsTitle.Text = "⚙️ PENGATURAN"
 settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 settingsTitle.TextSize = 16
 settingsTitle.Font = Enum.Font.GothamBold
-settingsTitle.Size = UDim2.new(1, 0, 0.12, 0)
+settingsTitle.Size = UDim2.new(1, 0, 0.1, 0)
 settingsTitle.Position = UDim2.new(0, 0, 0, 0)
 settingsTitle.BackgroundTransparency = 1
 
@@ -150,8 +150,8 @@ partNameLabel.Text = "Nama Part Target:"
 partNameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 partNameLabel.TextSize = 12
 partNameLabel.Font = Enum.Font.Gotham
-partNameLabel.Size = UDim2.new(0.9, 0, 0.1, 0)
-partNameLabel.Position = UDim2.new(0.05, 0, 0.15, 0)
+partNameLabel.Size = UDim2.new(0.9, 0, 0.09, 0)
+partNameLabel.Position = UDim2.new(0.05, 0, 0.13, 0)
 partNameLabel.BackgroundTransparency = 1
 partNameLabel.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -161,8 +161,8 @@ partNameInput.Text = ""
 partNameInput.PlaceholderText = "Kosongkan untuk semua part"
 partNameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 partNameInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-partNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-partNameInput.Position = UDim2.new(0.05, 0, 0.26, 0)
+partNameInput.Size = UDim2.new(0.9, 0, 0.09, 0)
+partNameInput.Position = UDim2.new(0.05, 0, 0.23, 0)
 partNameInput.Font = Enum.Font.Gotham
 partNameInput.TextSize = 12
 
@@ -176,8 +176,8 @@ radiusLabel.Text = "Radius Pencarian (stud):"
 radiusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 radiusLabel.TextSize = 12
 radiusLabel.Font = Enum.Font.Gotham
-radiusLabel.Size = UDim2.new(0.9, 0, 0.1, 0)
-radiusLabel.Position = UDim2.new(0.05, 0, 0.39, 0)
+radiusLabel.Size = UDim2.new(0.9, 0, 0.09, 0)
+radiusLabel.Position = UDim2.new(0.05, 0, 0.35, 0)
 radiusLabel.BackgroundTransparency = 1
 radiusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -187,8 +187,8 @@ radiusInput.Text = "50"
 radiusInput.PlaceholderText = "Radius dalam stud"
 radiusInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 radiusInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-radiusInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-radiusInput.Position = UDim2.new(0.05, 0, 0.5, 0)
+radiusInput.Size = UDim2.new(0.9, 0, 0.09, 0)
+radiusInput.Position = UDim2.new(0.05, 0, 0.45, 0)
 radiusInput.Font = Enum.Font.Gotham
 radiusInput.TextSize = 12
 
@@ -196,14 +196,40 @@ local radiusCorner = Instance.new("UICorner")
 radiusCorner.CornerRadius = UDim.new(0, 6)
 radiusCorner.Parent = radiusInput
 
+local stopDistanceLabel = Instance.new("TextLabel")
+stopDistanceLabel.Parent = settingsFrame
+stopDistanceLabel.Text = "Jarak Berhenti (stud):"
+stopDistanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+stopDistanceLabel.TextSize = 12
+stopDistanceLabel.Font = Enum.Font.Gotham
+stopDistanceLabel.Size = UDim2.new(0.9, 0, 0.09, 0)
+stopDistanceLabel.Position = UDim2.new(0.05, 0, 0.57, 0)
+stopDistanceLabel.BackgroundTransparency = 1
+stopDistanceLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local stopDistanceInput = Instance.new("TextBox")
+stopDistanceInput.Parent = settingsFrame
+stopDistanceInput.Text = "3"
+stopDistanceInput.PlaceholderText = "Jarak berhenti dari target"
+stopDistanceInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopDistanceInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+stopDistanceInput.Size = UDim2.new(0.9, 0, 0.09, 0)
+stopDistanceInput.Position = UDim2.new(0.05, 0, 0.67, 0)
+stopDistanceInput.Font = Enum.Font.Gotham
+stopDistanceInput.TextSize = 12
+
+local stopDistanceCorner = Instance.new("UICorner")
+stopDistanceCorner.CornerRadius = UDim.new(0, 6)
+stopDistanceCorner.Parent = stopDistanceInput
+
 local clickDelayLabel = Instance.new("TextLabel")
 clickDelayLabel.Parent = settingsFrame
 clickDelayLabel.Text = "Delay Click (detik):"
 clickDelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 clickDelayLabel.TextSize = 12
 clickDelayLabel.Font = Enum.Font.Gotham
-clickDelayLabel.Size = UDim2.new(0.9, 0, 0.1, 0)
-clickDelayLabel.Position = UDim2.new(0.05, 0, 0.63, 0)
+clickDelayLabel.Size = UDim2.new(0.9, 0, 0.09, 0)
+clickDelayLabel.Position = UDim2.new(0.05, 0, 0.78, 0)
 clickDelayLabel.BackgroundTransparency = 1
 clickDelayLabel.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -213,8 +239,8 @@ clickDelayInput.Text = "0.05"
 clickDelayInput.PlaceholderText = "0.05 - 1 detik"
 clickDelayInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 clickDelayInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-clickDelayInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-clickDelayInput.Position = UDim2.new(0.05, 0, 0.74, 0)
+clickDelayInput.Size = UDim2.new(0.9, 0, 0.09, 0)
+clickDelayInput.Position = UDim2.new(0.05, 0, 0.88, 0)
 clickDelayInput.Font = Enum.Font.Gotham
 clickDelayInput.TextSize = 12
 
@@ -228,7 +254,7 @@ saveButton.Text = "SIMPAN"
 saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 saveButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
 saveButton.Size = UDim2.new(0.42, 0, 0.1, 0)
-saveButton.Position = UDim2.new(0.05, 0, 0.86, 0)
+saveButton.Position = UDim2.new(0.05, 0, 0.98, 0)
 saveButton.Font = Enum.Font.GothamBold
 saveButton.TextSize = 14
 
@@ -242,7 +268,7 @@ closeSetButton.Text = "TUTUP"
 closeSetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeSetButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 closeSetButton.Size = UDim2.new(0.42, 0, 0.1, 0)
-closeSetButton.Position = UDim2.new(0.53, 0, 0.86, 0)
+closeSetButton.Position = UDim2.new(0.53, 0, 0.98, 0)
 closeSetButton.Font = Enum.Font.GothamBold
 closeSetButton.TextSize = 14
 
@@ -253,6 +279,7 @@ closeCorner.Parent = closeSetButton
 local walkEnabled = false
 local targetPartName = ""
 local searchRadius = 50
+local stopDistance = 5
 local clickDelay = 0.05
 local currentTarget = nil
 local currentCharacter = nil
@@ -260,7 +287,7 @@ local currentHumanoid = nil
 local currentRootPart = nil
 local isNearTarget = false
 local clickTask = nil
-local scanDone = false
+local autoWalkActive = false
 
 local function leftClick()
     VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
@@ -299,13 +326,13 @@ local function updateCharacter()
     return false
 end
 
-local function findNearestPart(radius)
+local function findNearestPart()
     if not updateCharacter() then
         return nil
     end
     
     local nearestPart = nil
-    local shortestDistance = radius
+    local shortestDistance = searchRadius
     
     for _, part in ipairs(workspace:GetDescendants()) do
         if part:IsA("BasePart") and part ~= currentRootPart then
@@ -316,7 +343,7 @@ local function findNearestPart(radius)
                 
                 if part.Name ~= "Baseplate" and part.Name ~= "Terrain" then
                     local distance = (currentRootPart.Position - part.Position).Magnitude
-                    if distance < shortestDistance and distance > 2 then
+                    if distance < shortestDistance and distance > stopDistance then
                         shortestDistance = distance
                         nearestPart = part
                     end
@@ -325,20 +352,24 @@ local function findNearestPart(radius)
         end
     end
     
-    return nearestPart, shortestDistance
+    return nearestPart
 end
 
-local function scanTarget()
-    local nearestPart, distance = findNearestPart(searchRadius)
+local function findNewTarget()
+    if not updateCharacter() then
+        return false
+    end
     
-    if nearestPart then
-        currentTarget = nearestPart
-        scanDone = true
+    local target = findNearestPart()
+    
+    if target then
+        currentTarget = target
+        autoWalkActive = true
         
         if targetPartName ~= "" then
-            statusText.Text = "🎯 Target ditemukan: " .. nearestPart.Name
+            statusText.Text = "🎯 Target baru: " .. target.Name
         else
-            statusText.Text = "🎯 Part terdekat: " .. nearestPart.Name
+            statusText.Text = "🎯 Part terdekat: " .. target.Name
         end
         statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
         
@@ -350,18 +381,21 @@ local function scanTarget()
             statusText.Text = "🔍 Tidak ada part dalam radius " .. searchRadius
         end
         statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
+        autoWalkActive = false
         currentTarget = nil
-        scanDone = false
         return false
     end
 end
 
-local function walkToPart(part)
-    if not part or not currentHumanoid or currentHumanoid.Health <= 0 then
+local function walkToTarget()
+    if not currentTarget or not currentHumanoid or currentHumanoid.Health <= 0 then
         return
     end
     
-    currentHumanoid:MoveTo(part.Position)
+    local direction = (currentTarget.Position - currentRootPart.Position).Unit
+    local targetPos = currentTarget.Position - direction * stopDistance
+    
+    currentHumanoid:MoveTo(targetPos)
     currentHumanoid.AutoRotate = true
 end
 
@@ -372,12 +406,12 @@ local function stopWalking()
 end
 
 local function resetTarget()
-    currentTarget = nil
-    scanDone = false
     if isNearTarget then
         isNearTarget = false
         stopAutoClick()
     end
+    autoWalkActive = false
+    currentTarget = nil
     stopWalking()
 end
 
@@ -396,7 +430,7 @@ local function updateUI()
         targetText.Text = "📍 Target: Semua part (radius " .. searchRadius .. ")"
     end
     
-    clickInfoText.Text = "🖱️ Click delay: " .. clickDelay .. "s"
+    clickInfoText.Text = "🖱️ Click delay: " .. clickDelay .. "s | Berhenti: " .. stopDistance .. " stud"
 end
 
 local function saveSettings()
@@ -407,6 +441,12 @@ local function saveSettings()
     end
     radiusInput.Text = tostring(searchRadius)
     
+    local newStopDistance = tonumber(stopDistanceInput.Text)
+    if newStopDistance and newStopDistance > 0 then
+        stopDistance = math.min(newStopDistance, 10)
+    end
+    stopDistanceInput.Text = tostring(stopDistance)
+    
     local newClickDelay = tonumber(clickDelayInput.Text)
     if newClickDelay and newClickDelay > 0 then
         clickDelay = math.min(newClickDelay, 1)
@@ -416,17 +456,10 @@ local function saveSettings()
     updateUI()
     settingsFrame.Visible = false
     
-    if walkEnabled then
-        resetTarget()
-        scanTarget()
-    end
-    
     statusText.Text = "✅ Setting tersimpan!"
     task.wait(1)
-    if walkEnabled and currentTarget then
-        statusText.Text = "🎯 Menuju target"
-    elseif walkEnabled and not currentTarget then
-        statusText.Text = "🔍 Target tidak ditemukan"
+    if walkEnabled then
+        statusText.Text = "🎯 Auto Walk & Click aktif"
     else
         statusText.Text = "⚙️ Klik ⚙️ untuk setting"
     end
@@ -434,7 +467,7 @@ end
 
 RunService.RenderStepped:Connect(function()
     if not walkEnabled then
-        if currentTarget or isNearTarget then
+        if autoWalkActive or isNearTarget then
             resetTarget()
         end
         return
@@ -445,47 +478,46 @@ RunService.RenderStepped:Connect(function()
     end
     
     if currentHumanoid.Health <= 0 then
-        if currentTarget or isNearTarget then
-            resetTarget()
-        end
+        resetTarget()
         return
     end
     
-    if not scanDone then
-        scanTarget()
+    if not autoWalkActive then
+        findNewTarget()
         return
     end
     
-    if currentTarget and currentTarget.Parent and currentTarget:IsA("BasePart") then
-        local distanceToTarget = (currentRootPart.Position - currentTarget.Position).Magnitude
-        
-        if distanceToTarget < 5 then
-            if not isNearTarget then
-                isNearTarget = true
-                statusText.Text = "🔘 Auto click aktif"
-                statusText.TextColor3 = Color3.fromRGB(255, 100, 0)
-                startAutoClick()
-            end
-            stopWalking()
-        elseif distanceToTarget > searchRadius then
-            statusText.Text = "📡 Target keluar radius, mencari ulang"
-            statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
-            resetTarget()
-            scanTarget()
-        else
-            if isNearTarget then
-                isNearTarget = false
-                stopAutoClick()
-                statusText.Text = "🚶 Menuju target"
-                statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
-            end
-            walkToPart(currentTarget)
-        end
-    else
-        statusText.Text = "💀 Target hilang, mencari ulang"
+    if not currentTarget or not currentTarget.Parent or not currentTarget:IsA("BasePart") then
+        statusText.Text = "🔍 Target hilang, mencari target baru..."
         statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
         resetTarget()
-        scanTarget()
+        findNewTarget()
+        return
+    end
+    
+    local distanceToTarget = (currentRootPart.Position - currentTarget.Position).Magnitude
+    
+    if distanceToTarget <= stopDistance then
+        if not isNearTarget then
+            isNearTarget = true
+            statusText.Text = "🔘 Auto click aktif (jarak " .. math.floor(distanceToTarget) .. " stud)"
+            statusText.TextColor3 = Color3.fromRGB(255, 100, 0)
+            startAutoClick()
+        end
+        stopWalking()
+    elseif distanceToTarget > searchRadius then
+        statusText.Text = "📡 Target keluar radius, mencari target baru..."
+        statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
+        resetTarget()
+        findNewTarget()
+    else
+        if isNearTarget then
+            isNearTarget = false
+            stopAutoClick()
+            statusText.Text = "🚶 Menuju target (jarak " .. math.floor(distanceToTarget) .. " stud)"
+            statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+        end
+        walkToTarget()
     end
 end)
 
@@ -496,7 +528,7 @@ toggleButton.MouseButton1Click:Connect(function()
     if walkEnabled then
         updateCharacter()
         resetTarget()
-        scanTarget()
+        findNewTarget()
         statusText.Text = "🟢 Auto Walk ON"
     else
         resetTarget()
@@ -510,6 +542,7 @@ settingsButton.MouseButton1Click:Connect(function()
     settingsFrame.Visible = true
     partNameInput.Text = targetPartName
     radiusInput.Text = tostring(searchRadius)
+    stopDistanceInput.Text = tostring(stopDistance)
     clickDelayInput.Text = tostring(clickDelay)
 end)
 
@@ -535,10 +568,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.X then
         walkEnabled = not walkEnabled
         updateUI()
+        
         if walkEnabled then
             updateCharacter()
             resetTarget()
-            scanTarget()
+            findNewTarget()
             statusText.Text = "🟢 Auto Walk ON"
         else
             resetTarget()
@@ -554,7 +588,7 @@ player.CharacterAdded:Connect(function()
     updateCharacter()
     if walkEnabled then
         resetTarget()
-        scanTarget()
+        findNewTarget()
     end
 end)
 
