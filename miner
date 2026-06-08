@@ -1,0 +1,1014 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInput = game:GetService("VirtualInputManager")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoWalkGUI"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- ========== MAIN FRAME ==========
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+mainFrame.BackgroundTransparency = 0
+mainFrame.Size = UDim2.new(0, 320, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -160)
+mainFrame.Visible = true
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Parent = mainFrame
+mainStroke.Color = Color3.fromRGB(60, 60, 70)
+mainStroke.Thickness = 1
+
+-- Header
+local header = Instance.new("Frame")
+header.Parent = mainFrame
+header.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+header.Size = UDim2.new(1, 0, 0, 45)
+header.Position = UDim2.new(0, 0, 0, 0)
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 12)
+headerCorner.Parent = header
+
+local headerStroke = Instance.new("UIStroke")
+headerStroke.Parent = header
+headerStroke.Color = Color3.fromRGB(80, 80, 100)
+headerStroke.Thickness = 1
+
+local title = Instance.new("TextLabel")
+title.Parent = header
+title.Text = "🎯 AUTO WALK & CLICK"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 14
+title.Font = Enum.Font.GothamBold
+title.Size = UDim2.new(1, -35, 0, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 20)
+title.BackgroundTransparency = 1
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local closeMainButton = Instance.new("TextButton")
+closeMainButton.Parent = header
+closeMainButton.Text = "✕"
+closeMainButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+closeMainButton.BackgroundTransparency = 1
+closeMainButton.Size = UDim2.new(0, 35, 1, 0)
+closeMainButton.Position = UDim2.new(1, -35, 0, 0)
+closeMainButton.Font = Enum.Font.GothamBold
+closeMainButton.TextSize = 16
+closeMainButton.AutoButtonColor = false
+
+-- Status
+local statusText = Instance.new("TextLabel")
+statusText.Parent = mainFrame
+statusText.Text = "⚙️ Klik tombol ⚙️ untuk pengaturan"
+statusText.TextColor3 = Color3.fromRGB(180, 180, 200)
+statusText.TextSize = 11
+statusText.Font = Enum.Font.Gotham
+statusText.Size = UDim2.new(1, -20, 0, 30)
+statusText.Position = UDim2.new(0, 10, 0, 55)
+statusText.BackgroundTransparency = 1
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Info Panel
+local infoPanel = Instance.new("ScrollingFrame")
+infoPanel.Parent = mainFrame
+infoPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+infoPanel.BackgroundTransparency = 0
+infoPanel.Size = UDim2.new(1, -20, 0, 160)
+infoPanel.Position = UDim2.new(0, 10, 0, 90)
+infoPanel.BorderSizePixel = 0
+infoPanel.ScrollBarThickness = 3
+infoPanel.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+infoPanel.CanvasSize = UDim2.new(0, 0, 0, 180)
+
+local infoCorner = Instance.new("UICorner")
+infoCorner.CornerRadius = UDim.new(0, 8)
+infoCorner.Parent = infoPanel
+
+local infoContent = Instance.new("Frame")
+infoContent.Parent = infoPanel
+infoContent.BackgroundTransparency = 1
+infoContent.Size = UDim2.new(1, -10, 0, 180)
+infoContent.Position = UDim2.new(0, 5, 0, 5)
+
+-- Target
+local targetIcon = Instance.new("TextLabel")
+targetIcon.Parent = infoContent
+targetIcon.Text = "📍"
+targetIcon.TextColor3 = Color3.fromRGB(100, 255, 100)
+targetIcon.TextSize = 14
+targetIcon.Font = Enum.Font.Gotham
+targetIcon.Size = UDim2.new(0, 25, 0, 25)
+targetIcon.Position = UDim2.new(0, 0, 0, 0)
+targetIcon.BackgroundTransparency = 1
+
+local targetText = Instance.new("TextLabel")
+targetText.Parent = infoContent
+targetText.Text = "Target: Semua part"
+targetText.TextColor3 = Color3.fromRGB(220, 220, 255)
+targetText.TextSize = 11
+targetText.Font = Enum.Font.GothamBold
+targetText.Size = UDim2.new(1, -35, 0, 25)
+targetText.Position = UDim2.new(0, 30, 0, 0)
+targetText.BackgroundTransparency = 1
+targetText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Stop Info
+local stopIcon = Instance.new("TextLabel")
+stopIcon.Parent = infoContent
+stopIcon.Text = "🛑"
+stopIcon.TextColor3 = Color3.fromRGB(255, 180, 100)
+stopIcon.TextSize = 14
+stopIcon.Font = Enum.Font.Gotham
+stopIcon.Size = UDim2.new(0, 25, 0, 25)
+stopIcon.Position = UDim2.new(0, 0, 0, 28)
+stopIcon.BackgroundTransparency = 1
+
+local stopInfoText = Instance.new("TextLabel")
+stopInfoText.Parent = infoContent
+stopInfoText.Text = "Berhenti: 5 stud | Click mulai: 6 stud"
+stopInfoText.TextColor3 = Color3.fromRGB(255, 200, 120)
+stopInfoText.TextSize = 11
+stopInfoText.Font = Enum.Font.Gotham
+stopInfoText.Size = UDim2.new(1, -35, 0, 25)
+stopInfoText.Position = UDim2.new(0, 30, 0, 28)
+stopInfoText.BackgroundTransparency = 1
+stopInfoText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Click Info
+local clickIcon = Instance.new("TextLabel")
+clickIcon.Parent = infoContent
+clickIcon.Text = "🖱️"
+clickIcon.TextColor3 = Color3.fromRGB(100, 200, 255)
+clickIcon.TextSize = 14
+clickIcon.Font = Enum.Font.Gotham
+clickIcon.Size = UDim2.new(0, 25, 0, 25)
+clickIcon.Position = UDim2.new(0, 0, 0, 56)
+clickIcon.BackgroundTransparency = 1
+
+local clickInfoText = Instance.new("TextLabel")
+clickInfoText.Parent = infoContent
+clickInfoText.Text = "Click delay: 0.05s"
+clickInfoText.TextColor3 = Color3.fromRGB(150, 200, 255)
+clickInfoText.TextSize = 11
+clickInfoText.Font = Enum.Font.Gotham
+clickInfoText.Size = UDim2.new(1, -35, 0, 25)
+clickInfoText.Position = UDim2.new(0, 30, 0, 56)
+clickInfoText.BackgroundTransparency = 1
+clickInfoText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Distance Info
+local distanceIcon = Instance.new("TextLabel")
+distanceIcon.Parent = infoContent
+distanceIcon.Text = "📏"
+distanceIcon.TextColor3 = Color3.fromRGB(150, 150, 255)
+distanceIcon.TextSize = 14
+distanceIcon.Font = Enum.Font.Gotham
+distanceIcon.Size = UDim2.new(0, 25, 0, 25)
+distanceIcon.Position = UDim2.new(0, 0, 0, 84)
+distanceIcon.BackgroundTransparency = 1
+
+local distanceInfoText = Instance.new("TextLabel")
+distanceInfoText.Parent = infoContent
+distanceInfoText.Text = "Jarak: -"
+distanceInfoText.TextColor3 = Color3.fromRGB(180, 180, 255)
+distanceInfoText.TextSize = 11
+distanceInfoText.Font = Enum.Font.Gotham
+distanceInfoText.Size = UDim2.new(1, -35, 0, 25)
+distanceInfoText.Position = UDim2.new(0, 30, 0, 84)
+distanceInfoText.BackgroundTransparency = 1
+distanceInfoText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Character Near Info (hanya info, tidak mempengaruhi logika)
+local charNearIcon = Instance.new("TextLabel")
+charNearIcon.Parent = infoContent
+charNearIcon.Text = "👤"
+charNearIcon.TextColor3 = Color3.fromRGB(255, 100, 100)
+charNearIcon.TextSize = 14
+charNearIcon.Font = Enum.Font.Gotham
+charNearIcon.Size = UDim2.new(0, 25, 0, 25)
+charNearIcon.Position = UDim2.new(0, 0, 0, 112)
+charNearIcon.BackgroundTransparency = 1
+
+local charNearText = Instance.new("TextLabel")
+charNearText.Parent = infoContent
+charNearText.Text = "Karakter sekitar: -"
+charNearText.TextColor3 = Color3.fromRGB(255, 150, 150)
+charNearText.TextSize = 10
+charNearText.Font = Enum.Font.Gotham
+charNearText.Size = UDim2.new(1, -35, 0, 25)
+charNearText.Position = UDim2.new(0, 30, 0, 112)
+charNearText.BackgroundTransparency = 1
+charNearText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Avoid Status
+local avoidIcon = Instance.new("TextLabel")
+avoidIcon.Parent = infoContent
+avoidIcon.Text = "🚫"
+avoidIcon.TextColor3 = Color3.fromRGB(255, 200, 100)
+avoidIcon.TextSize = 14
+avoidIcon.Font = Enum.Font.Gotham
+avoidIcon.Size = UDim2.new(0, 25, 0, 25)
+avoidIcon.Position = UDim2.new(0, 0, 0, 140)
+avoidIcon.BackgroundTransparency = 1
+
+local avoidStatusText = Instance.new("TextLabel")
+avoidStatusText.Parent = infoContent
+avoidStatusText.Text = "Hindari karakter: ON"
+avoidStatusText.TextColor3 = Color3.fromRGB(255, 200, 100)
+avoidStatusText.TextSize = 10
+avoidStatusText.Font = Enum.Font.Gotham
+avoidStatusText.Size = UDim2.new(1, -35, 0, 25)
+avoidStatusText.Position = UDim2.new(0, 30, 0, 140)
+avoidStatusText.BackgroundTransparency = 1
+avoidStatusText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Button Panel
+local buttonPanel = Instance.new("Frame")
+buttonPanel.Parent = mainFrame
+buttonPanel.BackgroundTransparency = 1
+buttonPanel.Size = UDim2.new(1, -20, 0, 45)
+buttonPanel.Position = UDim2.new(0, 10, 0, 260)
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Parent = buttonPanel
+toggleButton.Text = "OFF"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+toggleButton.Size = UDim2.new(0.65, 0, 1, 0)
+toggleButton.Position = UDim2.new(0, 0, 0, 0)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 16
+toggleButton.AutoButtonColor = true
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleButton
+
+local settingsButton = Instance.new("TextButton")
+settingsButton.Parent = buttonPanel
+settingsButton.Text = "⚙️"
+settingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+settingsButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+settingsButton.Size = UDim2.new(0.3, 0, 1, 0)
+settingsButton.Position = UDim2.new(0.68, 0, 0, 0)
+settingsButton.Font = Enum.Font.GothamBold
+settingsButton.TextSize = 22
+settingsButton.AutoButtonColor = true
+
+local settingsCorner = Instance.new("UICorner")
+settingsCorner.CornerRadius = UDim.new(0, 8)
+settingsCorner.Parent = settingsButton
+
+-- Footer
+local footer = Instance.new("TextLabel")
+footer.Parent = mainFrame
+footer.Text = "Tekan H untuk hide/show | Klik ✕ untuk tutup"
+footer.TextColor3 = Color3.fromRGB(100, 100, 120)
+footer.TextSize = 9
+footer.Font = Enum.Font.Gotham
+footer.Size = UDim2.new(1, -20, 0, 15)
+footer.Position = UDim2.new(0, 10, 0, 305)
+footer.BackgroundTransparency = 1
+footer.TextXAlignment = Enum.TextXAlignment.Center
+
+local function toggleMainGUI()
+	mainFrame.Visible = not mainFrame.Visible
+end
+
+closeMainButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.H and input.UserInputType == Enum.UserInputType.Keyboard then
+		toggleMainGUI()
+	end
+end)
+
+-- ========== SETTINGS FRAME ==========
+local settingsFrame = Instance.new("Frame")
+settingsFrame.Name = "SettingsFrame"
+settingsFrame.Parent = screenGui
+settingsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+settingsFrame.BackgroundTransparency = 0
+settingsFrame.Size = UDim2.new(0, 440, 0, 520)
+settingsFrame.Position = UDim2.new(0.5, -220, 0.5, -260)
+settingsFrame.Visible = false
+settingsFrame.Active = true
+settingsFrame.Draggable = true
+
+local settingsCorner2 = Instance.new("UICorner")
+settingsCorner2.CornerRadius = UDim.new(0, 14)
+settingsCorner2.Parent = settingsFrame
+
+local settingsStroke = Instance.new("UIStroke")
+settingsStroke.Parent = settingsFrame
+settingsStroke.Color = Color3.fromRGB(80, 80, 100)
+settingsStroke.Thickness = 1
+
+local settingsHeader = Instance.new("Frame")
+settingsHeader.Parent = settingsFrame
+settingsHeader.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+settingsHeader.Size = UDim2.new(1, 0, 0, 50)
+settingsHeader.Position = UDim2.new(0, 0, 0, 0)
+
+local settingsHeaderCorner = Instance.new("UICorner")
+settingsHeaderCorner.CornerRadius = UDim.new(0, 14)
+settingsHeaderCorner.Parent = settingsHeader
+
+local settingsTitle = Instance.new("TextLabel")
+settingsTitle.Parent = settingsHeader
+settingsTitle.Text = "⚙️ PENGATURAN"
+settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+settingsTitle.TextSize = 16
+settingsTitle.Font = Enum.Font.GothamBold
+settingsTitle.Size = UDim2.new(1, 0, 1, 0)
+settingsTitle.BackgroundTransparency = 1
+
+local headerCloseButton = Instance.new("TextButton")
+headerCloseButton.Parent = settingsHeader
+headerCloseButton.Text = "✕"
+headerCloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+headerCloseButton.BackgroundTransparency = 1
+headerCloseButton.Size = UDim2.new(0, 40, 1, 0)
+headerCloseButton.Position = UDim2.new(1, -40, 0, 0)
+headerCloseButton.Font = Enum.Font.GothamBold
+headerCloseButton.TextSize = 18
+headerCloseButton.AutoButtonColor = false
+
+local scrollContainer = Instance.new("ScrollingFrame")
+scrollContainer.Parent = settingsFrame
+scrollContainer.BackgroundTransparency = 1
+scrollContainer.Size = UDim2.new(1, 0, 1, -100)
+scrollContainer.Position = UDim2.new(0, 0, 0, 50)
+scrollContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollContainer.ScrollBarThickness = 4
+scrollContainer.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+scrollContainer.BorderSizePixel = 0
+
+local contentContainer = Instance.new("Frame")
+contentContainer.Parent = scrollContainer
+contentContainer.BackgroundTransparency = 1
+contentContainer.Size = UDim2.new(1, -40, 0, 0)
+contentContainer.Position = UDim2.new(0, 20, 0, 10)
+
+local scrollLayout = Instance.new("UIListLayout")
+scrollLayout.Parent = contentContainer
+scrollLayout.Padding = UDim.new(0, 12)
+scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function createSettingRow(parent, labelText, placeholderText, order)
+	local row = Instance.new("Frame")
+	row.Parent = parent
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, 0, 0, 45)
+	row.LayoutOrder = order
+
+	local label = Instance.new("TextLabel")
+	label.Parent = row
+	label.Text = labelText
+	label.TextColor3 = Color3.fromRGB(200, 200, 220)
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBold
+	label.Size = UDim2.new(0.48, 0, 1, 0)
+	label.Position = UDim2.new(0, 0, 0, 0)
+	label.BackgroundTransparency = 1
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local textBox = Instance.new("TextBox")
+	textBox.Parent = row
+	textBox.PlaceholderText = placeholderText
+	textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+	textBox.Size = UDim2.new(0.48, 0, 1, 0)
+	textBox.Position = UDim2.new(0.52, 0, 0, 0)
+	textBox.Font = Enum.Font.Gotham
+	textBox.TextSize = 13
+	textBox.ClearTextOnFocus = false
+
+	local textBoxCorner = Instance.new("UICorner")
+	textBoxCorner.CornerRadius = UDim.new(0, 8)
+	textBoxCorner.Parent = textBox
+
+	return row, textBox
+end
+
+local partNameRow, partNameInput = createSettingRow(contentContainer, "🎯 Nama Part Target", "Kosongkan untuk semua part", 1)
+local radiusRow, radiusInput = createSettingRow(contentContainer, "🔍 Radius Pencarian (stud)", "10 - 200", 2)
+local startClickRow, startClickInput = createSettingRow(contentContainer, "▶️ Mulai Auto Click pada jarak (stud)", "Harus > jarak berhenti", 3)
+local stopDistanceRow, stopDistanceInput = createSettingRow(contentContainer, "🛑 Jarak Berhenti dari Target (stud)", "2 - 20", 4)
+local clickDelayRow, clickDelayInput = createSettingRow(contentContainer, "⏱️ Delay Click (detik)", "0.05 - 1", 5)
+
+local avoidCharRow = Instance.new("Frame")
+avoidCharRow.Parent = contentContainer
+avoidCharRow.BackgroundTransparency = 1
+avoidCharRow.Size = UDim2.new(1, 0, 0, 45)
+avoidCharRow.LayoutOrder = 6
+
+local avoidCharLabel = Instance.new("TextLabel")
+avoidCharLabel.Parent = avoidCharRow
+avoidCharLabel.Text = "🚫 Cari Part Tanpa Karakter (saat target hilang)"
+avoidCharLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+avoidCharLabel.TextSize = 12
+avoidCharLabel.Font = Enum.Font.GothamBold
+avoidCharLabel.Size = UDim2.new(0.48, 0, 1, 0)
+avoidCharLabel.Position = UDim2.new(0, 0, 0, 0)
+avoidCharLabel.BackgroundTransparency = 1
+avoidCharLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local avoidCharToggle = Instance.new("TextButton")
+avoidCharToggle.Parent = avoidCharRow
+avoidCharToggle.Text = "ON"
+avoidCharToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+avoidCharToggle.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+avoidCharToggle.Size = UDim2.new(0.15, 0, 0.7, 0)
+avoidCharToggle.Position = UDim2.new(0.52, 0, 0.15, 0)
+avoidCharToggle.Font = Enum.Font.GothamBold
+avoidCharToggle.TextSize = 13
+avoidCharToggle.AutoButtonColor = true
+
+local avoidCharCorner = Instance.new("UICorner")
+avoidCharCorner.CornerRadius = UDim.new(0, 8)
+avoidCharCorner.Parent = avoidCharToggle
+
+local avoidDistanceRow, avoidDistanceInput = createSettingRow(contentContainer, "👤 Jarak Hindari Karakter (stud)", "3 - 30", 7)
+avoidDistanceInput.Text = "8"
+
+radiusInput.Text = "50"
+startClickInput.Text = "6"
+stopDistanceInput.Text = "5"
+clickDelayInput.Text = "0.05"
+
+local function updateContainerHeight()
+	local totalHeight = 0
+	for _, child in ipairs(contentContainer:GetChildren()) do
+		if child:IsA("Frame") then
+			totalHeight = totalHeight + child.Size.Y.Offset + 12
+		end
+	end
+	contentContainer.Size = UDim2.new(1, -40, 0, totalHeight + 20)
+	scrollContainer.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 50)
+end
+
+scrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	updateContainerHeight()
+end)
+
+local settingsBottom = Instance.new("Frame")
+settingsBottom.Parent = settingsFrame
+settingsBottom.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+settingsBottom.BackgroundTransparency = 0
+settingsBottom.Size = UDim2.new(1, 0, 0, 55)
+settingsBottom.Position = UDim2.new(0, 0, 1, -55)
+settingsBottom.BorderSizePixel = 0
+
+local buttonContainer = Instance.new("Frame")
+buttonContainer.Parent = settingsBottom
+buttonContainer.BackgroundTransparency = 1
+buttonContainer.Size = UDim2.new(1, -40, 0, 40)
+buttonContainer.Position = UDim2.new(0, 20, 0, 8)
+
+local saveButton = Instance.new("TextButton")
+saveButton.Parent = buttonContainer
+saveButton.Text = "💾 SIMPAN"
+saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveButton.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+saveButton.Size = UDim2.new(0.48, 0, 1, 0)
+saveButton.Position = UDim2.new(0, 0, 0, 0)
+saveButton.Font = Enum.Font.GothamBold
+saveButton.TextSize = 14
+saveButton.AutoButtonColor = true
+
+local saveCorner = Instance.new("UICorner")
+saveCorner.CornerRadius = UDim.new(0, 8)
+saveCorner.Parent = saveButton
+
+local closeSetButton = Instance.new("TextButton")
+closeSetButton.Parent = buttonContainer
+closeSetButton.Text = "❌ TUTUP"
+closeSetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeSetButton.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+closeSetButton.Size = UDim2.new(0.48, 0, 1, 0)
+closeSetButton.Position = UDim2.new(0.52, 0, 0, 0)
+closeSetButton.Font = Enum.Font.GothamBold
+closeSetButton.TextSize = 14
+closeSetButton.AutoButtonColor = true
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeSetButton
+
+-- ========== VARIABEL ==========
+local walkEnabled = false
+local targetPartName = ""
+local searchRadius = 50
+local startClickDistance = 6
+local stopDistance = 5
+local clickDelay = 0.05
+local avoidCharacters = true
+local avoidDistance = 8
+local currentTarget = nil
+local currentCharacter = nil
+local currentHumanoid = nil
+local currentRootPart = nil
+local isClicking = false
+local clickTask = nil
+local autoWalkActive = false
+
+-- CACHE UNTUK SCAN (HANYA SAAT CARI TARGET)
+local cachedAllParts = nil
+
+-- ========== FUNGSI ==========
+
+local function updateCharacter()
+	currentCharacter = player.Character
+	if currentCharacter and currentCharacter.Parent then
+		currentHumanoid = currentCharacter:FindFirstChild("Humanoid")
+		currentRootPart = currentCharacter:FindFirstChild("HumanoidRootPart")
+		return currentHumanoid ~= nil and currentRootPart ~= nil
+	end
+	return false
+end
+
+-- FUNGSI SCAN PART (DIPANGGIL HANYA SAAT CARI TARGET BARU)
+local function scanAllParts()
+	local parts = {}
+	local success, descendants = pcall(function() return workspace:GetDescendants() end)
+	if not success or not descendants then return parts end
+
+	for i = 1, #descendants do
+		local obj = descendants[i]
+		if obj and obj:IsA("BasePart") then
+			-- Skip part milik player sendiri
+			local isOwnPart = false
+			if currentCharacter then
+				if obj.Parent == currentCharacter or obj:IsDescendantOf(currentCharacter) then
+					isOwnPart = true
+				end
+			end
+			if not isOwnPart then
+				-- Skip part tertentu
+				local isExcluded = (obj.Name == "Baseplate" or obj.Name == "Terrain")
+				if not isExcluded then
+					local nameMatches = (targetPartName == "" or obj.Name == targetPartName)
+					if nameMatches then
+						table.insert(parts, obj)
+					end
+				end
+			end
+		end
+	end
+	
+	print(string.format("📊 Scan completed: Found %d target parts", #parts))
+	return parts
+end
+
+-- FUNGSI SCAN KARAKTER (DIPANGGIL HANYA SAAT CARI TARGET BARU)
+local function scanAllCharacters()
+	local characters = {}
+	local success, descendants = pcall(function() return workspace:GetDescendants() end)
+	if not success or not descendants then return characters end
+
+	for i = 1, #descendants do
+		local obj = descendants[i]
+		if obj and obj:IsA("Humanoid") then
+			local character = obj.Parent
+			if character then
+				local rootPart = character:FindFirstChild("HumanoidRootPart")
+				if rootPart and rootPart:IsA("BasePart") then
+					table.insert(characters, {
+						humanoid = obj,
+						character = character,
+						rootPart = rootPart,
+						name = character.Name or "Unknown"
+					})
+				end
+			end
+		end
+	end
+	
+	return characters
+end
+
+-- CEK APAKAH PART AMAN (TIDAK ADA KARAKTER DI SEKITAR)
+local function isPartSafe(part, allCharacters, checkRadius)
+	if not part or not part.Position then return true end
+	
+	for i = 1, #allCharacters do
+		local char = allCharacters[i]
+		if char.character ~= currentCharacter then
+			local success, distance = pcall(function()
+				return (part.Position - char.rootPart.Position).Magnitude
+			end)
+			if success and distance and distance < checkRadius then
+				return false, char.name
+			end
+		end
+	end
+	return true, nil
+end
+
+-- MENCARI TARGET TERDEKAT YANG AMAN (SCAN SEKALI SAAT DIPANGGIL)
+local function findNearestSafePart()
+	if not updateCharacter() then return nil end
+	if not currentRootPart or not currentRootPart.Position then return nil end
+
+	-- SCAN PART DAN KARAKTER SEKALI SAJA
+	local allParts = scanAllParts()
+	if not allParts or #allParts == 0 then
+		return nil
+	end
+	
+	local allCharacters = nil
+	if avoidCharacters then
+		allCharacters = scanAllCharacters()
+	end
+
+	local nearestPart = nil
+	local shortestDistance = searchRadius
+
+	for i = 1, #allParts do
+		local part = allParts[i]
+		if part and part.Parent then
+			local success, distance = pcall(function()
+				return (currentRootPart.Position - part.Position).Magnitude
+			end)
+
+			if success and distance then
+				local isPartValid = true
+				
+				if avoidCharacters and allCharacters then
+					local safe, _ = isPartSafe(part, allCharacters, avoidDistance)
+					if not safe then
+						isPartValid = false
+					end
+				end
+				
+				if isPartValid and distance < shortestDistance and distance > 2 then
+					shortestDistance = distance
+					nearestPart = part
+				end
+			end
+		end
+	end
+	
+	if nearestPart then
+		print("🎯 Target found:", nearestPart.Name, "Distance:", shortestDistance)
+	else
+		print("🔍 No safe target found")
+	end
+	
+	return nearestPart
+end
+
+local function leftClick()
+	pcall(function()
+		VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+		task.wait(0.05)
+		VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+	end)
+end
+
+local function startAutoClick()
+	if clickTask then
+		task.cancel(clickTask)
+		clickTask = nil
+	end
+
+	clickTask = task.spawn(function()
+		while isClicking and walkEnabled and currentTarget and currentTarget.Parent do
+			leftClick()
+			task.wait(clickDelay)
+		end
+	end)
+end
+
+local function stopAutoClick()
+	if clickTask then
+		task.cancel(clickTask)
+		clickTask = nil
+	end
+end
+
+local function findNewTarget()
+	if not updateCharacter() then return false end
+
+	local target = findNearestSafePart()
+
+	if target then
+		currentTarget = target
+		autoWalkActive = true
+
+		if targetPartName ~= "" then
+			statusText.Text = "🎯 Target: " .. target.Name
+		else
+			statusText.Text = "🎯 Target: " .. target.Name
+		end
+		statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+		
+		-- Update info karakter di UI (hanya sekali)
+		if avoidCharacters then
+			charNearText.Text = "✅ Target aman (tidak ada karakter dalam " .. avoidDistance .. " stud)"
+			charNearText.TextColor3 = Color3.fromRGB(100, 255, 100)
+		else
+			charNearText.Text = "⏸️ Fitur hindari karakter NONAKTIF"
+			charNearText.TextColor3 = Color3.fromRGB(150, 150, 150)
+		end
+		
+		return true
+	else
+		if targetPartName ~= "" then
+			statusText.Text = "⚠️ '" .. targetPartName .. "' tidak ditemukan"
+		else
+			if avoidCharacters then
+				statusText.Text = "🔍 Tidak ada part aman (tanpa karakter) dalam radius " .. searchRadius
+			else
+				statusText.Text = "🔍 Tidak ada part dalam radius " .. searchRadius
+			end
+		end
+		statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
+		autoWalkActive = false
+		currentTarget = nil
+		return false
+	end
+end
+
+local function walkToTarget()
+	if not currentTarget or not currentHumanoid or currentHumanoid.Health <= 0 then return end
+	if not currentRootPart or not currentTarget.Position then return end
+
+	local success, direction = pcall(function()
+		return (currentTarget.Position - currentRootPart.Position).Unit
+	end)
+
+	if success and direction then
+		local stopPosition = currentTarget.Position - (direction * stopDistance)
+		currentHumanoid:MoveTo(stopPosition)
+		currentHumanoid.AutoRotate = true
+	end
+end
+
+local function stopWalking()
+	if currentHumanoid and currentHumanoid.Health > 0 and currentRootPart then
+		currentHumanoid:MoveTo(currentRootPart.Position)
+	end
+end
+
+local function resetTarget()
+	if isClicking then
+		isClicking = false
+		stopAutoClick()
+	end
+	autoWalkActive = false
+	currentTarget = nil
+	stopWalking()
+end
+
+local function updateUI()
+	if walkEnabled then
+		toggleButton.Text = "ON"
+		toggleButton.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+	else
+		toggleButton.Text = "OFF"
+		toggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+	end
+
+	if targetPartName ~= "" then
+		targetText.Text = "Target: " .. targetPartName
+	else
+		targetText.Text = "Target: Semua part"
+	end
+
+	stopInfoText.Text = "Berhenti: " .. stopDistance .. " stud | Click mulai: " .. startClickDistance .. " stud"
+	clickInfoText.Text = "Click delay: " .. clickDelay .. "s"
+
+	if avoidCharacters then
+		avoidCharToggle.Text = "ON"
+		avoidCharToggle.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+		avoidStatusText.Text = "Mode: Cari part tanpa karakter (saat target hilang)"
+		avoidStatusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+	else
+		avoidCharToggle.Text = "OFF"
+		avoidCharToggle.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+		avoidStatusText.Text = "Mode: Cari semua part (saat target hilang)"
+		avoidStatusText.TextColor3 = Color3.fromRGB(255, 150, 150)
+	end
+end
+
+local function saveSettings()
+	targetPartName = partNameInput.Text
+	local newRadius = tonumber(radiusInput.Text)
+	if newRadius and newRadius > 0 then searchRadius = math.min(newRadius, 200) end
+	radiusInput.Text = tostring(searchRadius)
+
+	local newStartClick = tonumber(startClickInput.Text)
+	if newStartClick and newStartClick > 0 then startClickDistance = math.min(math.max(newStartClick, 2), 50) end
+	startClickInput.Text = tostring(startClickDistance)
+
+	local newStopDistance = tonumber(stopDistanceInput.Text)
+	if newStopDistance and newStopDistance > 0 then stopDistance = math.min(math.max(newStopDistance, 2), 20) end
+	stopDistanceInput.Text = tostring(stopDistance)
+
+	if startClickDistance <= stopDistance then
+		startClickDistance = stopDistance + 1
+		startClickInput.Text = tostring(startClickDistance)
+		statusText.Text = "⚠️ Mulai click harus > jarak berhenti!"
+		task.wait(1.5)
+	end
+
+	local newClickDelay = tonumber(clickDelayInput.Text)
+	if newClickDelay and newClickDelay > 0 then clickDelay = math.min(newClickDelay, 1) end
+	clickDelayInput.Text = tostring(clickDelay)
+
+	local newAvoidDistance = tonumber(avoidDistanceInput.Text)
+	if newAvoidDistance and newAvoidDistance > 0 then avoidDistance = math.min(math.max(newAvoidDistance, 3), 30) end
+	avoidDistanceInput.Text = tostring(avoidDistance)
+
+	updateUI()
+	settingsFrame.Visible = false
+
+	statusText.Text = "✅ Setting tersimpan!"
+	task.wait(1)
+	if walkEnabled then
+		statusText.Text = "🎯 Auto Walk & Click aktif"
+	else
+		statusText.Text = "⚙️ Klik tombol ⚙️ untuk pengaturan"
+	end
+end
+
+avoidCharToggle.MouseButton1Click:Connect(function()
+	avoidCharacters = not avoidCharacters
+	updateUI()
+	if avoidCharacters then
+		statusText.Text = "✅ Mode: Cari part tanpa karakter (saat target hilang)"
+	else
+		statusText.Text = "⏸️ Mode: Cari semua part (saat target hilang)"
+	end
+	task.wait(1)
+	if walkEnabled then
+		resetTarget()
+		findNewTarget()
+	end
+end)
+
+-- ========== MAIN LOOP (TANPA SCAN, HANYA GERAK DAN CLICK) ==========
+RunService.RenderStepped:Connect(function()
+	if not walkEnabled then
+		if autoWalkActive or isClicking then
+			resetTarget()
+		end
+		return
+	end
+
+	if not updateCharacter() then
+		return
+	end
+
+	if currentHumanoid.Health <= 0 then
+		resetTarget()
+		return
+	end
+
+	if not autoWalkActive then
+		findNewTarget()
+		return
+	end
+
+	-- CEK APAKAH TARGET MASIH ADA (TANPA SCAN)
+	if not currentTarget or not currentTarget.Parent or not currentTarget:IsA("BasePart") then
+		statusText.Text = "🔍 Target hilang, mencari target baru..."
+		statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
+		resetTarget()
+		findNewTarget()
+		return
+	end
+
+	-- HANYA HITUNG JARAK (TIDAK ADA SCAN KARAKTER)
+	local distanceToTarget = (currentRootPart.Position - currentTarget.Position).Magnitude
+	distanceInfoText.Text = "Jarak: " .. string.format("%.1f", distanceToTarget) .. " stud"
+
+	-- LOGIKA UTAMA
+	if distanceToTarget <= stopDistance then
+		if not isClicking then
+			isClicking = true
+			statusText.Text = "🔘 Auto click ON (sudah di target, jarak " .. string.format("%.1f", distanceToTarget) .. " stud)"
+			statusText.TextColor3 = Color3.fromRGB(255, 100, 0)
+			startAutoClick()
+		end
+		stopWalking()
+
+	elseif distanceToTarget <= startClickDistance then
+		if not isClicking then
+			isClicking = true
+			statusText.Text = "🔘 Auto click ON (dalam jangkauan, jarak " .. string.format("%.1f", distanceToTarget) .. " stud)"
+			statusText.TextColor3 = Color3.fromRGB(255, 100, 0)
+			startAutoClick()
+		end
+		walkToTarget()
+
+	elseif distanceToTarget <= searchRadius then
+		if isClicking then
+			isClicking = false
+			stopAutoClick()
+			statusText.Text = "🚶 Menuju target (jarak " .. string.format("%.1f", distanceToTarget) .. " stud) - Click OFF"
+			statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+		end
+		walkToTarget()
+
+	else
+		statusText.Text = "📡 Target keluar radius, mencari target baru..."
+		statusText.TextColor3 = Color3.fromRGB(255, 150, 0)
+		resetTarget()
+		findNewTarget()
+	end
+end)
+
+-- ========== EVENTS ==========
+toggleButton.MouseButton1Click:Connect(function()
+	walkEnabled = not walkEnabled
+	updateUI()
+
+	if walkEnabled then
+		updateCharacter()
+		resetTarget()
+		findNewTarget()
+		statusText.Text = "🟢 Auto Walk ON"
+	else
+		resetTarget()
+		statusText.Text = "🔴 Auto Walk OFF"
+		task.wait(1.5)
+		statusText.Text = "⚙️ Klik tombol ⚙️ untuk pengaturan"
+	end
+end)
+
+settingsButton.MouseButton1Click:Connect(function()
+	settingsFrame.Visible = true
+	partNameInput.Text = targetPartName
+	radiusInput.Text = tostring(searchRadius)
+	startClickInput.Text = tostring(startClickDistance)
+	stopDistanceInput.Text = tostring(stopDistance)
+	clickDelayInput.Text = tostring(clickDelay)
+	avoidDistanceInput.Text = tostring(avoidDistance)
+end)
+
+saveButton.MouseButton1Click:Connect(saveSettings)
+closeSetButton.MouseButton1Click:Connect(function() settingsFrame.Visible = false end)
+headerCloseButton.MouseButton1Click:Connect(function() settingsFrame.Visible = false end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 and settingsFrame.Visible then
+		local mousePos = UserInputService:GetMouseLocation()
+		local framePos = settingsFrame.AbsolutePosition
+		local frameSize = settingsFrame.AbsoluteSize
+
+		if not (mousePos.X >= framePos.X and mousePos.X <= framePos.X + frameSize.X and
+			mousePos.Y >= framePos.Y and mousePos.Y <= framePos.Y + frameSize.Y) then
+			settingsFrame.Visible = false
+		end
+	end
+
+	if input.KeyCode == Enum.KeyCode.X then
+		walkEnabled = not walkEnabled
+		updateUI()
+		if walkEnabled then
+			updateCharacter()
+			resetTarget()
+			findNewTarget()
+			statusText.Text = "🟢 Auto Walk ON"
+		else
+			resetTarget()
+			statusText.Text = "🔴 Auto Walk OFF"
+			task.wait(1.5)
+			statusText.Text = "⚙️ Klik tombol ⚙️ untuk pengaturan"
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function()
+	task.wait(0.5)
+	updateCharacter()
+	if walkEnabled then
+		resetTarget()
+		findNewTarget()
+	end
+end)
+
+updateCharacter()
+updateUI()
