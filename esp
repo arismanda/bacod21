@@ -20,12 +20,14 @@ local playerQueue = {}
 local settingsFrame = nil
 local isSettingsOpen = false
 local selectAllButton = nil
+local isSelectAllActive = false -- Variabel global untuk status select all
+local mainConnections = {} -- Untuk menyimpan koneksi utama
 
 -- Track notified players to avoid spam (only notify ONCE per entry)
 local notifiedPlayers = {} -- Stores player -> boolean (notified or not)
 local warningDistance = 100
 
--- SETTINGS TABLE FIRST
+-- SETTINGS TABLE FIRST (sebelum fungsi yang menggunakannya)
 local settings = {
 	lineColor = Color3.fromRGB(255, 50, 50),
 	highlightColor = Color3.fromRGB(255, 0, 0),
@@ -43,6 +45,7 @@ local settings = {
 	fontType = Enum.Font.Gotham,
 	fontName = "Gotham",
 	maxDistance = math.huge,
+	-- Notification settings
 	enableNotifications = true,
 	enableWarningSound = true,
 	warningSoundVolume = 0.5,
@@ -51,124 +54,78 @@ local settings = {
 	farColor = Color3.fromRGB(0, 255, 247)
 }
 
--- NOTIFICATION STACK SYSTEM (SEMUA NOTIFIKASI TAMPIL BERSAMAAN, STACK KE BAWAH)
+-- ============ NOTIFICATION STACK SYSTEM ============
 local activeNotifications = {} -- Menyimpan semua notifikasi yang sedang aktif
 local notificationIdCounter = 0
+local isRepositioning = false
 
 -- Fungsi untuk mereposisi semua notifikasi (stack ke bawah)
 local function repositionAllNotifications()
-	-- Urutkan dari yang paling lama (atas) ke yang baru (bawah)
+	if isRepositioning then return end
+	isRepositioning = true
+	
+	-- Filter notifikasi yang masih valid (frame masih ada)
+	local validNotifications = {}
+	for _, notif in ipairs(activeNotifications) do
+		if notif and notif.frame and notif.frame.Parent then
+			table.insert(validNotifications, notif)
+		end
+	end
+	activeNotifications = validNotifications
+	
+	-- Urutkan berdasarkan waktu pembuatan (yang lama di atas)
+	table.sort(activeNotifications, function(a, b)
+		return a.createdAt < b.createdAt
+	end)
+	
 	-- Posisi Y dimulai dari 10, setiap notifikasi +70px ke bawah
 	local yOffset = 10
-	for i, notif in ipairs(activeNotifications) do
+	for _, notif in ipairs(activeNotifications) do
 		if notif and notif.frame and notif.frame.Parent then
 			local targetY = yOffset
-			-- Animasi pergerakan yang halus
 			local tween = TweenService:Create(notif.frame,
-				TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 				{Position = UDim2.new(1, -330, 0, targetY)}
 			)
 			tween:Play()
-			yOffset = yOffset + 70 -- Tinggi notifikasi 60 + jarak 10
+			yOffset = yOffset + 70
 		end
 	end
+	
+	task.wait(0.25)
+	isRepositioning = false
 end
 
 -- Fungsi untuk menghapus notifikasi tertentu
 local function removeNotification(notificationId)
+	local notifToRemove = nil
+	local notifIndex = nil
+	
 	for i, notif in ipairs(activeNotifications) do
 		if notif.id == notificationId then
-			local frame = notif.frame
-			-- Animasi keluar
-			local tweenOut = TweenService:Create(frame,
-				TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-				{Position = UDim2.new(1, -20, 0, frame.Position.Y.Offset), BackgroundTransparency = 1}
-			)
-			tweenOut:Play()
-			tweenOut.Completed:Connect(function()
-				frame:Destroy()
-				table.remove(activeNotifications, i)
-				-- Reposisi notifikasi yang tersisa
-				repositionAllNotifications()
-			end)
+			notifToRemove = notif
+			notifIndex = i
 			break
 		end
 	end
+	
+	if notifToRemove and notifToRemove.frame then
+		local frame = notifToRemove.frame
+		table.remove(activeNotifications, notifIndex)
+		
+		local tweenOut = TweenService:Create(frame,
+			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{BackgroundTransparency = 1}
+		)
+		
+		tweenOut:Play()
+		tweenOut.Completed:Connect(function()
+			frame:Destroy()
+			repositionAllNotifications()
+		end)
+	end
 end
-
--- Fungsi showNotification (SEMUA NOTIFIKASI TAMPIL BERSAMAAN)
-local function showNotification(title, text, duration)
-	if not guiMain or not settings.enableNotifications then return end
-
-	notificationIdCounter = notificationIdCounter + 1
-	local notifId = notificationIdCounter
-
-	-- Hitung posisi Y berdasarkan jumlah notifikasi yang sudah ada
-	local yPos = 10 + (#activeNotifications * 70)
-
-	-- Buat notifikasi
-	local notificationFrame = Instance.new("Frame")
-	notificationFrame.Size = UDim2.new(0, 300, 0, 60)
-	-- Mulai dari luar kanan (siap animasi masuk)
-	notificationFrame.Position = UDim2.new(1, -20, 0, yPos)
-	notificationFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	notificationFrame.BackgroundTransparency = 0.1
-	notificationFrame.BorderSizePixel = 0
-	notificationFrame.Parent = guiMain
-
-	-- Simpan ke notifikasi aktif
-	local notifObject = {
-		frame = notificationFrame,
-		id = notifId,
-		createdAt = tick()
-	}
-	table.insert(activeNotifications, notifObject)
-
-	local notificationCorner = Instance.new("UICorner")
-	notificationCorner.CornerRadius = UDim.new(0, 8)
-	notificationCorner.Parent = notificationFrame
-
-	local notificationStroke = Instance.new("UIStroke")
-	notificationStroke.Color = Color3.fromRGB(255, 0, 0)
-	notificationStroke.Thickness = 2
-	notificationStroke.Transparency = 0.3
-	notificationStroke.Parent = notificationFrame
-
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -10, 0.4, 0)
-	titleLabel.Position = UDim2.new(0, 5, 0, 2)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = title
-	titleLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextSize = 14
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Parent = notificationFrame
-
-	local messageLabel = Instance.new("TextLabel")
-	messageLabel.Size = UDim2.new(1, -10, 0.6, 0)
-	messageLabel.Position = UDim2.new(0, 5, 0.4, 0)
-	messageLabel.BackgroundTransparency = 1
-	messageLabel.Text = text
-	messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	messageLabel.Font = Enum.Font.Gotham
-	messageLabel.TextSize = 12
-	messageLabel.TextWrapped = true
-	messageLabel.Parent = notificationFrame
-
-	-- Animate in (dari kanan ke posisi)
-	local tweenIn = TweenService:Create(notificationFrame, 
-		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{Position = UDim2.new(1, -330, 0, yPos)}
-	)
-	tweenIn:Play()
-
-	-- Auto remove after duration
-	task.wait(duration)
-
-	-- Hapus notifikasi setelah durasi selesai
-	removeNotification(notifId)
-end
+-- ===================================================
 
 local warningSound = nil
 
@@ -232,6 +189,90 @@ local function formatDistance(distance)
 	end
 end
 
+-- Fungsi showNotification (SEMUA NOTIFIKASI TAMPIL BERSAMAAN)
+local function showNotification(title, text, duration)
+	if not guiMain or not settings.enableNotifications then return end
+
+	notificationIdCounter = notificationIdCounter + 1
+	local notifId = notificationIdCounter
+
+	-- Hitung posisi Y berdasarkan jumlah notifikasi yang sudah ada
+	local yPos = 10 + (#activeNotifications * 70)
+
+	-- Buat notifikasi
+	local notificationFrame = Instance.new("Frame")
+	notificationFrame.Size = UDim2.new(0, 300, 0, 60)
+	notificationFrame.Position = UDim2.new(1, -20, 0, yPos)
+	notificationFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	notificationFrame.BackgroundTransparency = 0.1
+	notificationFrame.BorderSizePixel = 0
+	notificationFrame.Parent = guiMain
+
+	-- Simpan ke notifikasi aktif
+	local notifObject = {
+		frame = notificationFrame,
+		id = notifId,
+		createdAt = tick()
+	}
+	table.insert(activeNotifications, notifObject)
+
+	local notificationCorner = Instance.new("UICorner")
+	notificationCorner.CornerRadius = UDim.new(0, 8)
+	notificationCorner.Parent = notificationFrame
+
+	local notificationStroke = Instance.new("UIStroke")
+	notificationStroke.Color = Color3.fromRGB(255, 0, 0)
+	notificationStroke.Thickness = 2
+	notificationStroke.Transparency = 0.3
+	notificationStroke.Parent = notificationFrame
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, -10, 0.4, 0)
+	titleLabel.Position = UDim2.new(0, 5, 0, 2)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = title
+	titleLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 14
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = notificationFrame
+
+	local messageLabel = Instance.new("TextLabel")
+	messageLabel.Size = UDim2.new(1, -10, 0.6, 0)
+	messageLabel.Position = UDim2.new(0, 5, 0.4, 0)
+	messageLabel.BackgroundTransparency = 1
+	messageLabel.Text = text
+	messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	messageLabel.Font = Enum.Font.Gotham
+	messageLabel.TextSize = 12
+	messageLabel.TextWrapped = true
+	messageLabel.Parent = notificationFrame
+
+	-- Animate in
+	local tweenIn = TweenService:Create(notificationFrame, 
+		TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{Position = UDim2.new(1, -330, 0, yPos)}
+	)
+	tweenIn:Play()
+
+	-- Auto remove after duration
+	task.wait(duration)
+	
+	-- Cek apakah notifikasi masih ada
+	local stillExists = false
+	for _, notif in ipairs(activeNotifications) do
+		if notif.id == notifId then
+			stillExists = true
+			break
+		end
+	end
+	
+	if stillExists then
+		removeNotification(notifId)
+	end
+end
+
+-- Update line color based on distance
 local function updateLineColorForPlayer(player, distance)
 	local esp = espObjects[player]
 	if not esp or not esp.Beam then return end
@@ -250,12 +291,7 @@ local function updateLineColorForPlayer(player, distance)
 	end
 end
 
-local function resetNotifiedStatus(player)
-	if notifiedPlayers[player] then
-		notifiedPlayers[player] = nil
-	end
-end
-
+-- Update highlight color based on distance
 local function updateHighlightColorForPlayer(player, distance)
 	local esp = espObjects[player]
 	if not esp or not esp.Highlight then return end
@@ -274,6 +310,14 @@ local function updateHighlightColorForPlayer(player, distance)
 	end
 end
 
+-- Reset notified status when player leaves warning distance
+local function resetNotifiedStatus(player)
+	if notifiedPlayers[player] then
+		notifiedPlayers[player] = nil
+	end
+end
+
+-- Check for nearby players and trigger notifications (ONLY ONCE per entry)
 local function checkNearbyPlayers()
 	if not settings.enabled or not settings.enableNotifications then return end
 
@@ -288,23 +332,30 @@ local function checkNearbyPlayers()
 			local distance = ESPManager:GetPlayerDistance(player)
 
 			if distance and distance <= settings.warningDistance then
+				-- Update line color
 				updateLineColorForPlayer(player, distance)
+				-- Update highlight color
 				updateHighlightColorForPlayer(player, distance)
 
+				-- Check if we have NOT notified for this player yet
 				local alreadyNotified = notifiedPlayers[player]
 
 				if not alreadyNotified then
+					-- Mark as notified FIRST to prevent multiple notifications
 					notifiedPlayers[player] = true
 
+					-- Play sound
 					if settings.enableWarningSound then
 						playWarningSound()
 					end
 
+					-- Show notification
 					local playerName = getPlayerDisplayName(player)
 					local distanceText = formatDistance(distance)
 					showNotification("⚠️ WARNING!", 
 						playerName .. " is within " .. distanceText, 3)
 
+					-- Flash billboard frame for visual feedback
 					if esp.Billboard then
 						local frame = esp.Billboard:FindFirstChildWhichIsA("Frame")
 						if frame then
@@ -316,16 +367,20 @@ local function checkNearbyPlayers()
 					end
 				end
 			else
+				-- Player is out of warning range, reset notification status
 				if notifiedPlayers[player] then
 					resetNotifiedStatus(player)
 				end
+				-- Reset to far color
 				updateLineColorForPlayer(player, distance or math.huge)
+				-- Reset highlight to far color
 				updateHighlightColorForPlayer(player, distance or math.huge)
 			end
 		end
 	end
 end
 
+-- Reset all line colors
 local function resetAllLineColors()
 	for player, esp in pairs(espObjects) do
 		if esp.Beam then
@@ -335,32 +390,25 @@ local function resetAllLineColors()
 end
 
 function ESPManager:SelectAllPlayers()
-	local anyChecked = false
+	-- Toggle status select all
+	isSelectAllActive = not isSelectAllActive
 
 	for player, data in pairs(playerItems) do
-		if data.checkmark.Visible then
-			anyChecked = true
-			break
+		-- Set status checkmark berdasarkan isSelectAllActive
+		data.checkmark.Visible = isSelectAllActive
+
+		if isSelectAllActive then
+			data.checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+			self:EnableESP(player)
+		else
+			data.checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			self:DisableESP(player)
 		end
 	end
 
-	local newState = not anyChecked
-
-	for player, data in pairs(playerItems) do
-		if data.checkmark.Visible ~= newState then
-			data.checkmark.Visible = newState
-			if newState then
-				data.checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-				self:EnableESP(player)
-			else
-				data.checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-				self:DisableESP(player)
-			end
-		end
-	end
-
+	-- Update tampilan tombol Select All
 	if selectAllButton then
-		if newState then
+		if isSelectAllActive then
 			selectAllButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
 			selectAllButton.ImageColor3 = Color3.fromRGB(0, 255, 0)
 		else
@@ -557,7 +605,7 @@ function ESPManager:CreateSettingsPanel()
 			elseif isColor then
 				valueLabel.Text = string.format("%.0f", newValue)
 			else
-				valueLabel.Text = string.format("%.2f", newValue)
+				valueLabel.Text = string.format("%.0f", newValue)
 			end
 		end
 
@@ -884,6 +932,7 @@ function ESPManager:CreateSettingsPanel()
 		return colorFrame
 	end
 
+	-- Existing toggles and settings
 	createToggle(settingsContainer, "Enable ESP", function() return settings.enabled end, function(v)
 		settings.enabled = v
 		if not settings.enabled then
@@ -916,18 +965,15 @@ function ESPManager:CreateSettingsPanel()
 		end
 	end)
 
+	-- Notification toggles
 	createToggle(settingsContainer, "Enable Notifications", function() return settings.enableNotifications end, function(v)
 		settings.enableNotifications = v
 		if not v then
 			resetAllLineColors()
+			-- Clear notified players when disabled
 			for player in pairs(notifiedPlayers) do
 				notifiedPlayers[player] = nil
 			end
-			-- Hapus semua notifikasi yang aktif
-			for _, notif in ipairs(activeNotifications) do
-				if notif.frame then notif.frame:Destroy() end
-			end
-			activeNotifications = {}
 		end
 	end)
 
@@ -935,12 +981,20 @@ function ESPManager:CreateSettingsPanel()
 		settings.enableWarningSound = v
 	end)
 
+	-- Warning distance slider
 	createSlider(settingsContainer, "Warning Distance (m)", 10, 500, 
 		function() return settings.warningDistance end,
 		function(v) 
 			settings.warningDistance = v
 			warningDistance = v
 		end, false, false)
+
+	-- Sound volume slider
+	createSlider(settingsContainer, "Sound Volume", 0, 1, 
+		function() return settings.warningSoundVolume end,
+		function(v) 
+			settings.warningSoundVolume = v
+		end, false, true)
 
 	createSlider(settingsContainer, "Line Thickness", 0.05, 1, function() return settings.lineThickness end, 
 	function(v) settings.lineThickness = v
@@ -951,7 +1005,8 @@ function ESPManager:CreateSettingsPanel()
 			end
 		end
 	end, false, true)
-
+	
+	-- TAMBAHKAN SLIDER UNTUK LINE TRANSPARENCY
 	createSlider(settingsContainer, "Line Transparency", 0, 1, function() return settings.lineTransparency end,
 	function(v) 
 		settings.lineTransparency = v
@@ -961,16 +1016,7 @@ function ESPManager:CreateSettingsPanel()
 			end
 		end
 	end, false, true)
-
-	createSlider(settingsContainer, "Sound Volume", 0, 1, 
-		function() return settings.warningSoundVolume end,
-		function(v) 
-			settings.warningSoundVolume = v
-			if warningSound then
-				warningSound.Volume = v
-			end
-		end, false, true)
-
+	
 	createSlider(settingsContainer, "Billboard Size", 0.5, 2, function() return settings.billboardSize end,
 	function(v) settings.billboardSize = v
 		for _, esp in pairs(espObjects) do
@@ -1031,6 +1077,7 @@ function ESPManager:CreateSettingsPanel()
 			end
 		end)
 
+	-- Updated color pickers
 	createColorPicker(settingsContainer, "Line Color (Far)", function() return settings.farColor end,
 	function(v) 
 		settings.farColor = v
@@ -1518,6 +1565,14 @@ function ESPManager:CreatePlayerItem(player)
 		player = player
 	}
 
+	-- LOGIKA OTOMATIS UNTUK PEMAIN BARU
+	-- Jika mode Select All sedang aktif, centang pemain baru ini secara otomatis
+	if isSelectAllActive then
+		checkmark.Visible = true
+		checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+		self:EnableESP(player)
+	end
+
 	checkbox.MouseButton1Click:Connect(function()
 		local newState = not checkmark.Visible
 		checkmark.Visible = newState
@@ -1530,23 +1585,6 @@ function ESPManager:CreatePlayerItem(player)
 			self:DisableESP(player)
 		end
 	end)
-
-	-- CEK APAKAH MODE SELECT ALL SEDANG AKTIF
-	-- Jika ada player lain yang tercentang, maka player baru juga ikut tercentang
-	local isSelectAllActive = false
-	for p, data in pairs(playerItems) do
-		if data and data.checkmark and data.checkmark.Visible then
-			isSelectAllActive = true
-			break
-		end
-	end
-
-	-- Jika mode select all aktif, centang player baru secara otomatis
-	if isSelectAllActive then
-		checkmark.Visible = true
-		checkbox.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-		self:EnableESP(player)
-	end
 
 	self:UpdatePlayerDistance(player, distanceLabel)
 
@@ -1578,6 +1616,7 @@ function ESPManager:RemovePlayerItem(player)
 		distanceConnections[player] = nil
 	end
 
+	-- Clear notification status
 	if notifiedPlayers[player] then
 		notifiedPlayers[player] = nil
 	end
@@ -1647,7 +1686,7 @@ function ESPManager:CreateESPForPlayer(player)
 
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "ESP_Highlight"
-	highlight.FillColor = settings.highlightColor
+	highlight.FillColor = settings.farColor
 	highlight.FillTransparency = settings.highlightTransparency
 	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 	highlight.OutlineTransparency = 0.5
@@ -1850,17 +1889,22 @@ function ESPManager:Start()
 	self:CreateMainGUI()
 	self:LoadInitialPlayers()
 
-	Players.PlayerAdded:Connect(function(player)
+	-- Simpan koneksi PlayerAdded
+	local playerAddedConn = Players.PlayerAdded:Connect(function(player)
 		if player ~= localPlayer then
 			self:CreatePlayerItem(player)
 		end
 	end)
+	table.insert(mainConnections, playerAddedConn)
 
-	Players.PlayerRemoving:Connect(function(player)
+	-- Simpan koneksi PlayerRemoving
+	local playerRemovingConn = Players.PlayerRemoving:Connect(function(player)
 		self:RemovePlayerItem(player)
 	end)
+	table.insert(mainConnections, playerRemovingConn)
 
-	RunService.Heartbeat:Connect(function()
+	-- Simpan koneksi Heartbeat
+	local heartbeatConn = RunService.Heartbeat:Connect(function()
 		if not settings.enabled then return end
 
 		for player, esp in pairs(espObjects) do
@@ -1885,17 +1929,29 @@ function ESPManager:Start()
 
 		checkNearbyPlayers()
 	end)
+	table.insert(mainConnections, heartbeatConn)
 end
 
 function ESPManager:Destroy()
+	-- Matikan semua koneksi utama
+	for _, conn in ipairs(mainConnections) do
+		if conn then
+			conn:Disconnect()
+		end
+	end
+	mainConnections = {}
+
+	-- Matikan semua ESP terlebih dahulu
 	self:ClearAllESP()
 
+	-- Hapus settings panel
 	if settingsFrame then
 		settingsFrame:Destroy()
 		settingsFrame = nil
 		isSettingsOpen = false
 	end
 
+	-- Hapus semua koneksi distance
 	for player, connection in pairs(distanceConnections) do
 		if connection then
 			connection:Disconnect()
@@ -1903,13 +1959,47 @@ function ESPManager:Destroy()
 	end
 	distanceConnections = {}
 
+	-- Hapus semua notifikasi yang aktif
+	for _, notif in ipairs(activeNotifications) do
+		if notif and notif.frame then
+			notif.frame:Destroy()
+		end
+	end
+	activeNotifications = {}
+	notificationIdCounter = 0
+
+	-- Hapus semua player items
+	for player, data in pairs(playerItems) do
+		if data and data.frame then
+			data.frame:Destroy()
+		end
+	end
 	playerItems = {}
 	playerQueue = {}
 
+	-- Hapus notified players
+	for player in pairs(notifiedPlayers) do
+		notifiedPlayers[player] = nil
+	end
+
+	-- Hapus sound
+	if warningSound then
+		warningSound:Stop()
+		warningSound:Destroy()
+		warningSound = nil
+	end
+
+	-- Hapus GUI utama
 	if guiMain then
 		guiMain:Destroy()
 		guiMain = nil
 	end
+
+	-- Reset variabel global
+	isVisible = true
+	isContentVisible = true
+	isSelectAllActive = false
+	searchText = ""
 end
 
 ESPManager:Start()
