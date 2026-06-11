@@ -1,4 +1,4 @@
--- ESP Player Manager GUI
+-- ESP Player Manager GUI - Full Detection Across Entire Place
 
 local ESPManager = {}
 local Players = game:GetService("Players")
@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
 
 local espObjects = {}
 local guiMain = nil
@@ -22,6 +23,7 @@ local isSettingsOpen = false
 local selectAllButton = nil
 local isSelectAllActive = false -- Variabel global untuk status select all
 local mainConnections = {} -- Untuk menyimpan koneksi utama
+local playerLastCFrame = {} -- Menyimpan CFrame terakhir player
 
 -- Track notified players to avoid spam (only notify ONCE per entry)
 local notifiedPlayers = {} -- Stores player -> boolean (notified or not)
@@ -187,6 +189,24 @@ local function formatDistance(distance)
 	else
 		return string.format("%.0f m", distance)
 	end
+end
+
+-- Fungsi untuk mendapatkan CFrame player (dari Character atau estimasi)
+local function getPlayerCFrame(player)
+	-- Coba ambil dari Character dulu
+	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		local rootPart = player.Character.HumanoidRootPart
+		playerLastCFrame[player] = rootPart.CFrame
+		return rootPart.CFrame
+	end
+	
+	-- Jika character tidak ada, gunakan CFrame terakhir yang diketahui
+	if playerLastCFrame[player] then
+		return playerLastCFrame[player]
+	end
+	
+	-- Fallback: gunakan posisi spawn atau (0,0,0)
+	return CFrame.new(0, 0, 0)
 end
 
 -- Fungsi showNotification (SEMUA NOTIFIKASI TAMPIL BERSAMAAN)
@@ -392,7 +412,8 @@ end
 function ESPManager:SelectAllPlayers()
 	-- Toggle status select all
 	isSelectAllActive = not isSelectAllActive
-
+	
+	-- Update semua player yang sudah ada
 	for player, data in pairs(playerItems) do
 		-- Set status checkmark berdasarkan isSelectAllActive
 		data.checkmark.Visible = isSelectAllActive
@@ -416,6 +437,11 @@ function ESPManager:SelectAllPlayers()
 			selectAllButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
 		end
 	end
+end
+
+-- Fungsi untuk mengecek apakah mode Select All sedang aktif
+function ESPManager:IsSelectAllActive()
+	return isSelectAllActive
 end
 
 function ESPManager:CreateSettingsPanel()
@@ -1448,15 +1474,11 @@ function ESPManager:ProcessPlayerQueue()
 end
 
 function ESPManager:GetPlayerDistance(player)
-	if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or
-		not localPlayer or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
-		return nil
-	end
-
-	local targetRoot = player.Character.HumanoidRootPart
-	local localRoot = localPlayer.Character.HumanoidRootPart
-
-	return (localRoot.Position - targetRoot.Position).Magnitude
+	local localRoot = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not localRoot then return nil end
+	
+	local targetCFrame = getPlayerCFrame(player)
+	return (localRoot.Position - targetCFrame.Position).Magnitude
 end
 
 function ESPManager:CreatePlayerItem(player)
@@ -1584,6 +1606,27 @@ function ESPManager:CreatePlayerItem(player)
 			checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 			self:DisableESP(player)
 		end
+		
+		-- Update isSelectAllActive berdasarkan status semua player
+		local anyChecked = false
+		for p, data in pairs(playerItems) do
+			if data.checkmark.Visible then
+				anyChecked = true
+				break
+			end
+		end
+		isSelectAllActive = anyChecked
+		
+		-- Update tombol Select All
+		if selectAllButton then
+			if isSelectAllActive then
+				selectAllButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+				selectAllButton.ImageColor3 = Color3.fromRGB(0, 255, 0)
+			else
+				selectAllButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+				selectAllButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			end
+		end
 	end)
 
 	self:UpdatePlayerDistance(player, distanceLabel)
@@ -1619,6 +1662,11 @@ function ESPManager:RemovePlayerItem(player)
 	-- Clear notification status
 	if notifiedPlayers[player] then
 		notifiedPlayers[player] = nil
+	end
+	
+	-- Clear last CFrame
+	if playerLastCFrame[player] then
+		playerLastCFrame[player] = nil
 	end
 
 	self:UpdatePlayerCount()
@@ -1675,6 +1723,73 @@ function ESPManager:UpdatePlayerDistance(player, distanceLabel)
 	end)
 end
 
+function ESPManager:AttachESPToCharacter(player, character)
+	local esp = espObjects[player]
+	if not esp then return end
+
+	-- Cari HumanoidRootPart
+	local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+	local head = character and character:FindFirstChild("Head")
+	
+	-- Jika character tidak lengkap, jangan attach dulu
+	if not humanoidRootPart or not head then
+		-- Nonaktifkan sementara
+		if esp.Beam then esp.Beam.Enabled = false end
+		if esp.Billboard then esp.Billboard.Enabled = false end
+		if esp.Highlight then esp.Highlight.Enabled = false end
+		
+		-- Tunggu character muncul
+		player.CharacterAdded:Once(function(newChar)
+			self:AttachESPToCharacter(player, newChar)
+		end)
+		return
+	end
+
+	if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+		local localRoot = localPlayer.Character.HumanoidRootPart
+
+		esp.Attachment1.Parent = localRoot
+		esp.Attachment1.WorldCFrame = localRoot.CFrame
+
+		esp.Attachment2.Parent = humanoidRootPart
+		esp.Attachment2.WorldCFrame = humanoidRootPart.CFrame
+
+		esp.Beam.Parent = Workspace
+		esp.Beam.Enabled = true
+	end
+
+	esp.Highlight.Adornee = character
+	esp.Highlight.Parent = character
+	esp.Highlight.Enabled = true
+
+	esp.Billboard.Adornee = head
+	esp.Billboard.Parent = head
+	esp.Billboard.Enabled = settings.billboardEnabled
+
+	-- Update CFrame terakhir
+	playerLastCFrame[player] = humanoidRootPart.CFrame
+
+	local function updateBillboardDistance()
+		if esp.DistanceLabel and esp.DistanceLabel.Parent then
+			local distance = self:GetPlayerDistance(player)
+			if distance then
+				esp.DistanceLabel.Text = formatDistance(distance)
+			else
+				esp.DistanceLabel.Text = "?"
+			end
+		end
+	end
+
+	updateBillboardDistance()
+
+	local connection = RunService.Heartbeat:Connect(updateBillboardDistance)
+
+	if not esp.Connections then
+		esp.Connections = {}
+	end
+	table.insert(esp.Connections, connection)
+end
+
 function ESPManager:CreateESPForPlayer(player)
 	if espObjects[player] then
 		self:RemoveESP(player)
@@ -1684,19 +1799,22 @@ function ESPManager:CreateESPForPlayer(player)
 	esp.Player = player
 	local displayName = getPlayerDisplayName(player)
 
+	-- Highlight akan di-attach nanti saat character ada
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "ESP_Highlight"
 	highlight.FillColor = settings.farColor
 	highlight.FillTransparency = settings.highlightTransparency
 	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 	highlight.OutlineTransparency = 0.5
+	highlight.Enabled = false -- Tunggu character
 
+	-- Billboard tetap dibuat, tapi akan di-attach nanti
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "ESP_Billboard"
 	billboard.Size = UDim2.new(0, 180 * settings.billboardSize, 0, 50 * settings.billboardSize)
 	billboard.StudsOffset = Vector3.new(0, 3, 0)
 	billboard.AlwaysOnTop = true
-	billboard.Enabled = settings.billboardEnabled
+	billboard.Enabled = false -- Tunggu character
 	billboard.ClipsDescendants = false
 
 	local nameFrame = Instance.new("Frame")
@@ -1727,19 +1845,19 @@ function ESPManager:CreateESPForPlayer(player)
 	nameLabel.TextYAlignment = Enum.TextYAlignment.Center
 	nameLabel.Parent = nameFrame
 
-	local distanceLabel = Instance.new("TextLabel")
-	distanceLabel.Name = "BillboardDistance"
-	distanceLabel.Size = UDim2.new(1, -10, 0.3, 0)
-	distanceLabel.Position = UDim2.new(0, 5, 0.65, 0)
-	distanceLabel.BackgroundTransparency = 1
-	distanceLabel.Text = "?"
-	distanceLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
-	distanceLabel.TextTransparency = settings.billboardTextTransparency
-	distanceLabel.TextScaled = true
-	distanceLabel.Font = settings.fontType
-	distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
-	distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
-	distanceLabel.Parent = nameFrame
+	local distanceLabelBillboard = Instance.new("TextLabel")
+	distanceLabelBillboard.Name = "BillboardDistance"
+	distanceLabelBillboard.Size = UDim2.new(1, -10, 0.3, 0)
+	distanceLabelBillboard.Position = UDim2.new(0, 5, 0.65, 0)
+	distanceLabelBillboard.BackgroundTransparency = 1
+	distanceLabelBillboard.Text = "?"
+	distanceLabelBillboard.TextColor3 = Color3.fromRGB(100, 200, 255)
+	distanceLabelBillboard.TextTransparency = settings.billboardTextTransparency
+	distanceLabelBillboard.TextScaled = true
+	distanceLabelBillboard.Font = settings.fontType
+	distanceLabelBillboard.TextXAlignment = Enum.TextXAlignment.Center
+	distanceLabelBillboard.TextYAlignment = Enum.TextYAlignment.Center
+	distanceLabelBillboard.Parent = nameFrame
 
 	local attachment1 = Instance.new("Attachment")
 	attachment1.Name = "ESP_Attachment1"
@@ -1760,73 +1878,28 @@ function ESPManager:CreateESPForPlayer(player)
 	beam.Width1 = settings.lineThickness
 	beam.Attachment0 = attachment1
 	beam.Attachment1 = attachment2
+	beam.Enabled = false -- Tunggu attachment terpasang
 
 	esp.Highlight = highlight
 	esp.Billboard = billboard
 	esp.Attachment1 = attachment1
 	esp.Attachment2 = attachment2
 	esp.Beam = beam
-	esp.DistanceLabel = distanceLabel
+	esp.DistanceLabel = distanceLabelBillboard
 
 	espObjects[player] = esp
 
-	player.CharacterAdded:Connect(function(character)
-		self:AttachESPToCharacter(player, character)
-	end)
-
+	-- Coba attach jika character sudah ada
 	if player.Character then
 		self:AttachESPToCharacter(player, player.Character)
+	else
+		-- Tunggu character muncul
+		player.CharacterAdded:Connect(function(character)
+			self:AttachESPToCharacter(player, character)
+		end)
 	end
 
 	return esp
-end
-
-function ESPManager:AttachESPToCharacter(player, character)
-	local esp = espObjects[player]
-	if not esp then return end
-
-	local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
-	local head = character:WaitForChild("Head", 5)
-
-	if not humanoidRootPart or not head then return end
-
-	if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
-		local localRoot = localPlayer.Character.HumanoidRootPart
-
-		esp.Attachment1.Parent = localRoot
-		esp.Attachment1.WorldCFrame = localRoot.CFrame
-
-		esp.Attachment2.Parent = humanoidRootPart
-		esp.Attachment2.WorldCFrame = humanoidRootPart.CFrame
-
-		esp.Beam.Parent = workspace
-	end
-
-	esp.Highlight.Adornee = character
-	esp.Highlight.Parent = character
-
-	esp.Billboard.Adornee = head
-	esp.Billboard.Parent = head
-
-	local function updateBillboardDistance()
-		if esp.DistanceLabel and esp.DistanceLabel.Parent then
-			local distance = self:GetPlayerDistance(player)
-			if distance then
-				esp.DistanceLabel.Text = formatDistance(distance)
-			else
-				esp.DistanceLabel.Text = "?"
-			end
-		end
-	end
-
-	updateBillboardDistance()
-
-	local connection = RunService.Heartbeat:Connect(updateBillboardDistance)
-
-	if not esp.Connections then
-		esp.Connections = {}
-	end
-	table.insert(esp.Connections, connection)
 end
 
 function ESPManager:EnableESP(player)
@@ -1908,22 +1981,51 @@ function ESPManager:Start()
 		if not settings.enabled then return end
 
 		for player, esp in pairs(espObjects) do
-			if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and 
-				localPlayer and localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
-
+			-- Cek apakah player memiliki character
+			local hasCharacter = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			local localRoot = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+			
+			if hasCharacter and localRoot then
 				local targetRoot = player.Character.HumanoidRootPart
-				local localRoot = localPlayer.Character.HumanoidRootPart
-
-				if esp.Attachment1 and esp.Attachment1.Parent and esp.Attachment2 and esp.Attachment2.Parent then
+				
+				if esp.Attachment1 and esp.Attachment2 then
+					esp.Attachment1.Parent = localRoot
 					esp.Attachment1.WorldCFrame = localRoot.CFrame
+					esp.Attachment2.Parent = targetRoot
 					esp.Attachment2.WorldCFrame = targetRoot.CFrame
-
+					
 					if esp.Beam then esp.Beam.Enabled = true end
-					if esp.Billboard then esp.Billboard.Enabled = settings.billboardEnabled end
+					if esp.Billboard and settings.billboardEnabled then 
+						esp.Billboard.Enabled = true 
+					end
+					if esp.Highlight then esp.Highlight.Enabled = true end
+					
+					-- Simpan CFrame terakhir
+					playerLastCFrame[player] = targetRoot.CFrame
 				end
+			elseif playerLastCFrame[player] and localRoot then
+				-- Player tidak memiliki character, gunakan estimasi posisi
+				if esp.Attachment1 and esp.Attachment2 then
+					esp.Attachment1.Parent = localRoot
+					esp.Attachment1.WorldCFrame = localRoot.CFrame
+					esp.Attachment2.Parent = nil -- Tidak ada target
+					esp.Attachment2.WorldCFrame = playerLastCFrame[player]
+					
+					if esp.Beam then 
+						esp.Beam.Enabled = true
+						-- Update warna beam berdasarkan jarak estimasi
+						local distance = (localRoot.Position - playerLastCFrame[player].Position).Magnitude
+						updateLineColorForPlayer(player, distance)
+					end
+				end
+				
+				-- Billboard dan highlight dinonaktifkan sementara
+				if esp.Billboard then esp.Billboard.Enabled = false end
+				if esp.Highlight then esp.Highlight.Enabled = false end
 			else
 				if esp.Beam then esp.Beam.Enabled = false end
 				if esp.Billboard then esp.Billboard.Enabled = false end
+				if esp.Highlight then esp.Highlight.Enabled = false end
 			end
 		end
 
@@ -1980,6 +2082,11 @@ function ESPManager:Destroy()
 	-- Hapus notified players
 	for player in pairs(notifiedPlayers) do
 		notifiedPlayers[player] = nil
+	end
+	
+	-- Hapus last CFrame
+	for player in pairs(playerLastCFrame) do
+		playerLastCFrame[player] = nil
 	end
 
 	-- Hapus sound
