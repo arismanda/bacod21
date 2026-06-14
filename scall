@@ -1,0 +1,1017 @@
+local RunService = game:GetService("RunService")
+--[[
+
+    WindUI Example (wip)
+    
+]]
+
+local cloneref = (cloneref or clonereference or function(instance)
+	return instance
+end)
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local HttpService = cloneref(game:GetService("HttpService"))
+
+local WindUI
+
+do
+	local ok, result = pcall(function()
+		return require("./src/Init")
+	end)
+
+	if ok then
+		WindUI = result
+	else
+		if cloneref(game:GetService("RunService")):IsStudio() then
+			WindUI = require(cloneref(ReplicatedStorage:WaitForChild("WindUI"):WaitForChild("Init")))
+		else
+			WindUI =
+				loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+		end
+	end
+end
+
+--[[
+
+WindUI.Creator.AddIcons("solar", {
+    ["CheckSquareBold"] = "rbxassetid://132438947521974",
+    ["CursorSquareBold"] = "rbxassetid://120306472146156",
+    ["FileTextBold"] = "rbxassetid://89294979831077",
+    ["FolderWithFilesBold"] = "rbxassetid://74631950400584",
+    ["HamburgerMenuBold"] = "rbxassetid://134384554225463",
+    ["Home2Bold"] = "rbxassetid://92190299966310",
+    ["InfoSquareBold"] = "rbxassetid://119096461016615",
+    ["PasswordMinimalisticInputBold"] = "rbxassetid://109919668957167",
+    ["SolarSquareTransferHorizontalBold"] = "rbxassetid://125444491429160",
+})--]]
+
+function createPopup()
+	return WindUI:Popup({
+		Title = "Welcome to the XenThod!",
+		Icon = "bird",
+		Content = "Hello!",
+		Buttons = {
+			{
+				Title = "Hahaha",
+				Icon = "bird",
+				Variant = "Tertiary",
+			},
+			{
+				Title = "Hahaha",
+				Icon = "bird",
+				Variant = "Tertiary",
+			},
+			{
+				Title = "Hahaha",
+				Icon = "bird",
+				Variant = "Tertiary",
+			},
+		},
+	})
+end
+
+-- */  Window  /* --
+local Window = WindUI:CreateWindow({
+	Title = "XenThod hub  |  Roblox Script",
+	--Author = "by .XenThod • Official HUB",
+	Folder = "XenThod",
+	Icon = "solar:folder-2-bold-duotone",
+	Theme = "Midnight",
+	--IconSize = 22*2,
+	NewElements = true,
+	--Size = UDim2.fromOffset(700,700),
+
+	HideSearchBar = false,
+
+	OpenButton = {
+		Title = "Open .XenThod hub UI", -- can be changed
+		CornerRadius = UDim.new(1, 0), -- fully rounded
+		StrokeThickness = 3, -- removing outline
+		Enabled = true, -- enable or disable openbutton
+		Draggable = true,
+		OnlyMobile = false,
+		Scale = 0.7,
+
+		Color = ColorSequence.new( -- gradient
+			Color3.fromHex("#595957"),
+			Color3.fromHex("#e7ff2f")
+		),
+	},
+	Topbar = {
+		Height = 44,
+		ButtonsType = "Mac", -- Default or Mac
+	},
+})
+
+--createPopup()
+
+--Window:SetUIScale(.8)
+
+-- */  Tags  /* --
+do
+	Window:Tag({
+		Title = "v" .. WindUI.Version,
+		Icon = "github",
+		Color = Color3.fromHex("#1c1c1c"),
+		Border = true,
+	})
+end
+
+-- */  Colors  /* --
+local Purple = Color3.fromHex("#7775F2")
+local Yellow = Color3.fromHex("#ECA201")
+local Green = Color3.fromHex("#10C550")
+local Grey = Color3.fromHex("#83889E")
+local Blue = Color3.fromHex("#257AF7")
+local Red = Color3.fromHex("#EF4F1D")
+
+-- */ Other Functions /* --
+local function parseJSON(luau_table, indent, level, visited)
+	indent = indent or 2
+	level = level or 0
+	visited = visited or {}
+
+	local currentIndent = string.rep(" ", level * indent)
+	local nextIndent = string.rep(" ", (level + 1) * indent)
+
+	if luau_table == nil then
+		return "null"
+	end
+
+	local dataType = type(luau_table)
+
+	if dataType == "table" then
+		if visited[luau_table] then
+			return '"[Circular Reference]"'
+		end
+
+		visited[luau_table] = true
+
+		local isArray = true
+		local maxIndex = 0
+
+		for k, _ in pairs(luau_table) do
+			if type(k) == "number" and k > maxIndex then
+				maxIndex = k
+			end
+			if type(k) ~= "number" or k <= 0 or math.floor(k) ~= k then
+				isArray = false
+				break
+			end
+		end
+
+		local count = 0
+		for _ in pairs(luau_table) do
+			count = count + 1
+		end
+		if count ~= maxIndex and isArray then
+			isArray = false
+		end
+
+		if count == 0 then
+			return "{}"
+		end
+
+		if isArray then
+			if count == 0 then
+				return "[]"
+			end
+
+			local result = "[\n"
+
+			for i = 1, maxIndex do
+				result = result .. nextIndent .. parseJSON(luau_table[i], indent, level + 1, visited)
+				if i < maxIndex then
+					result = result .. ","
+				end
+				result = result .. "\n"
+			end
+
+			result = result .. currentIndent .. "]"
+			return result
+		else
+			local result = "{\n"
+			local first = true
+
+			local keys = {}
+			for k in pairs(luau_table) do
+				table.insert(keys, k)
+			end
+			table.sort(keys, function(a, b)
+				if type(a) == type(b) then
+					return tostring(a) < tostring(b)
+				else
+					return type(a) < type(b)
+				end
+			end)
+
+			for _, k in ipairs(keys) do
+				local v = luau_table[k]
+				if not first then
+					result = result .. ",\n"
+				else
+					first = false
+				end
+
+				if type(k) == "string" then
+					result = result .. nextIndent .. '"' .. k .. '": '
+				else
+					result = result .. nextIndent .. '"' .. tostring(k) .. '": '
+				end
+
+				result = result .. parseJSON(v, indent, level + 1, visited)
+			end
+
+			result = result .. "\n" .. currentIndent .. "}"
+			return result
+		end
+	elseif dataType == "string" then
+		local escaped = luau_table:gsub("\\", "\\\\")
+		escaped = escaped:gsub('"', '\\"')
+		escaped = escaped:gsub("\n", "\\n")
+		escaped = escaped:gsub("\r", "\\r")
+		escaped = escaped:gsub("\t", "\\t")
+
+		return '"' .. escaped .. '"'
+	elseif dataType == "number" then
+		return tostring(luau_table)
+	elseif dataType == "boolean" then
+		return luau_table and "true" or "false"
+	elseif dataType == "function" then
+		return '"function"'
+	else
+		return '"' .. dataType .. '"'
+	end
+end
+
+local function tableToClipboard(luau_table, indent)
+	indent = indent or 4
+	local jsonString = parseJSON(luau_table, indent)
+	setclipboard(jsonString)
+	return jsonString
+end
+
+-- */  About Tab  /* --
+do
+	local AboutTab = Window:Tab({
+		Title = "About XenThod Hub",
+		Desc = "",
+		Icon = "solar:info-square-bold",
+		IconColor = Grey,
+		IconShape = "Square",
+		Border = true,
+	})
+
+	local AboutSection = AboutTab:Section({
+		Title = "About WindUI",
+	})
+
+	AboutSection:Image({
+		Image = "https://downloadscdn5.magnific.com/download_vector/jpg/698/698780/34/34356/34356110_koa4.jpg?token=exp=1779950878~hmac=eb36b42b979ff77460ec4a37dad72983&filename=34356110_koa4.jpg",
+		AspectRatio = "16:9",
+		Radius = 9,
+	})
+
+	AboutSection:Space({ Columns = 3 })
+
+	AboutSection:Section({
+		Title = "What is XenThod Hub?",
+		TextSize = 24,
+		FontWeight = Enum.FontWeight.SemiBold,
+	})
+
+	AboutSection:Space()
+
+	AboutSection:Section({
+		Title = "Script Roblox.",
+		TextSize = 18,
+		TextTransparency = 0.35,
+		FontWeight = Enum.FontWeight.Medium,
+	})
+
+	AboutTab:Space({ Columns = 4 })
+
+	-- Default buttons
+
+
+	AboutTab:Button({
+		Title = "Destroy Window",
+		Color = Color3.fromHex("#ff4830"),
+		Justify = "Center",
+		Icon = "shredder",
+		IconAlign = "Left",
+		Callback = function()
+			Window:Destroy()
+		end,
+	})
+end
+
+-- */  Elements Section  /* --
+local ElementsSection = Window:Section({
+	Title = "List Games",
+})
+local ConfigUsageSection = Window:Section({
+	Title = "Config Usage",
+})
+local OtherSection = Window:Section({
+	Title = "Other",
+})
+
+-- */  Overview Tab  /* --
+do
+	local OverviewTab = ElementsSection:Tab({
+		Title = "Indo Hangout",
+		Icon = "solar:gamepad-minimalistic-bold",
+		IconColor = Red,
+		IconShape = "Square",
+		Border = true,
+	})
+
+	
+	OverviewTab:Button({
+		Title = "Auto Fishing",
+		--Desc = "Mancing Otomatis Indo Hangout",
+		Callback = function()
+			WindUI:Notify({
+				Title = "Auto Fishing",
+				Content = "Auto Fishing was Running!",
+				Icon = "solar:bell-bold",
+				Duration = 5,
+				CanClose = false,
+			})
+			
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/Asunk21/Roblox/refs/heads/main/fishing"))()
+		end,
+	})
+
+	OverviewTab:Space()
+
+local isRunning = false
+local loopThread = nil
+
+OverviewTab:Toggle({
+	Title = "Auto Mining",
+	Desc = "Jalankan untuk auto mining",
+	Callback = function(state)
+		if state then
+			-- Saat toggle ON
+			isRunning = true
+			loopThread = task.spawn(function()
+				while isRunning do
+					local args = {"Hit"}
+					game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("RemoteEvent"):WaitForChild("Pickaxe"):FireServer(unpack(args))
+					task.wait(0.5)
+				end
+			end)
+		else
+			-- Saat toggle OFF
+			isRunning = false
+			if loopThread then
+				task.cancel(loopThread)
+				loopThread = nil
+			end
+		end
+	end
+})
+
+	OverviewTab:Space()
+
+
+local autoClickThread = nil
+local isRunning = false
+
+OverviewTab:Toggle({
+    Title = "Auto Click",
+    Desc = "Jalankan untuk auto click",
+    Callback = function(state)
+        if state then
+            if autoClickThread then return end
+            
+            local VirtualInput = game:GetService("VirtualInputManager")
+            local CLICK_DELAY = 0.1
+            
+            local function leftClick()
+                VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+            end
+            
+            isRunning = true
+            autoClickThread = task.spawn(function()
+                while isRunning do
+                    leftClick()
+                    task.wait(CLICK_DELAY)
+                end
+            end)
+            
+        else
+            isRunning = false
+            autoClickThread = nil
+        end
+    end
+})
+
+end
+
+-- */  Toggle Tab  /* --
+do
+	local SliderTab = ElementsSection:Tab({
+		Title = "Setting",
+		Icon = "solar:settings-minimalistic-bold",
+		IconColor = Grey,
+		IconShape = "Square",
+		Border = true,
+	})
+
+	SliderTab:Section({
+		Title = "Change Speed And Jump",
+		TextSize = 14,
+	})
+	SliderTab:Button({
+		Title = "ESP Player",
+		--Desc = "Mancing Otomatis Indo Hangout",
+		Callback = function()
+			WindUI:Notify({
+				Title = "ESP Player was Activated",
+				Content = "ESP was Running!",
+				Icon = "solar:bell-bold",
+				Duration = 5,
+				CanClose = false,
+			})
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/Asunk21/Roblox/refs/heads/main/ESP"))()
+				end,
+	})	
+	
+		SliderTab:Space()
+
+	
+		SliderTab:Button({
+		Title = "Camera MOD by Asunk",
+		--Desc = "Camera Static Smooth",
+		Callback = function()
+			WindUI:Notify({
+				Title = "Camera MOD was Activated",
+				Content = "Camera MOD was Running!",
+				Icon = "solar:bell-bold",
+				Duration = 5,
+				CanClose = false,
+			})
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/Asunk21/Roblox/refs/heads/main/camera"))()
+				end,
+	})	
+		SliderTab:Space()
+		
+		
+				SliderTab:Button({
+		Title = "Freecam by Asunk",
+		--Desc = "Camera Freecam ALL MAP",
+		Callback = function()
+			WindUI:Notify({
+				Title = "Freecam was Activated",
+				Content = "Freecam was Running!",
+				Icon = "solar:bell-bold",
+				Duration = 5,
+				CanClose = false,
+			})
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Asunk21/Roblox/refs/heads/main/freecam"))()
+				end,
+	})	
+	
+			SliderTab:Space()
+		
+		
+				SliderTab:Button({
+		Title = "Spectate MOD",
+		--Desc = "Spectate ALL MAP",
+		Callback = function()
+			WindUI:Notify({
+				Title = "Spectate was Activated",
+				Content = "Spectate was Running!",
+				Icon = "solar:bell-bold",
+				Duration = 5,
+				CanClose = false,
+			})
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Kixdev/spectate-player-roblox/main/main.lua"))()
+				end,
+	})	
+	
+		SliderTab:Space()
+		
+		
+		SliderTab:Button({
+		Title = "Emote Custom by Asunk",
+		--Desc = "Custom Emotes",
+		Callback = function()
+			WindUI:Notify({
+				Title = "Camera MOD was Activated",
+				Content = "Camera MOD was Running!",
+				Icon = "solar:bell-bold",
+				Duration = 5,
+				CanClose = false,
+			})
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Asunk21/Roblox/refs/heads/main/emot"))()
+				end,
+	})	
+		SliderTab:Space()
+
+	-- ============ FULL BYPASS SYSTEM ============
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Konfigurasi
+local defaultWalkSpeed = humanoid.WalkSpeed
+local defaultJumpPower = humanoid.JumpPower
+humanoid.UseJumpPower = true
+local defaultUseJumpPower = humanoid.UseJumpPower
+
+local isEnabled = false
+local currentWalkSpeed = defaultWalkSpeed
+local currentJumpPower = defaultJumpPower
+
+-- VARIABEL BYPASS
+local bypassLevel = 3 -- 1=Lemah, 2=Sedang, 3=Kuat
+local lastCheckWS = 0
+local lastCheckJP = 0
+local overrideConnection = nil
+local hookApplied = false
+
+-- ===== BYPASS LEVEL 3: Hook Metatable =====
+local function applyHook()
+    if hookApplied then return end
+    if not humanoid then return end
+    
+    local success, mt = pcall(getrawmetatable, humanoid)
+    if not success or not mt then return end
+    
+    local oldNewIndex = mt.__newindex
+    local oldIndex = mt.__index
+    
+    setreadonly(mt, false)
+    
+    mt.__newindex = function(t, k, v)
+        if isEnabled and (k == "WalkSpeed" or k == "JumpPower" or k == "UseJumpPower") then
+            if k == "WalkSpeed" and v ~= currentWalkSpeed then
+                return -- Block
+            end
+            if k == "JumpPower" and v ~= currentJumpPower then
+                return -- Block
+            end
+            if k == "UseJumpPower" and v ~= true then
+                return -- Block
+            end
+        end
+        return oldNewIndex(t, k, v)
+    end
+    
+    setreadonly(mt, true)
+    hookApplied = true
+end
+
+-- ===== BYPASS LEVEL 2: Loop Override =====
+local function startOverride()
+    if overrideConnection then overrideConnection:Disconnect() end
+    
+    overrideConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not isEnabled then return end
+        if not humanoid or not humanoid.Parent then return end
+        
+        -- Force setiap 0.05 detik (lebih halus dari Stepped)
+        if humanoid.WalkSpeed ~= currentWalkSpeed then
+            humanoid.WalkSpeed = currentWalkSpeed
+        end
+        if humanoid.JumpPower ~= currentJumpPower then
+            humanoid.JumpPower = currentJumpPower
+        end
+        if humanoid.UseJumpPower ~= true then
+            humanoid.UseJumpPower = true
+        end
+    end)
+end
+
+-- ===== BYPASS LEVEL 1: Event Response =====
+local function setupEventResponse()
+    -- Respon cepat ke perubahan
+    local wsChanged = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if not isEnabled then return end
+        if humanoid.WalkSpeed ~= currentWalkSpeed then
+            task.spawn(function()
+                task.wait(0.01)
+                if humanoid and humanoid.Parent then
+                    humanoid.WalkSpeed = currentWalkSpeed
+                end
+            end)
+        end
+    end)
+    
+    local jpChanged = humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        if not isEnabled then return end
+        if humanoid.JumpPower ~= currentJumpPower then
+            task.spawn(function()
+                task.wait(0.01)
+                if humanoid and humanoid.Parent then
+                    humanoid.JumpPower = currentJumpPower
+                end
+            end)
+        end
+    end)
+    
+    return wsChanged, jpChanged
+end
+
+-- ===== UPDATE SAAT RESPAWN =====
+local function updateHumanoid(newCharacter)
+    humanoid = newCharacter:WaitForChild("Humanoid")
+    
+    -- Update default values
+    defaultWalkSpeed = humanoid.WalkSpeed
+    defaultJumpPower = humanoid.JumpPower
+    defaultUseJumpPower = humanoid.UseJumpPower
+    
+    hookApplied = false
+    
+    if bypassLevel >= 3 then
+        applyHook()
+    end
+    
+    if isEnabled then
+        humanoid.WalkSpeed = currentWalkSpeed
+        humanoid.UseJumpPower = true
+        humanoid.JumpPower = currentJumpPower
+    else
+        humanoid.WalkSpeed = defaultWalkSpeed
+        humanoid.UseJumpPower = defaultUseJumpPower
+        humanoid.JumpPower = defaultJumpPower
+    end
+end
+
+-- ===== INIT =====
+player.CharacterAdded:Connect(updateHumanoid)
+
+-- Setup event response (Level 1)
+local wsEvent, jpEvent = setupEventResponse()
+
+-- Start override (Level 2)
+startOverride()
+
+-- Apply hook (Level 3) setelah delay
+task.wait(0.5)
+applyHook()
+
+-- ===== TOGGLE =====
+SliderTab:Toggle({
+    Title = "Speed Walk and Jump (BYPASS)",
+    Desc = "Mode Bypass: Mencegah reset dari script lain",
+    Callback = function(state)
+        isEnabled = state
+        
+        if state then
+            if humanoid and humanoid.Parent then
+                humanoid.WalkSpeed = currentWalkSpeed
+                humanoid.UseJumpPower = true
+                humanoid.JumpPower = currentJumpPower
+            end
+        else
+            if humanoid and humanoid.Parent then
+                humanoid.WalkSpeed = defaultWalkSpeed
+                humanoid.UseJumpPower = defaultUseJumpPower
+                humanoid.JumpPower = defaultJumpPower
+            end
+        end
+    end,
+})
+
+
+	SliderTab:Space()
+
+	-- Slider WalkSpeed
+	SliderTab:Slider({
+		Title = "Walkspeed",
+		Step = 1,
+		Width = 200,
+		Value = {
+			Min = 0,
+			Max = 500,
+			Default = defaultWalkSpeed,
+		},
+		Callback = function(value)
+			currentWalkSpeed = value
+			
+			if toggleState then
+				-- Hanya terapkan jika toggle aktif
+				if humanoid and humanoid.Parent then
+					humanoid.WalkSpeed = value
+				else
+					local char = player.Character
+					if char then
+						humanoid = char:WaitForChild("Humanoid")
+						if humanoid then
+							humanoid.WalkSpeed = value
+						end
+					end
+				end
+			else
+			end
+		end,
+	})
+
+	SliderTab:Space()
+
+	-- Slider Power Jump
+	SliderTab:Slider({
+		Title = "Power Jump",
+		Step = 1,
+		Width = 200,
+		Value = {
+			Min = 0,
+			Max = 200,
+			Default = defaultJumpPower,
+		},
+		Callback = function(value)
+			currentJumpPower = value
+			
+			if toggleState then
+				-- Hanya terapkan jika toggle aktif
+				if humanoid and humanoid.Parent then
+					humanoid.UseJumpPower = true
+					humanoid.JumpPower = value
+				else
+					local char = player.Character
+					if char then
+						humanoid = char:WaitForChild("Humanoid")
+						if humanoid then
+							humanoid.UseJumpPower = true
+							humanoid.JumpPower = value
+						end
+					end
+				end
+			else
+			end
+		end,
+	})
+	SliderTab:Space()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Asunk21/Roblox/refs/heads/main/fly"))()
+-- UI Elements
+SliderTab:Toggle({
+    Title = "Fly",
+    Desc = "Nyalakan untuk Fly",
+    Callback = function(state)
+        if state then
+            sFLY(false)
+        else
+            NOFLY()
+        end
+    end,
+})
+
+SliderTab:Space()
+
+SliderTab:Slider({
+    Title = "FlySpeed",
+    Step = 1,
+    Width = 200,
+    Value = {
+        Min = 1,
+        Max = 50,
+        Default = 1,
+    },
+    Callback = function(value)
+        iyflyspeed = value
+    end,
+})
+end
+
+
+-- */  Config Usage  /* --
+-- */  Other  /* --
+do
+	local InviteCode = "ftgs-development-hub-1300692552005189632"
+	local DiscordAPI = "https://discord.com/api/v10/invites/" .. InviteCode .. "?with_counts=true&with_expiration=true"
+
+	local Response = WindUI.cloneref(game:GetService("HttpService"))
+		:JSONDecode(WindUI.Creator.Request and WindUI.Creator.Request({
+			Url = DiscordAPI,
+			Method = "GET",
+			Headers = {
+				["User-Agent"] = "WindUI/Example",
+				["Accept"] = "application/json",
+			},
+		}).Body or "{}")
+
+	local DiscordTab = OtherSection:Tab({
+		Title = "Discord",
+		Border = true,
+	})
+
+	if Response and Response.guild then
+		DiscordTab:Section({
+			Title = "Join our Discord server!",
+			TextSize = 20,
+		})
+		local DiscordServerParagraph = DiscordTab:Paragraph({
+			Title = tostring(Response.guild.name),
+			Desc = tostring(Response.guild.description),
+			Image = "https://cdn.discordapp.com/icons/"
+				.. Response.guild.id
+				.. "/"
+				.. Response.guild.icon
+				.. ".png?size=1024",
+			Thumbnail = "https://cdn.discordapp.com/banners/1300692552005189632/35981388401406a4b7dffd6f447a64c4.png?size=512",
+			ImageSize = 48,
+			Buttons = {
+				{
+					Title = "Copy link",
+					Icon = "link",
+					Callback = function()
+						setclipboard("https://discord.gg/" .. InviteCode)
+					end,
+				},
+			},
+		})
+	elseif RunService:IsStudio() or not writefile then
+		DiscordTab:Paragraph({
+			Title = "Discord API is not available in Studio mode.",
+			TextSize = 20,
+			Justify = "Center",
+			Image = "solar:info-circle-bold",
+			Color = "Red",
+			Buttons = {
+				{
+					Title = "Get/Copy Invite Link",
+					Icon = "link",
+					Callback = function()
+						if setclipboard then
+							setclipboard("https://discord.gg/" .. InviteCode)
+						else
+							WindUI:Notify({
+								Title = "Discord Invite Link",
+								Content = "https://discord.gg/" .. InviteCode,
+							})
+						end
+					end,
+				},
+			},
+		})
+	else
+		DiscordTab:Paragraph({
+			Title = "Failed to fetch Discord server info.",
+			TextSize = 20,
+			Justify = "Center",
+			Image = "solar:info-circle-bold",
+			Color = "Red",
+		})
+	end
+end
+
+local Tabs = {
+	ExampleTab = Window:Tab({
+		Title = "Example Tab",
+		Icon = "bird",
+	}),
+}
+
+local dropdownA
+
+local LargeListA = {
+	"All",
+	"Item A2",
+	"Item A3",
+	"Item A4",
+	"Item A5",
+	"Item A6",
+	"Item A7",
+	"Item A8",
+	"Item A9",
+	"Item A10",
+	"Item A11",
+	"Item A12",
+	"Item A13",
+	"Item A14",
+	"Item A15",
+	"Item A16",
+	"Item A17",
+	"Item A18",
+	"Item A19",
+	"Item A20",
+	"Item A21",
+	"Item A22",
+	"Item A23",
+	"Item A24",
+	"Item A25",
+	"Item A26",
+	"Item A27",
+	"Item A28",
+	"Item A29",
+	"Item A30",
+	"Item A31",
+	"Item A32",
+	"Item A33",
+	"Item A34",
+	"Item A35",
+	"Item A36",
+	"Item A37",
+	"Item A38",
+	"Item A39",
+	"Item A40",
+	"Item A41",
+	"Item A42",
+	"Item A43",
+	"Item A44",
+	"Item A45",
+	"Item A46",
+	"Item A47",
+	"Item A48",
+	"Item A49",
+	"Item A50",
+	"Item A51",
+	"Item A52",
+	"Item A53",
+	"Item A54",
+	"Item A55",
+	"Item A56",
+	"Item A57",
+	"Item A58",
+	"Item A59",
+	"Item A60",
+	"Item A61",
+	"Item A62",
+	"Item A63",
+	"Item A64",
+	"Item A65",
+	"Item A66",
+	"Item A67",
+	"Item A68",
+	"Item A69",
+	"Item A70",
+	"Item A71",
+	"Item A72",
+	"Item A73",
+	"Item A74",
+	"Item A75",
+	"Item A76",
+	"Item A77",
+	"Item A78",
+	"Item A79",
+	"Item A80",
+	"Item A81",
+	"Item A82",
+	"Item A83",
+	"Item A84",
+	"Item A85",
+	"Item A86",
+	"Item A87",
+	"Item A88",
+	"Item A89",
+	"Item A90",
+	"Item A91",
+	"Item A92",
+	"Item A93",
+	"Item A94",
+	"Item A95",
+	"Item A96",
+	"Item A97",
+	"Item A98",
+	"Item A99",
+	"Item A100",
+}
+
+local LargeListB = {
+	"Data B1",
+	"Data B2",
+	"Data B3",
+	"Data B4",
+	"Data B5",
+	"Data B6",
+	"Data B7",
+	"Data B8",
+	"Data B9",
+	"Data B10",
+}
+
+Tabs.ExampleTab:Dropdown({
+	Title = "Main Category",
+	Values = { "All", "Other Option" },
+	Value = "All",
+	Callback = function(option)
+		if dropdownA then
+			task.spawn(function()
+				if option == "All" then
+					dropdownA:Refresh(LargeListA)
+				else
+					dropdownA:Refresh(LargeListB)
+				end
+
+				dropdownA:Select({ "All" })
+			end)
+		end
+	end,
+})
+
+dropdownA = Tabs.ExampleTab:Dropdown({
+	Title = "Target",
+	Values = LargeListA,
+	Multi = true,
+	Value = { "All" },
+	Callback = function(option) end,
+})
