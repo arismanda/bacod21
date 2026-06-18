@@ -1,15 +1,4 @@
-local isRunning = false
-local loopThread = nil
-local whiteBarLocked = false
-local lastGuiVisible = false
-local originalSize = nil
-local originalPosition = nil
-
-OverviewTab:Toggle({
-    Title = "Auto Fishing",
-    Desc = "Jalankan untuk auto fishing",
-    Callback = function(state)
-        if state then
+ if state then
             -- Saat toggle ON
             isRunning = true
             whiteBarLocked = false
@@ -177,4 +166,3 @@ OverviewTab:Toggle({
             originalPosition = nil
         end
     end
-})
