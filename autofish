@@ -1,0 +1,180 @@
+local isRunning = false
+local loopThread = nil
+local whiteBarLocked = false
+local lastGuiVisible = false
+local originalSize = nil
+local originalPosition = nil
+
+OverviewTab:Toggle({
+    Title = "Auto Fishing",
+    Desc = "Jalankan untuk auto fishing",
+    Callback = function(state)
+        if state then
+            -- Saat toggle ON
+            isRunning = true
+            whiteBarLocked = false
+            lastGuiVisible = false
+            originalSize = nil
+            originalPosition = nil
+            
+            loopThread = task.spawn(function()
+                local Players = game:GetService("Players")
+                local RunService = game:GetService("RunService")
+                local VirtualInput = game:GetService("VirtualInputManager")
+                
+                local player = Players.LocalPlayer
+                
+                local function getUIElements()
+                    local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
+                    if not reelingGui then return end
+                    
+                    local mainFrame = reelingGui:FindFirstChild("MainFrame")
+                    if not mainFrame then return end
+                    
+                    local frame = mainFrame:FindFirstChild("Frame")
+                    if not frame then return end
+                    
+                    local whiteBar = frame:FindFirstChild("WhiteBar")
+                    
+                    if whiteBar then
+                        return whiteBar, frame
+                    end
+                end
+                
+                local function lockWhiteBar()
+                    local WhiteBar, parentFrame = getUIElements()
+                    if WhiteBar then
+                        -- Simpan nilai original pertama kali
+                        if originalSize == nil then
+                            originalSize = WhiteBar.Size
+                            originalPosition = WhiteBar.Position
+                        end
+                        
+                        WhiteBar.Size = UDim2.new(
+                            1, 0,
+                            WhiteBar.Size.Y.Scale, WhiteBar.Size.Y.Offset
+                        )
+                        
+                        WhiteBar.Position = UDim2.new(
+                            0.5, 0,
+                            WhiteBar.Position.Y.Scale, WhiteBar.Position.Y.Offset
+                        )
+                        
+                        whiteBarLocked = true
+                    end
+                end
+                
+                local function restoreWhiteBar()
+                    local WhiteBar, parentFrame = getUIElements()
+                    if WhiteBar and originalSize and originalPosition then
+                        WhiteBar.Size = originalSize
+                        WhiteBar.Position = originalPosition
+                    end
+                    whiteBarLocked = false
+                end
+                
+                local function leftClick()
+                    VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                    task.wait(0.05)
+                    VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                end
+                
+                local function scheduleClick(delayTime)
+                    task.delay(delayTime, function()
+                        if isRunning then
+                            leftClick()
+                        end
+                    end)
+                end
+                
+                local function setupGUIWatcher()
+                    local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
+                    
+                    if reelingGui then
+                        reelingGui:GetPropertyChangedSignal("Enabled"):Connect(function()
+                            if not reelingGui.Enabled and isRunning then
+                                scheduleClick(2)
+                                whiteBarLocked = false
+                            end
+                        end)
+                        
+                        reelingGui.AncestryChanged:Connect(function()
+                            if not reelingGui.Parent and isRunning then
+                                scheduleClick(2)
+                                whiteBarLocked = false
+                            end
+                        end)
+                    end
+                end
+                
+                while isRunning do
+                    local WhiteBar, parentFrame = getUIElements()
+                    
+                    if WhiteBar and parentFrame then
+                        if not whiteBarLocked then
+                            lockWhiteBar()
+                        else
+                            WhiteBar.Size = UDim2.new(
+                                1, 0,
+                                WhiteBar.Size.Y.Scale, WhiteBar.Size.Y.Offset
+                            )
+                            WhiteBar.Position = UDim2.new(
+                                0.5, 0,
+                                WhiteBar.Position.Y.Scale, WhiteBar.Position.Y.Offset
+                            )
+                        end
+                        
+                        lastGuiVisible = true
+                        
+                    elseif lastGuiVisible then
+                        scheduleClick(0.1)
+                        lastGuiVisible = false
+                        whiteBarLocked = false
+                    end
+                    
+                    setupGUIWatcher()
+                    
+                    player.PlayerGui.ChildAdded:Connect(function(child)
+                        if child.Name == "Reeling" and isRunning then
+                            setupGUIWatcher()
+                        end
+                    end)
+                    
+                    task.wait()
+                end
+            end)
+        else
+            -- Saat toggle OFF
+            isRunning = false
+            if loopThread then
+                task.cancel(loopThread)
+                loopThread = nil
+            end
+            
+            -- Kembalikan WhiteBar ke ukuran semula
+            local Players = game:GetService("Players")
+            local player = Players.LocalPlayer
+            local reelingGui = player.PlayerGui:FindFirstChild("Reeling")
+            
+            if reelingGui then
+                local mainFrame = reelingGui:FindFirstChild("MainFrame")
+                if mainFrame then
+                    local frame = mainFrame:FindFirstChild("Frame")
+                    if frame then
+                        local whiteBar = frame:FindFirstChild("WhiteBar")
+                        if whiteBar and originalSize and originalPosition then
+                            whiteBar.Size = originalSize
+                            whiteBar.Position = originalPosition
+                        end
+                    end
+                end
+            end
+            
+            -- Reset state
+            whiteBarLocked = false
+            lastGuiVisible = false
+            originalSize = nil
+            originalPosition = nil
+        end
+    end
+})
